@@ -317,6 +317,14 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::Memcmp:
         case fir::IntrinsicSubType::MaskedLoad:
         case fir::IntrinsicSubType::Gather:
+        case fir::IntrinsicSubType::Clmul:
+        case fir::IntrinsicSubType::PackSS:
+        case fir::IntrinsicSubType::PackUS:
+        case fir::IntrinsicSubType::PMulHW:
+        case fir::IntrinsicSubType::PMaddWD:
+        case fir::IntrinsicSubType::PMaddUBSW:
+        case fir::IntrinsicSubType::PermD:
+        case fir::IntrinsicSubType::MoveMask:
         case fir::IntrinsicSubType::InlineAsm:
         case fir::IntrinsicSubType::InlineAsmPure:
         case fir::IntrinsicSubType::TlsAddress:
@@ -500,6 +508,7 @@ class KnownBits final : public AttributeAnalysis,
         case fir::VectorISubType::INVALID:
         case fir::VectorISubType::Broadcast:
         case fir::VectorISubType::Shuffle:
+        case fir::VectorISubType::ByteShuffle:
         case fir::VectorISubType::Concat:
         case fir::VectorISubType::ExtractHigh:
         case fir::VectorISubType::ExtractLow:

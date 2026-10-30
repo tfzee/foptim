@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "utils/types.hpp"
@@ -19,6 +20,7 @@ enum class LibFunc : u8 {
   Cos,
   Tan,
   Pow,
+  Fmod,
   Sqrt,
   Strlen,
   Strcmp,
@@ -46,7 +48,7 @@ struct LibFuncName {
 
 // folded on constant floating point arguments
 inline bool is_math_libfunc(LibFunc f) {
-  return f >= LibFunc::Log && f <= LibFunc::Pow;
+  return f >= LibFunc::Log && f <= LibFunc::Fmod;
 }
 
 inline bool is_string_libfunc(LibFunc f) {
@@ -68,6 +70,7 @@ inline constexpr LibFuncName LibFuncNames[] = {
     {"cos", LibFunc::Cos, 1},
     {"tan", LibFunc::Tan, 1},
     {"pow", LibFunc::Pow, 2},
+    {"fmod", LibFunc::Fmod, 2},
     {"sqrt", LibFunc::Sqrt, 1},
     {"strlen", LibFunc::Strlen, 1, true},
     {"strcmp", LibFunc::Strcmp, 2, true},
@@ -91,6 +94,29 @@ inline std::optional<LibFuncName> lookup_libfunc(std::string_view name) {
     }
   }
   return std::nullopt;
+}
+
+// libm function a scalar `llvm.<name>.f32` / `llvm.<name>.f64` math intrinsic
+// stands for (`log` / `logf`), empty if it is none
+inline std::string intrinsic_libm_name(std::string_view llvm_name) {
+  if (!llvm_name.starts_with("llvm.")) {
+    return {};
+  }
+  llvm_name.remove_prefix(5);
+  const bool is_f32 = llvm_name.ends_with(".f32");
+  if (!is_f32 && !llvm_name.ends_with(".f64")) {
+    return {};
+  }
+  llvm_name.remove_suffix(4);
+  // the intrinsics that clang lowers to libm calls (the rest has its own
+  // lowering)
+  for (const std::string_view known :
+       {"log", "log2", "log10", "exp", "exp2", "sin", "cos", "tan", "pow"}) {
+    if (llvm_name == known) {
+      return is_f32 ? std::string(known) + "f" : std::string(known);
+    }
+  }
+  return {};
 }
 
 // name of the plain (double / exact) version, a string literal so it is null
@@ -135,6 +161,9 @@ inline std::optional<T> fold_libfunc(LibFunc f, T a, T b = T{}) {
       break;
     case LibFunc::Pow:
       r = std::pow(a, b);
+      break;
+    case LibFunc::Fmod:
+      r = std::fmod(a, b);
       break;
     default:
       return std::nullopt;

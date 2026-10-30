@@ -194,6 +194,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vmovshdup);
         ReturnString(X86Subtype, HAdd);
         ReturnString(X86Subtype, vpshuf);
+        ReturnString(X86Subtype, vpshufb);
         ReturnString(X86Subtype, punpckl);
         ReturnString(X86Subtype, vbroadcast);
         ReturnString(X86Subtype, tzcnt);
@@ -211,6 +212,13 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vpcmpgt);
         ReturnString(X86Subtype, vpack);
         ReturnString(X86Subtype, vshufps);
+        ReturnString(X86Subtype, vpclmul);
+        ReturnString(X86Subtype, vpacks);
+        ReturnString(X86Subtype, vpmulhw);
+        ReturnString(X86Subtype, vpmaddwd);
+        ReturnString(X86Subtype, vpmaddubsw);
+        ReturnString(X86Subtype, vpermd);
+        ReturnString(X86Subtype, vmovmsk);
         ReturnString(X86Subtype, vmaskload);
         ReturnString(X86Subtype, vmaskstore);
         ReturnString(X86Subtype, vround);
@@ -386,10 +394,12 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpermil:
         case X86Subtype::sqrt:
         case X86Subtype::vpabs:
+        case X86Subtype::vmovmsk:
         case X86Subtype::HAdd:
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
         case X86Subtype::vpshuf:
+        case X86Subtype::vpshufb:
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
         case X86Subtype::punpckl:
@@ -403,6 +413,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
         case X86Subtype::vshufps:
+        case X86Subtype::vpclmul:
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
@@ -410,6 +421,11 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
+        case X86Subtype::vpacks:
+        case X86Subtype::vpmulhw:
+        case X86Subtype::vpmaddwd:
+        case X86Subtype::vpmaddubsw:
+        case X86Subtype::vpermd:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -699,6 +715,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vmovshdup:
         case X86Subtype::sqrt:
         case X86Subtype::vpabs:
+        case X86Subtype::vmovmsk:
         case X86Subtype::HAdd:
           out.push_back({1, instr.args[1]});
           return;
@@ -720,6 +737,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
         case X86Subtype::vpshuf:
+        case X86Subtype::vpshufb:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
         case X86Subtype::vextract128:
@@ -736,6 +754,11 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::padd:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
+        case X86Subtype::vpacks:
+        case X86Subtype::vpmulhw:
+        case X86Subtype::vpmaddwd:
+        case X86Subtype::vpmaddubsw:
+        case X86Subtype::vpermd:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -747,6 +770,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
         case X86Subtype::vshufps:
+        case X86Subtype::vpclmul:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           out.push_back({3, instr.args[3]});

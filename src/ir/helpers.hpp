@@ -44,8 +44,10 @@ void generate_memcpy(fir::Context &fctx);
 void generate_memset(fir::Context &fctx);
 void generate_memmove(fir::Context &fctx);
 void generate_memcmp(fir::Context &fctx);
-void generate_fexp(fir::Context &fctx);
+// declares the libm function (and its float version) a math intrinsic is lowered to
+void generate_libm_for_intrinsic(fir::Context &fctx, std::string_view llvm_name);
 void generate_trunc(fir::Context &fctx);
+void generate_fmod(fir::Context &fctx);
 void generate_trap(fir::Context &fctx);
 
 }  // namespace foptim::fir

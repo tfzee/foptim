@@ -600,7 +600,8 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           }
         }
         // merge integers into bigger integers
-        if (instr->result_type()->is_int() && old_width <= 4 &&
+        if (instr->result_type()->is_int() &&
+            instr2.result_type()->is_int() && old_width <= 4 &&
             base1_addr == base2_addr && base1_off + old_width == base2_off &&
             instr->args[1].is_constant() && instr2->args[1].is_constant()) {
           bool pot_load_between = is_pot_loadstore_between(

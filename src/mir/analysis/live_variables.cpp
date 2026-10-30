@@ -274,7 +274,9 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::HAdd:
         case X86Subtype::sqrt:
         case X86Subtype::vpabs:
+        case X86Subtype::vmovmsk:
         case X86Subtype::vpshuf:
+        case X86Subtype::vpshufb:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::popcnt:
@@ -292,6 +294,11 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vpinsr:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
+        case X86Subtype::vpacks:
+        case X86Subtype::vpmulhw:
+        case X86Subtype::vpmaddwd:
+        case X86Subtype::vpmaddubsw:
+        case X86Subtype::vpermd:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -304,6 +311,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
         case X86Subtype::vshufps:
+        case X86Subtype::vpclmul:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -649,6 +657,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::HAdd:
         case X86Subtype::sqrt:
         case X86Subtype::vpabs:
+        case X86Subtype::vmovmsk:
         case X86Subtype::vmovshdup:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
@@ -665,12 +674,18 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vinsert128:
         case X86Subtype::vinsertps:
         case X86Subtype::vpshuf:
+        case X86Subtype::vpshufb:
         case X86Subtype::vbroadcast:
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
+        case X86Subtype::vpacks:
+        case X86Subtype::vpmulhw:
+        case X86Subtype::vpmaddwd:
+        case X86Subtype::vpmaddubsw:
+        case X86Subtype::vpermd:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -697,6 +712,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
         case X86Subtype::vshufps:
+        case X86Subtype::vpclmul:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
@@ -1300,9 +1316,12 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
       // special case cant have both be the same
       //  TODO: should have a more general purpose constraint system on
       //  instructions
-      if (instr.is(GArithSubtype::abs)) {
-        curr_live[reg_to_uid(instr.args[0].reg)].set(true);
-        // curr_live[reg_to_uid(instr.args[1].reg)].set(true);
+      if (instr.is(GArithSubtype::abs) && instr.args[0].isReg() &&
+          instr.args[1].isReg()) {
+        // an edge only, making the destination live before the instruction
+        // would keep it alive up to the start of the block
+        ranges[instr.args[0].reg].insert(reg_to_uid(instr.args[1].reg));
+        ranges[instr.args[1].reg].insert(reg_to_uid(instr.args[0].reg));
       }
 
       // find all uses

@@ -95,6 +95,30 @@ u32 calculate_arg_locations(const TVec<MInstr> &args,
   return stack_arg_id;
 }
 
+// positions of already marked arguments (first stage), the order of the
+// arguments does not say which ones are on the stack
+u32 arg_locations_from_marks(const TVec<MInstr> &args,
+                             const CallingConvDefinition &conv,
+                             TVec<ArgPosition> &pos) {
+  u32 stack_arg_id = 0;
+  for (const auto &arg : args) {
+    if (arg.n_args == 1) {
+      pos.push_back({ArgPosition::Type::Stack, stack_arg_id});
+      stack_arg_id++;
+      continue;
+    }
+    const auto &regs = arg.args[0].ty >= Type::Float32 ? conv.args.fvr
+                                                       : conv.args.gpr;
+    const bool is_vec = arg.args[0].ty >= Type::Float32;
+    const auto it = std::ranges::find(regs, arg.args[1].reg.c_reg());
+    ASSERT(it != regs.end());
+    pos.push_back({is_vec ? ArgPosition::Type::FloatReg
+                          : ArgPosition::Type::IntReg,
+                   static_cast<u32>(it - regs.begin())});
+  }
+  return stack_arg_id;
+}
+
 // u32 calculate_ret_locations(const TVec<MInstr> &args,
 //                             const CallingConvDefinition &conv,
 //                             TVec<RetPosition> &pos) {
@@ -239,6 +263,17 @@ void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
           continue;
         }
         mark_arguments_with_regs(bb.instrs, cc, instr_id, instr_call_id);
+        // the stack arguments are pushed before the registers are set up, so
+        // register allocation has to see them in that order, otherwise a
+        // reload of a stack argument takes a register that still holds the
+        // value of a register argument
+        // (last to first, the first one has to end up at the lowest address)
+        const auto stack_end = std::stable_partition(
+            bb.instrs.begin() + static_cast<i64>(instr_id),
+            bb.instrs.begin() + static_cast<i64>(instr_call_id),
+            [](const MInstr &arg) { return arg.n_args == 1; });
+        std::reverse(bb.instrs.begin() + static_cast<i64>(instr_id),
+                     stack_end);
         size_t instr_ret_id = instr_call_id + 1;
         for (; instr_ret_id < n_instrs; instr_ret_id++) {
           if (bb.instrs[instr_ret_id].is(GBaseSubtype::ret_setup)) {
@@ -1245,6 +1280,10 @@ struct CallInfo {
   size_t bb_id;
   TVec<MInstr> &args;
   TVec<MInstr> &rets;
+  // reloads of spilled registers that sit in front of an argument, per
+  // argument. Those of stack arguments run right before the push, the others
+  // before the registers are set up
+  TVec<TVec<MInstr>> &pre_args;
   TMap<VReg, LinearRangeSet> &lives;
   utils::BitSet<> &return_values_overwrites_ret_reg;
   const CallingConvDefinition &cc;
@@ -1447,16 +1486,20 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
                           const TVec<ArgPosition> &arg_pos, CallInfo &cinfo) {
   TVec<MInstr> output_vec;
   TVec<u32> worklist;
-  // the first stack argument has to end up at the lowest address so the
-  // stack arguments are pushed last to first
-  for (size_t arg_id = cinfo.args.size(); arg_id > 0; arg_id--) {
-    if (arg_pos[arg_id - 1].ty == ArgPosition::Type::Stack) {
-      generate_arg(output_vec, cinfo.args[arg_id - 1], cinfo.cc,
-                   arg_pos[arg_id - 1]);
+  // the stack arguments are already in the order they are pushed in
+  for (size_t arg_id = 0; arg_id < cinfo.args.size(); arg_id++) {
+    if (arg_pos[arg_id].ty == ArgPosition::Type::Stack) {
+      for (const auto &pre : cinfo.pre_args[arg_id]) {
+        output_vec.push_back(pre);
+      }
+      generate_arg(output_vec, cinfo.args[arg_id], cinfo.cc, arg_pos[arg_id]);
     }
   }
   for (size_t arg_id = 0; arg_id < cinfo.args.size(); arg_id++) {
     if (arg_pos[arg_id].ty != ArgPosition::Type::Stack) {
+      for (const auto &pre : cinfo.pre_args[arg_id]) {
+        output_vec.push_back(pre);
+      }
       worklist.push_back(arg_id);
     }
   }
@@ -1543,13 +1586,26 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
 
   TVec<MInstr> args;
   TVec<MInstr> rets;
+  TVec<TVec<MInstr>> pre_args;
   MInstr call = instrs[call_id];
   auto is_var_args = call.is_var_arg_call;
   args.reserve(n_args);
 
-  for (u32 i = 0; i < n_args; i++) {
-    args.push_back(instrs.at(start_id + i));
+  {
+    TVec<MInstr> pending;
+    for (u32 i = 0; i < n_args; i++) {
+      const auto &in = instrs.at(start_id + i);
+      if (in.is(GBaseSubtype::arg_setup)) {
+        args.push_back(in);
+        pre_args.push_back(std::move(pending));
+        pending = {};
+      } else {
+        pending.push_back(in);
+      }
+    }
+    ASSERT(pending.empty());
   }
+  n_args = args.size();
   for (u32 i = 0; i < n_rets; i++) {
     rets.push_back(instrs.at(call_id + 1 + i));
   }
@@ -1575,6 +1631,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
       .bb_id = bb_id,
       .args = args,
       .rets = rets,
+      .pre_args = pre_args,
       .lives = lives,
       .return_values_overwrites_ret_reg = return_values_overwrites_ret_reg,
       .cc = cc,
@@ -1606,7 +1663,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
       restore_locals(instrs, cinfo, save_types);
 
   TVec<ArgPosition> arg_pos;
-  auto n_stack_args = calculate_arg_locations(args, cc, arg_pos);
+  auto n_stack_args = arg_locations_from_marks(args, cc, arg_pos);
   if (cc.align.alignment >= CallingConvDefinition::Req::Supported) {
     auto off = (n_local_bytes_need_saving + n_stack_args * 8) %
                cc.align.alignment_value;
@@ -1717,15 +1774,11 @@ void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
       if (!bb.instrs[instr_invoke_id].is(GBaseSubtype::invoke)) {
         continue;
       }
-      size_t instr_start_idp1;
       size_t instr_start_id = instr_invoke_id;
-      for (instr_start_idp1 = instr_invoke_id; instr_start_idp1 > 0;
-           instr_start_idp1--) {
-        instr_start_id = instr_start_idp1 - 1;
-        if (!bb.instrs[instr_start_id].is(GBaseSubtype::arg_setup)) {
-          instr_start_id++;
-          break;
-        }
+      while (instr_start_id > 0 &&
+             (bb.instrs[instr_start_id - 1].is(GBaseSubtype::arg_setup) ||
+              bb.instrs[instr_start_id - 1].is_arg_reload)) {
+        instr_start_id--;
       }
       size_t instr_end_id = instr_invoke_id + 1;
       for (; instr_end_id < n_instrs; instr_end_id++) {

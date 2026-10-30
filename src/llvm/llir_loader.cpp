@@ -77,6 +77,7 @@ bool warned_f16_ty = false;
 bool warned_f80_ty = false;
 bool warned_f16_const = false;
 bool warned_f80_const = false;
+bool warned_f80_intrinsic = false;
 bool warned_landing_pad = false;
 bool warned_invoke = false;
 bool warned_resume = false;
@@ -322,11 +323,33 @@ static foptim::fir::LibFunc detect_libfunc(const llvm::Function &func,
   return builtin ? info->func : foptim::fir::LibFunc::None;
 }
 
+// long double is f64 in FIR, so the f80 overloads of llvm intrinsics are the f64 ones
+static std::string double_intrinsic_name(const llvm::Function &func) {
+  std::string name = func.getName().str();
+  if (!func.empty() || !name.starts_with("llvm.")) {
+    return name;
+  }
+  // the type suffixes can appear several times (llvm.powi.f80.i32)
+  bool renamed = false;
+  for (auto pos = name.find(".f80"); pos != std::string::npos;
+       pos = name.find(".f80")) {
+    name.replace(pos, 4, ".f64");
+    renamed = true;
+  }
+  if (renamed) {
+    WARN_UNSUPPORTED_O(
+        warned_f80_intrinsic,
+        "[WARNING] Unsupported x86_fp80 intrinsic will still try to run with "
+        "the f64 intrinsic instead\n");
+  }
+  return name;
+}
+
 static std::string fir_function_name(const llvm::Function &func) {
   if (const char *mapped = double_libm_name(func)) {
     return mapped;
   }
-  return func.getName().str();
+  return double_intrinsic_name(func);
 }
 
 inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
@@ -918,7 +941,28 @@ void convert_call(const llvm::Instruction *any_instr,
   }
   if (const auto *c = call_instr->getCalledFunction()) {
     if (c->getName().starts_with("llvm.experimental.noalias.scope.decl") ||
-        c->getName().starts_with("llvm.assume")) {
+        c->getName().starts_with("llvm.assume") ||
+        c->getName().starts_with("llvm.prefetch") ||
+        c->getName().starts_with("llvm.invariant.start") ||
+        c->getName().starts_with("llvm.invariant.end")) {
+      return;
+    }
+    if (c->getName().starts_with("llvm.ptrmask")) {
+      if (call_instr->getArgOperand(1)->getType()->getIntegerBitWidth() != 64) {
+        IMPL("llvm.ptrmask with a mask that is not 64 bit");
+      }
+      auto ptr = convert_instr_arg(call_instr->getArgOperand(0), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+      auto mask = convert_instr_arg(call_instr->getArgOperand(1), fctx, ffunc,
+                                    builder, valueToValue, mod, b2b);
+      auto addr = builder.build_conversion_op(
+          ptr, fctx->get_int_type(64), foptim::fir::ConversionSubType::PtrToInt);
+      auto masked = builder.build_binary_op(
+          addr, mask, foptim::fir::BinaryInstrSubType::And);
+      valueToValue.insert(
+          {any_instr, builder.build_conversion_op(
+                          masked, fctx->get_ptr_type(),
+                          foptim::fir::ConversionSubType::IntToPtr)});
       return;
     }
     // dynamic allocas are only freed on return
@@ -1063,6 +1107,19 @@ bool module_has_eh_instr(const llvm::Module &mod) {
       for (const auto &instr : bb) {
         if (llvm::isa<llvm::LandingPadInst>(instr) ||
             llvm::isa<llvm::ResumeInst>(instr)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+bool module_has_frem(const llvm::Module &mod) {
+  for (const auto &func : mod) {
+    for (const auto &bb : func) {
+      for (const auto &instr : bb) {
+        if (instr.getOpcode() == llvm::Instruction::FRem) {
           return true;
         }
       }
@@ -1255,9 +1312,14 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto *dest_type = instr->getDestTy();
-    auto conver =
-        builder.build_conversion_op(value, convert_type(dest_type, fctx, mod),
-                                    foptim::fir::ConversionSubType::FPEXT);
+    auto fir_dest = convert_type(dest_type, fctx, mod);
+    if (value.get_type() == fir_dest) {
+      // long double is f64, so f80 <-> f64 is no conversion
+      valueToValue.insert({any_instr, value});
+      return;
+    }
+    auto conver = builder.build_conversion_op(
+        value, fir_dest, foptim::fir::ConversionSubType::FPEXT);
     valueToValue.insert({any_instr, conver});
     return;
   }
@@ -1267,9 +1329,14 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto *dest_type = instr->getDestTy();
-    auto conver =
-        builder.build_conversion_op(value, convert_type(dest_type, fctx, mod),
-                                    foptim::fir::ConversionSubType::FPTRUNC);
+    auto fir_dest = convert_type(dest_type, fctx, mod);
+    if (value.get_type() == fir_dest) {
+      // long double is f64, so f80 <-> f64 is no conversion
+      valueToValue.insert({any_instr, value});
+      return;
+    }
+    auto conver = builder.build_conversion_op(
+        value, fir_dest, foptim::fir::ConversionSubType::FPTRUNC);
     valueToValue.insert({any_instr, conver});
     return;
   }
@@ -1743,6 +1810,25 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
+  } else if (op_code == llvm::Instruction::FRem) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+    auto *res_type = any_instr->getType();
+    if (!res_type->isFloatTy() && !res_type->isDoubleTy() &&
+        !res_type->isX86_FP80Ty()) {
+      IMPL("frem on vectors or fp128 / half");
+    }
+    // x86 has no instruction, clang calls fmod too
+    auto callee = fctx->get_function(res_type->isFloatTy() ? "fmodf" : "fmod");
+    auto ret_type = callee->func_ty->as_func().return_type();
+    foptim::fir::ValueR call_args[] = {left, right};
+    auto res = builder.build_call(
+        foptim::fir::ValueR{fctx->get_constant_value(callee)}, callee->func_ty,
+        ret_type, call_args);
+    valueToValue.insert({any_instr, res});
+    return;
   } else if (op_code == llvm::Instruction::FNeg) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
@@ -1909,8 +1995,8 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_trap(fctx);
   } else if (func.getName().starts_with("llvm.fabs") ||
              func.getName().starts_with("llvm.abs")) {
-  } else if (func.getName().starts_with("llvm.exp.f")) {
-    generate_fexp(fctx);
+  } else if (!foptim::fir::intrinsic_libm_name(func.getName()).empty()) {
+    generate_libm_for_intrinsic(fctx, func.getName());
   } else if (func.getName().starts_with("llvm.memmove")) {
     generate_memmove(fctx);
   } else if (func.getName().starts_with(
@@ -2167,6 +2253,10 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
             continue;
           }
           already_seen_bbs.insert(incoming_llvm_bb);
+          // blocks not reachable from the entry were never created
+          if (!b2b.contains(incoming_llvm_bb)) {
+            continue;
+          }
 
           auto from_fbb = b2b.at(incoming_llvm_bb);
           build.at_penultimate(from_fbb);
@@ -2260,9 +2350,8 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
           warned_f80_const,
           "[WARNING] Unsupported x86_fp80 const will still try to run with "
           "f64 const instead\n");
-      auto val =
-          static_cast<u64>(d->getValue().bitcastToAPInt().getZExtValue());
-      *(reinterpret_cast<u64 *>(const_cast<uint8_t *>(output))) = val;
+      const double as_double = d->getValue().convertToDouble();
+      std::memcpy(const_cast<uint8_t *>(output), &as_double, sizeof(double));
     } else {
       llvm::errs() << "TODO: handle global init\n";
       llvm::errs() << "constant fp " << *d << "\n";
@@ -2374,6 +2463,12 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
                        gep->getPointerOperand())) {
           reloc_ref = fctx->get_constant_value(
               fctx->get_function(fir_function_name(*func).c_str()));
+        } else if (const auto *alias = llvm::dyn_cast_or_null<llvm::GlobalAlias>(
+                       gep->getPointerOperand());
+                   alias != nullptr &&
+                   valueToValue.contains(alias->getAliaseeObject())) {
+          // aliases are set up after the initializers
+          reloc_ref = valueToValue.at(alias->getAliaseeObject()).as_constant();
         } else {
           TODO("impl");
         }
@@ -2409,6 +2504,13 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
                          gep->getPointerOperand())) {
             reloc_ref = fctx->get_constant_value(
                 fctx->get_function(fir_function_name(*func).c_str()));
+          } else if (const auto *alias =
+                         llvm::dyn_cast_or_null<llvm::GlobalAlias>(
+                             gep->getPointerOperand());
+                     alias != nullptr &&
+                     valueToValue.contains(alias->getAliaseeObject())) {
+            reloc_ref =
+                valueToValue.at(alias->getAliaseeObject()).as_constant();
           } else {
             TODO("impl");
           }
@@ -2438,6 +2540,15 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalAlias>(val)) {
+    // aliases are set up after the initializers, a plain alias of a global
+    // object (the C1 / D1 constructor aliases) points at the object itself
+    if (llvm::isa<llvm::GlobalObject>(d->getAliasee()) &&
+        valueToValue.contains(d->getAliasee())) {
+      size_t reloc_off = output - glob->init_value;
+      glob->reloc_info.push_back(
+          {reloc_off, valueToValue.at(d->getAliasee()).as_constant()});
+      return;
+    }
     llvm::errs() << "TODO: handle global init\n";
     llvm::errs() << "idk " << *val << "\n";
     llvm::errs() << "idk " << *d->getAliasee() << "\n";
@@ -2557,8 +2668,11 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     //  one
     valueToValue.insert({static_cast<llvm::Value *>(&gval),
                          valueToValue.at(val->getAliasee())});
-    auto global = valueToValue.at(val).as_constant()->as_global();
-    global->min_align = val->getPointerAlignment(mod.getDataLayout()).value();
+    auto aliased = valueToValue.at(val).as_constant();
+    if (aliased->is_global()) {
+      aliased->as_global()->min_align =
+          val->getPointerAlignment(mod.getDataLayout()).value();
+    }
   } else {
     // llvm::errs() << "Not handling global " << gval;
   }
@@ -2603,6 +2717,10 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     // converted in parallel so it has to exist before
     if (module_has_eh_instr(mod)) {
       generate_trap(fctx);
+    }
+    // frem is a call to fmod
+    if (module_has_frem(mod)) {
+      generate_fmod(fctx);
     }
   }
   {

@@ -653,8 +653,6 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
   }
   ASSERT(read || written);
 
-  // TODO: we cannot insert within a arg_setup call ret_setup chunk so
-  // gotta walk backwards/forwards from it to handle it correctly
   VReg new_vreg;
   const bool reuse = cached != nullptr && read;
   if (reuse) {
@@ -670,12 +668,26 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
 
   if (read && !reuse) {
     auto insert_loc = instr_id;
-    while (insert_loc > 0 && bbm[insert_loc - 1].is(GBaseSubtype::arg_setup)) {
+    // The first stage of the calling convention puts the stack arguments (no
+    // register operand) in front of the register ones, in the order they are
+    // pushed. A stack argument keeps its reload right in front of it, the
+    // call lowering moves it along with the push. Hoisting all of them in
+    // front of the chunk keeps one temp per argument alive. The reload of a
+    // register argument goes in front of the first register argument.
+    const bool stack_arg =
+        bbm[instr_id].is(GBaseSubtype::arg_setup) && bbm[instr_id].n_args == 1;
+    const bool reg_arg =
+        bbm[instr_id].is(GBaseSubtype::arg_setup) && bbm[instr_id].n_args == 2;
+    // anything else (the target of an indirect call) goes in front of all
+    while (!stack_arg && insert_loc > 0 &&
+           ((bbm[insert_loc - 1].is(GBaseSubtype::arg_setup) &&
+             (!reg_arg || bbm[insert_loc - 1].n_args == 2)) ||
+            (!reg_arg && bbm[insert_loc - 1].is_arg_reload))) {
       insert_loc--;
     }
-    bbm.insert(
-        bbm.begin() + static_cast<i64>(insert_loc) + 0,
-        MInstr{GBaseSubtype::mov, MArgument{new_vreg, spill_type}, home});
+    MInstr reload{GBaseSubtype::mov, MArgument{new_vreg, spill_type}, home};
+    reload.is_arg_reload = bbm[instr_id].is(GBaseSubtype::arg_setup) ? 1U : 0U;
+    bbm.insert(bbm.begin() + static_cast<i64>(insert_loc) + 0, reload);
     instr_id++;
   }
   if (written) {
@@ -817,6 +829,79 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
   return !inserted_moves;
 }
 
+// Printed when the spill rounds run out. Spilling does not help any more when
+// the nodes that fail are reload temps, they all have to be in registers at the
+// same time, so this lists the unspillable nodes with the most neighbours and
+// where they are used.
+void dump_alloc_failure(const MFunc &func, const CostGraph &graph,
+                        const CostModelInput &model) {
+  constexpr size_t MaxReported = 4;
+  constexpr size_t MaxUses = 6;
+  fmt::println(stderr,
+               "register allocation of {} did not converge after {} rounds",
+               func.name.c_str(), MaxSpillRounds);
+  struct Cand {
+    u32 node;
+    u32 degree;
+    u32 unspillable_neigh;
+  };
+  TVec<Cand> cands;
+  const auto is_temp = [&](u32 node) {
+    return !graph.is_concrete(node) &&
+           uid_to_reg(graph.node_uid[node]).virt_id() >
+               model.first_spill_temp_id;
+  };
+  for (u32 node = 0; node < graph.n_nodes(); node++) {
+    if (!is_temp(node)) {
+      continue;
+    }
+    u32 temps = 0;
+    for (auto adj : graph.neighbours[node]) {
+      temps += is_temp(adj.other) ? 1U : 0U;
+    }
+    cands.push_back({node, static_cast<u32>(graph.neighbours[node].size()),
+                     temps});
+  }
+  std::ranges::sort(cands, [](const Cand &a, const Cand &b) {
+    return a.unspillable_neigh > b.unspillable_neigh;
+  });
+  fmt::println(stderr,
+               "{} reload temps (unspillable) in the graph, the ones with the "
+               "most unspillable neighbours:",
+               cands.size());
+  for (size_t c = 0; c < std::min(cands.size(), MaxReported); c++) {
+    const auto reg = uid_to_reg(graph.node_uid[cands[c].node]);
+    fmt::println(stderr,
+                 "  ${} kind {} degree {} unspillable neighbours {} "
+                 "(allocatable registers of the kind: {})",
+                 reg.virt_id(), graph.node_kind[cands[c].node],
+                 cands[c].degree, cands[c].unspillable_neigh,
+                 kKinds[graph.node_kind[cands[c].node]].size - 1);
+    fmt::print(stderr, "    neighbours:");
+    for (auto adj : graph.neighbours[cands[c].node]) {
+      if (graph.is_concrete(adj.other)) {
+        fmt::print(stderr, " {}", VReg(uid_to_reg(graph.node_uid[adj.other])));
+      } else {
+        fmt::print(stderr, " ${}{}",
+                   uid_to_reg(graph.node_uid[adj.other]).virt_id(),
+                   is_temp(adj.other) ? "*" : "");
+      }
+    }
+    fmt::println(stderr, "  (* = reload temp)");
+    size_t shown = 0;
+    for (size_t bb_id = 0; bb_id < func.bbs.size() && shown < MaxUses;
+         bb_id++) {
+      const auto &instrs = func.bbs[bb_id].instrs;
+      for (size_t i = 0; i < instrs.size() && shown < MaxUses; i++) {
+        if (instrs[i].uses_vreg(reg)) {
+          fmt::println(stderr, "    bb{}:{}  {:cd}", bb_id, i, instrs[i]);
+          shown++;
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace foptim::fmir
 
@@ -904,6 +989,7 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
     // fmt::println("============");
     // graph.dump();
     if (i >= MaxSpillRounds) {
+      dump_alloc_failure(func, graph, model);
       TODO("register allocation did not converge");
     }
     i++;

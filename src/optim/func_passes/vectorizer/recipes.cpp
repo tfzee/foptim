@@ -852,6 +852,14 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
     case fir::IntrinsicSubType::FMinimum:
     case fir::IntrinsicSubType::FMaximum:
     case fir::IntrinsicSubType::Fma:
+    case fir::IntrinsicSubType::Clmul:
+    case fir::IntrinsicSubType::PackSS:
+    case fir::IntrinsicSubType::PackUS:
+    case fir::IntrinsicSubType::PMulHW:
+    case fir::IntrinsicSubType::PMaddWD:
+    case fir::IntrinsicSubType::PMaddUBSW:
+    case fir::IntrinsicSubType::PermD:
+    case fir::IntrinsicSubType::MoveMask:
       return false;
     case fir::IntrinsicSubType::UMin:
     case fir::IntrinsicSubType::UMax:

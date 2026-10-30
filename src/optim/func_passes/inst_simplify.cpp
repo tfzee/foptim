@@ -1103,7 +1103,7 @@ bool simplify_store(fir::Instr instr) {
 
 static bool fold_libfunc_call(fir::Instr instr, fir::LibFunc lf,
                               fir::Context &ctx, WorkList &worklist) {
-  const bool binary = lf == fir::LibFunc::Pow;
+  const bool binary = lf == fir::LibFunc::Pow || lf == fir::LibFunc::Fmod;
   if (instr->args.size() != (binary ? 3U : 2U) || !instr->has_one_result()) {
     return false;
   }

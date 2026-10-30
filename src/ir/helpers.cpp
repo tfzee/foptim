@@ -6,17 +6,6 @@
 #include "ir/global.hpp"
 
 namespace foptim::fir {
-void generate_fexp(foptim::fir::Context &fctx) {
-  if (fctx->has_function("exp")) {
-    return;
-  }
-  auto func_ty =
-      fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
-  fctx.data->storage.functions.insert(
-      "exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp",
-                                                     func_ty));
-}
-
 void generate_trunc(foptim::fir::Context &fctx) {
   if (!fctx->has_function("trunc")) {
     auto func_ty =
@@ -39,8 +28,11 @@ void generate_trunc(foptim::fir::Context &fctx) {
 // module even when nothing calls them yet, which needs external linkage
 // (GDCE keeps those).
 static void declare_external(foptim::fir::Context &fctx, LibFunc lf,
-                             foptim::fir::FunctionTypeR func_ty) {
-  const char *name = libfunc_name(lf).data();
+                             foptim::fir::FunctionTypeR func_ty,
+                             const char *name = nullptr) {
+  if (name == nullptr) {
+    name = libfunc_name(lf).data();
+  }
   if (fctx->has_function(name)) {
     return;
   }
@@ -81,6 +73,39 @@ void generate_memcmp(foptim::fir::Context &fctx) {
       fctx->get_func_ty(fctx->get_int_type(32),
                         {fctx->get_ptr_type(), fctx->get_ptr_type(),
                          fctx->get_int_type(64)}));
+}
+
+void generate_fmod(foptim::fir::Context &fctx) {
+  auto f64 = fctx->get_float_type(64);
+  auto f32 = fctx->get_float_type(32);
+  declare_external(fctx, LibFunc::Fmod, fctx->get_func_ty(f64, {f64, f64}));
+  declare_external(fctx, LibFunc::Fmod, fctx->get_func_ty(f32, {f32, f32}),
+                   "fmodf");
+}
+
+void generate_libm_for_intrinsic(foptim::fir::Context &fctx,
+                                 std::string_view llvm_name) {
+  const auto f32_name = intrinsic_libm_name(llvm_name);
+  if (f32_name.empty()) {
+    return;
+  }
+  auto f64 = fctx->get_float_type(64);
+  auto f32 = fctx->get_float_type(32);
+  const std::string base = llvm_name.ends_with(".f32")
+                               ? f32_name.substr(0, f32_name.size() - 1)
+                               : f32_name;
+  const auto info = lookup_libfunc(base);
+  ASSERT(info.has_value());
+  const bool two = info->n_args == 2;
+  declare_external(fctx, info->func,
+                   fctx->get_func_ty(f64, two ? std::initializer_list{f64, f64}
+                                              : std::initializer_list{f64}),
+                   base.c_str());
+  const auto fname = base + "f";
+  declare_external(fctx, info->func,
+                   fctx->get_func_ty(f32, two ? std::initializer_list{f32, f32}
+                                              : std::initializer_list{f32}),
+                   fname.c_str());
 }
 
 void generate_trap(foptim::fir::Context &fctx) {

@@ -998,31 +998,34 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::GJumpSubtype::fcmp_oeq:
           mem = ZYDIS_MNEMONIC_SETZ;
           break;
-        case fmir::GJumpSubtype::fcmp_ugt:
-          ordered = false;
         case fmir::GJumpSubtype::fcmp_ogt:
           mem = ZYDIS_MNEMONIC_SETNBE;
           break;
-        case fmir::GJumpSubtype::fcmp_uge:
-          ordered = false;
         case fmir::GJumpSubtype::fcmp_oge:
           mem = ZYDIS_MNEMONIC_SETNB;
           break;
         case fmir::GJumpSubtype::fcmp_ult:
           ordered = false;
-        case fmir::GJumpSubtype::fcmp_olt:
           mem = ZYDIS_MNEMONIC_SETB;
           break;
         case fmir::GJumpSubtype::fcmp_ule:
           ordered = false;
-        case fmir::GJumpSubtype::fcmp_ole:
           mem = ZYDIS_MNEMONIC_SETBE;
           break;
+        // zf is set for unordered too, parity is fixed up below
         case fmir::GJumpSubtype::fcmp_une:
           ordered = false;
+          mem = ZYDIS_MNEMONIC_SETNZ;
+          break;
         case fmir::GJumpSubtype::fcmp_one:
           mem = ZYDIS_MNEMONIC_SETNZ;
           break;
+        // olt / ole / ugt / uge are swapped by the matcher
+        case fmir::GJumpSubtype::fcmp_olt:
+        case fmir::GJumpSubtype::fcmp_ole:
+        case fmir::GJumpSubtype::fcmp_ugt:
+        case fmir::GJumpSubtype::fcmp_uge:
+          TODO("mirrored by the matcher");
         case fmir::GJumpSubtype::fcmp_ord:
           mem = ZYDIS_MNEMONIC_SETNP;
           break;
@@ -1049,7 +1052,32 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.mnemonic = mem;
       emit_operand(instr.args[0], req.operands[0], reloc_map, out_buff, 0);
       req.operand_count = 1;
-      return emit(out_buff, off, &req);
+      off = emit(out_buff, off, &req);
+      const bool is_oeq = instr.is(fmir::GJumpSubtype::fcmp_oeq);
+      if (is_oeq || instr.is(fmir::GJumpSubtype::fcmp_une)) {
+        // oeq: result of setz is wrong when parity is set (clear it),
+        // une: result of setnz is wrong when parity is set (set it)
+        // short jnp over the mov, the flags are untouched by setcc
+        ZydisEncoderRequest mov{};
+        mov.machine_mode = req.machine_mode;
+        mov.mnemonic = ZYDIS_MNEMONIC_MOV;
+        mov.operand_count = 2;
+        emit_operand(instr.args[0], mov.operands[0], reloc_map, out_buff, 0);
+        mov.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        mov.operands[1].imm.s = is_oeq ? 0 : 1;
+        const u64 mov_end = emit(out_buff, off + 2, &mov);
+        ZydisEncoderRequest jnp{};
+        jnp.machine_mode = req.machine_mode;
+        jnp.mnemonic = ZYDIS_MNEMONIC_JNP;
+        jnp.branch_type = ZYDIS_BRANCH_TYPE_SHORT;
+        jnp.operand_count = 1;
+        jnp.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        jnp.operands[0].imm.s = static_cast<i64>(mov_end - (off + 2));
+        const u64 jnp_end = emit(out_buff, off, &jnp);
+        ASSERT(jnp_end == off + 2);
+        off = mov_end;
+      }
+      return off;
     }
     case fmir::GJumpSubtype::cjmp_flt_oeq:
     case fmir::GJumpSubtype::cjmp_flt_ogt:
@@ -1077,24 +1105,18 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::GJumpSubtype::cjmp_flt_oeq:
           mem = ZYDIS_MNEMONIC_JZ;
           break;
-        case fmir::GJumpSubtype::cjmp_flt_ugt:
-          ordered = false;
         case fmir::GJumpSubtype::cjmp_flt_ogt:
           mem = ZYDIS_MNEMONIC_JNBE;
           break;
-        case fmir::GJumpSubtype::cjmp_flt_uge:
-          ordered = false;
         case fmir::GJumpSubtype::cjmp_flt_oge:
           mem = ZYDIS_MNEMONIC_JNB;
           break;
         case fmir::GJumpSubtype::cjmp_flt_ult:
           ordered = false;
-        case fmir::GJumpSubtype::cjmp_flt_olt:
           mem = ZYDIS_MNEMONIC_JB;
           break;
         case fmir::GJumpSubtype::cjmp_flt_ule:
           ordered = false;
-        case fmir::GJumpSubtype::cjmp_flt_ole:
           mem = ZYDIS_MNEMONIC_JBE;
           break;
         case fmir::GJumpSubtype::cjmp_flt_une:
@@ -1102,6 +1124,12 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::GJumpSubtype::cjmp_flt_one:
           mem = ZYDIS_MNEMONIC_JNZ;
           break;
+        // olt / ole / ugt / uge are swapped by the matcher
+        case fmir::GJumpSubtype::cjmp_flt_olt:
+        case fmir::GJumpSubtype::cjmp_flt_ole:
+        case fmir::GJumpSubtype::cjmp_flt_ugt:
+        case fmir::GJumpSubtype::cjmp_flt_uge:
+          TODO("mirrored by the matcher");
         case fmir::GJumpSubtype::cjmp_flt_ord:
           mem = ZYDIS_MNEMONIC_JNP;
           break;
@@ -1128,6 +1156,29 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.operands[0].imm.s = 0;
       req.operand_count = 1;
       ASSERT(instr.has_bb_ref);
+      const auto sub = static_cast<fmir::GJumpSubtype>(instr.sop);
+      if (sub == fmir::GJumpSubtype::cjmp_flt_une) {
+        // unordered sets parity, zf alone misses it
+        ZydisEncoderRequest jp = req;
+        jp.mnemonic = ZYDIS_MNEMONIC_JP;
+        reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
+                                RelocSection::Text);
+        off = emit(out_buff, off, &jp);
+      } else if (sub == fmir::GJumpSubtype::cjmp_flt_oeq) {
+        // unordered sets zf too, skip the jz when parity is set
+        const u64 jz_end = emit(out_buff, off + 2, &req);
+        ZydisEncoderRequest jp{};
+        jp.machine_mode = req.machine_mode;
+        jp.mnemonic = ZYDIS_MNEMONIC_JP;
+        jp.branch_type = ZYDIS_BRANCH_TYPE_SHORT;
+        jp.operand_count = 1;
+        jp.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        jp.operands[0].imm.s = static_cast<i64>(jz_end - (off + 2));
+        ASSERT(emit(out_buff, off, &jp) == off + 2);
+        reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off + 2, 0,
+                                RelocSection::Text);
+        return jz_end;
+      }
       reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
                               RelocSection::Text);
       return emit(out_buff, off, &req);
@@ -2809,6 +2860,14 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       return emit(out_buff, 0, &req);
     }
+    case fmir::X86Subtype::vpshufb: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 3);
+      req.mnemonic = ZYDIS_MNEMONIC_VPSHUFB;
+      return emit(out_buff, 0, &req);
+    }
     case fmir::X86Subtype::vpextr: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2976,6 +3035,61 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           bits == 32 ? ZYDIS_MNEMONIC_VPACKUSDW : ZYDIS_MNEMONIC_VPACKUSWB;
       return emit(out_buff, 0, &req);
     }
+    case fmir::X86Subtype::vpacks: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 3);
+      const auto bits = fmir::vec_lane_bits(instr.args[1].ty);
+      ASSERT(bits == 16 || bits == 32);
+      req.mnemonic =
+          bits == 32 ? ZYDIS_MNEMONIC_VPACKSSDW : ZYDIS_MNEMONIC_VPACKSSWB;
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::vpmulhw:
+    case fmir::X86Subtype::vpmaddwd:
+    case fmir::X86Subtype::vpmaddubsw:
+    case fmir::X86Subtype::vpermd: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 3);
+      switch (static_cast<fmir::X86Subtype>(instr.sop)) {
+        case fmir::X86Subtype::vpmulhw:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMULHW;
+          break;
+        case fmir::X86Subtype::vpmaddwd:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMADDWD;
+          break;
+        case fmir::X86Subtype::vpmaddubsw:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMADDUBSW;
+          break;
+        default:
+          req.mnemonic = ZYDIS_MNEMONIC_VPERMD;
+          break;
+      }
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::vmovmsk: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 2);
+      switch (fmir::vec_lane_bits(instr.args[1].ty)) {
+        case 8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMOVMSKB;
+          break;
+        case 32:
+          req.mnemonic = ZYDIS_MNEMONIC_VMOVMSKPS;
+          break;
+        case 64:
+          req.mnemonic = ZYDIS_MNEMONIC_VMOVMSKPD;
+          break;
+        default:
+          TODO("movemask lane width");
+      }
+      return emit(out_buff, 0, &req);
+    }
     case fmir::X86Subtype::ffmadd231: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -3008,6 +3122,14 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       assert(req.operand_count == 4);
       req.mnemonic = ZYDIS_MNEMONIC_VSHUFPS;
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::vpclmul: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 4);
+      req.mnemonic = ZYDIS_MNEMONIC_VPCLMULQDQ;
       return emit(out_buff, 0, &req);
     }
     case fmir::X86Subtype::vcmp: {

@@ -82,6 +82,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
         case X86Subtype::vshufps:
+        case X86Subtype::vpclmul:
         case X86Subtype::INVALID:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
@@ -90,6 +91,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vinsertps:
         case X86Subtype::sqrt:
         case X86Subtype::vpabs:
+        case X86Subtype::vmovmsk:
         case X86Subtype::vpermil:
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
@@ -100,6 +102,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::lea:
         case X86Subtype::tls_base:
         case X86Subtype::vpshuf:
+        case X86Subtype::vpshufb:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::tzcnt:
@@ -113,6 +116,11 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
+        case X86Subtype::vpacks:
+        case X86Subtype::vpmulhw:
+        case X86Subtype::vpmaddwd:
+        case X86Subtype::vpmaddubsw:
+        case X86Subtype::vpermd:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vround:

@@ -331,10 +331,9 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
     if (constant->is_global()) {
       auto global = constant->as_global();
       if (global->is_extern_decl()) {
-        Type type_id = convert_type(val.get_type());
         auto helper = alloc.get_new_register(Type::Int64);
         res.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
-                         MArgument::MemL(global->name.c_str(), type_id));
+                         MArgument::MemL(global->name.c_str(), Type::Int64));
         return MArgument::MemB(helper, type_id);
       }
       Type type_id = convert_type(val.get_type());
@@ -394,10 +393,9 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
       auto global = constant->as_global();
       if (global->init_value == nullptr) {
         if (global->is_extern_decl()) {
-          Type type_id = convert_type(val.get_type());
           auto helper = alloc.get_new_register(Type::Int64);
           res.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
-                           MArgument::MemL(global->name.c_str(), type_id));
+                           MArgument::MemL(global->name.c_str(), Type::Int64));
           return MArgument::MemB(helper, type_id);
         }
       }

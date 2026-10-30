@@ -200,6 +200,7 @@ enum class X86Subtype : u32 {
   vinsert128,
   vinsertps,
   vpshuf,
+  vpshufb,
   punpckl,
   vbroadcast,
   vgatherq,
@@ -213,6 +214,19 @@ enum class X86Subtype : u32 {
   vpack,
   // vshufps(dst, a, b, imm)
   vshufps,
+  // vpclmul(dst, a, b, imm): vpclmulqdq
+  vpclmul,
+  // vpacks(dst, a, b): signed saturating pack, like vpack
+  vpacks,
+  // vpmulhw(dst, a, b), vpmaddwd(dst, a, b), vpmaddubsw(dst, a, b)
+  vpmulhw,
+  vpmaddwd,
+  vpmaddubsw,
+  // vpermd(dst, idx, src)
+  vpermd,
+  // vmovmsk(dst, src): sign bits of the lanes of src into a gpr (movmskps,
+  // movmskpd or pmovmskb by lane width)
+  vmovmsk,
   // vmaskload(dst, mask, mem), vmaskstore(mem, mask, src): lanes with a clear
   // mask are not accessed (vmaskmovps / vpmaskmovd and friends)
   vmaskload,
@@ -966,6 +980,9 @@ class MInstr {
  public:
   u8 has_bb_ref : 1 = 0;
   u8 is_var_arg_call : 1 = 0U;
+  // reload of a spilled register inside the arguments of a call, set by the
+  // register allocator, the call lowering moves it along with its argument
+  u8 is_arg_reload : 1 = 0U;
   u8 n_args = 0;
   GOpcode bop;
   u32 sop = 0;

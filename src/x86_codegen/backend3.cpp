@@ -492,9 +492,8 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
             RelocSection::InitArray;
         label_usage_map.label_map[global.name].size = global.data.size();
         label_usage_map.label_map[global.name].vis = global.vis;
-        label_usage_map.label_map[global.name].binding =
-            binding_of(global.linkage);
-        // fmt::println("CTOR {}", global.name);
+        // every object has its own, two global ones fail to link together
+        label_usage_map.label_map[global.name].binding = RelocBinding::Local;
         {  // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {

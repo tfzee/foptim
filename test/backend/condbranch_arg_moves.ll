@@ -3,12 +3,12 @@
 ; the jump, so they also ran on the exit path, where the exit argument still
 ; needed the old value of %n (this is __unguarded_linear_insert).
 ; CHECK-LABEL: func shift
-; CHECK: $mm0: f64 = [$rax]: f64
-; CHECK: cjmp_flt_olt({{.*}}) -> [[MOVES:[0-9]+]]
+; CHECK: $mm0: f64 = [{{.*}}]: f64
+; CHECK: cjmp_flt_ogt({{.*}}) -> [[MOVES:[0-9]+]]
 ; CHECK: [[MOVES]]:
-; CHECK-NEXT: $rdx: i64 = $rax: i64
-; CHECK-NEXT: $rax: i64 = $rcx: i64
-; CHECK-NEXT: jmp()
+; CHECK-NEXT: $rcx: i64 = $rax: i64
+; CHECK-NEXT: $mm0: f64 = [$rcx]: f64
+; CHECK-NEXT: [$rdx]: f64 = $mm0: f64
 define void @shift(ptr %last, double %val) {
 entry:
   %n0 = getelementptr inbounds double, ptr %last, i64 -1

@@ -94,6 +94,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "V.ExtractLow";
         case VectorISubType::Shuffle:
           return "V.Shuffle";
+        case VectorISubType::ByteShuffle:
+          return "V.ByteShuffle";
       }
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
@@ -143,6 +145,22 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:FTrunc";
         case IntrinsicSubType::Fma:
           return "INTRIN:Fma";
+        case IntrinsicSubType::Clmul:
+          return "INTRIN:Clmul";
+        case IntrinsicSubType::PackSS:
+          return "INTRIN:PackSS";
+        case IntrinsicSubType::PackUS:
+          return "INTRIN:PackUS";
+        case IntrinsicSubType::PMulHW:
+          return "INTRIN:PMulHW";
+        case IntrinsicSubType::PMaddWD:
+          return "INTRIN:PMaddWD";
+        case IntrinsicSubType::PMaddUBSW:
+          return "INTRIN:PMaddUBSW";
+        case IntrinsicSubType::PermD:
+          return "INTRIN:PermD";
+        case IntrinsicSubType::MoveMask:
+          return "INTRIN:MoveMask";
         case IntrinsicSubType::IsConstant:
           return "INTRIN:IsConstant";
         case IntrinsicSubType::PopCnt:
@@ -561,6 +579,11 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
                  args[0].get_type());
       return false;
     }
+    if (!args[1].is_constant()) {
+      fmt::print("ExtractElement needs a constant lane index, got {}\n",
+                 args[1]);
+      return false;
+    }
     if (args[0].get_type()->is_vec() &&
         args[0].get_type()->as_vec().member_number <=
             args[1].as_constant()->as_int_sat()) {
@@ -690,6 +713,14 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Fma:
+        case IntrinsicSubType::Clmul:
+        case IntrinsicSubType::PackSS:
+        case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::PMulHW:
+        case IntrinsicSubType::PMaddWD:
+        case IntrinsicSubType::PMaddUBSW:
+        case IntrinsicSubType::PermD:
+        case IntrinsicSubType::MoveMask:
         case IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
@@ -773,6 +804,14 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Fma:
+        case IntrinsicSubType::Clmul:
+        case IntrinsicSubType::PackSS:
+        case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::PMulHW:
+        case IntrinsicSubType::PMaddWD:
+        case IntrinsicSubType::PMaddUBSW:
+        case IntrinsicSubType::PermD:
+        case IntrinsicSubType::MoveMask:
         case IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
@@ -886,6 +925,14 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Fma:
+        case IntrinsicSubType::Clmul:
+        case IntrinsicSubType::PackSS:
+        case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::PMulHW:
+        case IntrinsicSubType::PMaddWD:
+        case IntrinsicSubType::PMaddUBSW:
+        case IntrinsicSubType::PermD:
+        case IntrinsicSubType::MoveMask:
         case IntrinsicSubType::Memcmp:
         case IntrinsicSubType::MaskedLoad:
         case IntrinsicSubType::Gather:
@@ -958,6 +1005,14 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Fma:
+        case IntrinsicSubType::Clmul:
+        case IntrinsicSubType::PackSS:
+        case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::PMulHW:
+        case IntrinsicSubType::PMaddWD:
+        case IntrinsicSubType::PMaddUBSW:
+        case IntrinsicSubType::PermD:
+        case IntrinsicSubType::MoveMask:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::MaskedStore:
           return false;
@@ -1039,6 +1094,14 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Fma:
+        case IntrinsicSubType::Clmul:
+        case IntrinsicSubType::PackSS:
+        case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::PMulHW:
+        case IntrinsicSubType::PMaddWD:
+        case IntrinsicSubType::PMaddUBSW:
+        case IntrinsicSubType::PermD:
+        case IntrinsicSubType::MoveMask:
         case IntrinsicSubType::Memcmp:
         case IntrinsicSubType::MaskedLoad:
         case IntrinsicSubType::Gather:

@@ -177,6 +177,10 @@ enum class VectorISubType : u16 {
   Concat,
   ExtractHigh,
   ExtractLow,
+  // (src, control) both byte vectors: result byte i is zero when
+  // control byte i has bit 7 set, else the byte (control & 15) of the 16 byte
+  // lane of src that holds i (pshufb)
+  ByteShuffle,
 };
 
 // The result is the scalar combination of all lanes of the operand in any
@@ -227,6 +231,31 @@ enum class IntrinsicSubType : u16 {
   // Fma(a, b, c): a * b + c with a single rounding (llvm.fma), floats and
   // float vectors
   Fma,
+  // Clmul(a, b, imm): carry less multiplication of one 64 bit half of each
+  // <2 x i64> operand (pclmulqdq), bit 0 of the constant i8 imm selects the
+  // half of a, bit 4 the half of b, the result is the 128 bit product
+  Clmul,
+  // The x86 vector operations below have no generic form. They only exist in
+  // the 128 and 256 bit versions of the llvm.x86 intrinsics of the same name.
+  // PackSS(a, b) / PackUS(a, b): the lanes of a and b (16 or 32 bit signed)
+  // saturate to signed / unsigned lanes of half the width, per 128 bit lane
+  // the result has the lanes of a followed by those of b (packsswb, packuswb,
+  // packssdw, packusdw)
+  PackSS,
+  PackUS,
+  // PMulHW(a, b): high 16 bits of the signed products of 16 bit lanes
+  PMulHW,
+  // PMaddWD(a, b): <2n x i16> operands, lane i of the <n x i32> result is
+  // a[2i] * b[2i] + a[2i+1] * b[2i+1] (signed)
+  PMaddWD,
+  // PMaddUBSW(a, b): <2n x i8> operands (a unsigned, b signed), lane i of the
+  // <n x i16> result is the signed saturated sum of the two products
+  PMaddUBSW,
+  // PermD(a, idx): <8 x i32>, lane i of the result is a[idx[i] & 7] (vpermd)
+  PermD,
+  // MoveMask(v): i32 whose bit i is the sign bit of lane i of v (movmskps,
+  // movmskpd, pmovmskb by lane width)
+  MoveMask,
 
   IsConstant,
 

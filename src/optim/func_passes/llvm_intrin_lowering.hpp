@@ -568,11 +568,12 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
-  void handle_fexp(fir::Instr instr, fir::Function &funcy,
-                   fir::FunctionR /*callee*/) {
+  void handle_libm_intrinsic(fir::Instr instr, fir::Function &funcy,
+                             fir::FunctionR callee) {
     auto *ctx = funcy.ctx;
-    instr.replace_arg(
-        0, fir::ValueR{ctx->get_constant_value(ctx->get_function("exp"))});
+    const auto libm = fir::intrinsic_libm_name(callee.func->name.c_str());
+    instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(
+                             ctx->get_function(libm.c_str()))});
   }
 
   void handle_ctlz(fir::Instr instr, fir::Function & /*funcy*/,
@@ -721,6 +722,152 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                                   instr->args[3], fir::IntrinsicSubType::Fma);
     instr->replace_all_uses(res);
     instr.destroy();
+  }
+
+  // x86 intrinsics that are the same operation as a generic instruction, the
+  // optimizer may treat them like any other instruction
+  void handle_x86_pclmulqdq(fir::Instr instr) {
+    fir::Builder bb{instr};
+    auto res = bb.build_intrinsic(instr->args[1], instr->args[2],
+                                  instr->args[3], fir::IntrinsicSubType::Clmul);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_x86_pshufb(fir::Instr instr) {
+    fir::Builder bb{instr};
+    auto res = bb.build_vector_op(instr->args[1], instr->args[2],
+                                  instr->result_type(),
+                                  fir::VectorISubType::ByteShuffle);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  // vector shift of every lane by one scalar count (psllw, psrld, psrad, ...),
+  // a count above the lane width gives zero, or the sign for an arithmetic shift
+  void handle_x86_vec_shift(fir::Instr instr, fir::Function &func,
+                            fir::BinaryInstrSubType kind) {
+    fir::Builder bb{instr};
+    auto *ctx = func.ctx;
+    const auto vty = instr->args[1].get_type();
+    const u32 lane_bits = vty->as_vec().bitwidth;
+    auto lane_ty = ctx->get_int_type(static_cast<u16>(lane_bits));
+    auto count = instr->args[2];
+    const auto splat = [&](fir::ValueR scalar) {
+      return bb.build_vector_op(scalar, vty, fir::VectorISubType::Broadcast);
+    };
+    const auto lane_const = [&](i128 v) {
+      return fir::ValueR{ctx->get_constant_int(v, static_cast<u16>(lane_bits))};
+    };
+    const auto shift = [&](fir::ValueR v, fir::ValueR amount) {
+      return bb.build_binary_op(v, splat(amount), kind);
+    };
+    const bool arith = kind == fir::BinaryInstrSubType::AShr;
+    fir::ValueR res;
+    if (count.is_constant_int()) {
+      const i128 c = count.as_constant()->as_int();
+      if (c >= lane_bits || c < 0) {
+        res = arith ? shift(instr->args[1], lane_const(lane_bits - 1))
+                    : fir::ValueR{ctx->get_constant_value(
+                          IRVec<fir::ConstantValueR>(
+                              vty->as_vec().member_number,
+                              ctx->get_constant_int(0, static_cast<u16>(lane_bits))),
+                          vty)};
+      } else {
+        res = shift(instr->args[1], lane_const(c));
+      }
+    } else {
+      // the count is an unsigned 32 bit number (up to 64 bit for the q forms)
+      auto wide = bb.build_zext(count, ctx->get_int_type(64));
+      auto limit = fir::ValueR{ctx->get_constant_int(lane_bits - 1, 64)};
+      auto too_big =
+          bb.build_int_cmp(wide, limit, fir::ICmpInstrSubType::UGT);
+      auto small = bb.build_select(ctx->get_int_type(64), too_big, limit, wide);
+      auto amount = bb.build_itrunc(small, lane_ty);
+      res = shift(instr->args[1], amount);
+      if (!arith) {
+        // shifting by the width is shifting by width - 1 and then by one more
+        auto extra = bb.build_zext(too_big, lane_ty);
+        res = shift(res, extra);
+      }
+    }
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  // x86 intrinsics with an own intrinsic of FIR, same operands
+  void handle_x86_vec_intrinsic(fir::Instr instr, fir::IntrinsicSubType sub) {
+    fir::Builder bb{instr};
+    fir::ValueR res;
+    if (instr->args.size() == 2) {
+      res = bb.build_intrinsic(instr->args[1], sub, instr.result_type());
+    } else {
+      res = bb.build_intrinsic(instr->args[1], instr->args[2], sub,
+                               instr.result_type());
+    }
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  bool lower_x86_vec(fir::Instr instr, fir::Function &func,
+                     std::string_view name) {
+    using Sub = fir::IntrinsicSubType;
+    if (!name.starts_with("llvm.x86.")) {
+      return false;
+    }
+    name.remove_prefix(9);
+    static constexpr struct {
+      std::string_view name;
+      Sub sub;
+    } table[] = {
+        {"sse2.packsswb.128", Sub::PackSS},
+        {"sse2.packssdw.128", Sub::PackSS},
+        {"avx2.packsswb", Sub::PackSS},
+        {"avx2.packssdw", Sub::PackSS},
+        {"sse2.packuswb.128", Sub::PackUS},
+        {"sse41.packusdw", Sub::PackUS},
+        {"avx2.packuswb", Sub::PackUS},
+        {"avx2.packusdw", Sub::PackUS},
+        {"sse2.pmulh.w", Sub::PMulHW},
+        {"avx2.pmulh.w", Sub::PMulHW},
+        {"sse2.pmadd.wd", Sub::PMaddWD},
+        {"avx2.pmadd.wd", Sub::PMaddWD},
+        {"ssse3.pmadd.ub.sw.128", Sub::PMaddUBSW},
+        {"avx2.pmadd.ub.sw", Sub::PMaddUBSW},
+        {"avx2.permd", Sub::PermD},
+        {"sse.movmsk.ps", Sub::MoveMask},
+        {"sse2.movmsk.pd", Sub::MoveMask},
+        {"sse2.pmovmskb.128", Sub::MoveMask},
+        {"avx.movmsk.ps.256", Sub::MoveMask},
+        {"avx.movmsk.pd.256", Sub::MoveMask},
+        {"avx2.pmovmskb", Sub::MoveMask},
+    };
+    for (const auto &entry : table) {
+      if (entry.name == name) {
+        handle_x86_vec_intrinsic(instr, entry.sub);
+        return true;
+      }
+    }
+    // {sse2,avx2}.{psll,psrl,psra}i.{w,d,q}
+    for (std::string_view prefix : {"sse2.", "avx2."}) {
+      if (!name.starts_with(prefix)) {
+        continue;
+      }
+      auto rest = name.substr(prefix.size());
+      fir::BinaryInstrSubType kind;
+      if (rest.starts_with("pslli.")) {
+        kind = fir::BinaryInstrSubType::Shl;
+      } else if (rest.starts_with("psrli.")) {
+        kind = fir::BinaryInstrSubType::Shr;
+      } else if (rest.starts_with("psrai.")) {
+        kind = fir::BinaryInstrSubType::AShr;
+      } else {
+        return false;
+      }
+      handle_x86_vec_shift(instr, func, kind);
+      return true;
+    }
+    return false;
   }
 
   void handle_trunc(fir::Instr instr, fir::Function & /*funcy*/,
@@ -872,6 +1019,14 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         } else if (callee.func->name.starts_with("llvm.x86.sse2.pause")) {
           instr.destroy();
           modified = true;
+        } else if (lower_x86_vec(instr, func, std::string_view{callee.func->name})) {
+          modified = true;
+        } else if (callee.func->name == "llvm.x86.pclmulqdq") {
+          handle_x86_pclmulqdq(instr);
+          modified = true;
+        } else if (callee.func->name == "llvm.x86.ssse3.pshuf.b.128") {
+          handle_x86_pshufb(instr);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.modf.")) {
           handle_modf(instr, func, callee);
           modified = true;
@@ -900,8 +1055,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                    callee.func->name.starts_with("llvm.lifetime.end")) {
           handle_lifetime(instr, func, callee);
           modified = true;
-        } else if (callee.func->name.starts_with("llvm.exp.f")) {
-          handle_fexp(instr, func, callee);
+        } else if (!fir::intrinsic_libm_name(callee.func->name.c_str())
+                        .empty()) {
+          handle_libm_intrinsic(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.memmove")) {
           handle_memmove(instr, func, callee);

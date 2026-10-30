@@ -402,7 +402,21 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         auto *ctx = func.ctx;
         // TODO: should habe a uninit/poision value for these cases?
         auto result_type = target_alloca.as_instr()->extra_type;
-        if ((result_type)->is_float()) {
+        if (result_type->is_vec()) {
+          const auto &vec = result_type->as_vec();
+          IRVec<fir::ConstantValueR> lanes;
+          for (u32 lane = 0; lane < vec.member_number; lane++) {
+            if (vec.type == fir::VectorType::SubType::Floating) {
+              lanes.push_back(ctx->get_constant_value(
+                  0.0, ctx->get_float_type(vec.bitwidth)));
+            } else {
+              lanes.push_back(ctx->get_constant_value(
+                  0, ctx->get_int_type(vec.bitwidth)));
+            }
+          }
+          var_val_res = fir::ValueR(
+              ctx->get_constant_value(std::move(lanes), result_type));
+        } else if ((result_type)->is_float()) {
           var_val_res = fir::ValueR(ctx->get_constant_value(0.0, result_type));
         } else {
           var_val_res = fir::ValueR(ctx->get_constant_value(0, result_type));

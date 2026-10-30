@@ -140,6 +140,28 @@ u8 vcmp_predicate(fir::Instr cmp_instr) {
   return vcmp_condition;
 }
 
+// the flag lowering of scalar compares only has seta / setae style tests that
+// are false for unordered, so olt / ole / ugt / uge are the mirrored compare of
+// the swapped operands
+bool flip_scalar_fcmp(fir::FCmpInstrSubType &sub) {
+  switch (sub) {
+    case fir::FCmpInstrSubType::OLT:
+      sub = fir::FCmpInstrSubType::OGT;
+      return true;
+    case fir::FCmpInstrSubType::OLE:
+      sub = fir::FCmpInstrSubType::OGE;
+      return true;
+    case fir::FCmpInstrSubType::UGT:
+      sub = fir::FCmpInstrSubType::ULT;
+      return true;
+    case fir::FCmpInstrSubType::UGE:
+      sub = fir::FCmpInstrSubType::ULE;
+      return true;
+    default:
+      return false;
+  }
+}
+
 // all lanes set
 MArgument vec_all_ones(MArgument like, MatchResult &res, ExtraMatchData &data) {
   auto ones = MArgument(data.alloc.get_new_register(like.ty), like.ty);
@@ -1262,9 +1284,11 @@ void cjmp_rules(RuleSet &rules) {
 
     auto &bb_with_args = branch_instr->bbs[0];
     auto target_bb = branch_instr->bbs[0].bb;
-    auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-    auto v2 =
-        valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc, cmp_instr);
+    const bool flipped = flip_scalar_fcmp(sub_type);
+    auto v1 = valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result,
+                         data.alloc);
+    auto v2 = valueToArgPosMem(cmp_instr->args[flipped ? 0 : 1], res.result,
+                               data.alloc, cmp_instr);
 
     ASSERT(bb_with_args.args.size() == target_bb->args.size());
     generate_bb_args(bb_with_args, res, data);
@@ -1286,6 +1310,15 @@ void cjmp_rules(RuleSet &rules) {
     }
     return true;
   });
+}
+
+template <X86Subtype Sub>
+bool three_op_rule(fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+  auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+  auto a = valueToArg(instr->args[0], res.result, data.alloc);
+  auto b = valueToArg(instr->args[1], res.result, data.alloc);
+  res.result.emplace_back(Sub, res_reg, a, b);
+  return true;
 }
 
 void arith_rules(RuleSet &rules) {
@@ -1407,6 +1440,40 @@ void arith_rules(RuleSet &rules) {
     // res = a * b + res
     res.result.emplace_back(GBaseSubtype::mov, res_reg, c);
     res.result.emplace_back(X86Subtype::ffmadd231, res_reg, a, b);
+    return true;
+  });
+  rules.add(pm::PackSS, three_op_rule<X86Subtype::vpacks>);
+  rules.add(pm::PackUS, three_op_rule<X86Subtype::vpack>);
+  rules.add(pm::PMulHW, three_op_rule<X86Subtype::vpmulhw>);
+  rules.add(pm::PMaddWD, three_op_rule<X86Subtype::vpmaddwd>);
+  rules.add(pm::PMaddUBSW, three_op_rule<X86Subtype::vpmaddubsw>);
+  rules.add(pm::PermD, [](fir::Instr instr, MatchResult &res,
+                          ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto src = valueToArg(instr->args[0], res.result, data.alloc);
+    auto idx = valueToArg(instr->args[1], res.result, data.alloc);
+    res.result.emplace_back(X86Subtype::vpermd, res_reg, idx, src);
+    return true;
+  });
+  rules.add(pm::MoveMask, [](fir::Instr instr, MatchResult &res,
+                             ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto src = valueToArg(instr->args[0], res.result, data.alloc);
+    res.result.emplace_back(X86Subtype::vmovmsk, res_reg, src);
+    return true;
+  });
+  rules.add(pm::Clmul, [](fir::Instr instr, MatchResult &res,
+                          ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto a = valueToArg(instr->args[0], res.result, data.alloc);
+    auto b = valueToArg(instr->args[1], res.result, data.alloc);
+    auto imm = valueToArg(instr->args[2], res.result, data.alloc);
+    ASSERT_M(imm.isImm(), "clmul selector has to be a constant");
+    const auto as = [](MArgument v) {
+      return MArgument{v.reg.retype(Type::Int64x2), Type::Int64x2};
+    };
+    res.result.emplace_back(X86Subtype::vpclmul, as(res_reg), as(a), as(b),
+                            MArgument(static_cast<u8>(imm.imm)));
     return true;
   });
   rules.add(pm::IntMul, [](fir::Instr mul_instr, MatchResult &res,
@@ -2494,6 +2561,43 @@ void base_rules(RuleSet &rules) {
                                 MArgument::Int(1, Type::Int8));
         res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
         break;
+      case Type::Float64x4: {
+        // high half times low half, then the two lane case
+        auto half = MArgument{data.alloc.get_new_register(Type::Float64x2),
+                              Type::Float64x2};
+        auto a1_128 =
+            MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
+        res.result.emplace_back(X86Subtype::vextract128, half, a1,
+                                MArgument(static_cast<u8>(1)));
+        res.result.emplace_back(GVecSubtype::vmul, half, half, a1_128);
+        res.result.emplace_back(X86Subtype::vpermil, res_reg, half,
+                                MArgument::Int(1, Type::Int8));
+        res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, half);
+        break;
+      }
+      case Type::Float32x4:
+      case Type::Float32x8: {
+        auto quad = a1;
+        if (a1.ty == Type::Float32x8) {
+          quad = MArgument{data.alloc.get_new_register(Type::Float32x4),
+                           Type::Float32x4};
+          auto a1_128 =
+              MArgument{a1.reg.retype(Type::Float32x4), Type::Float32x4};
+          res.result.emplace_back(X86Subtype::vextract128, quad, a1,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GVecSubtype::vmul, quad, quad, a1_128);
+        }
+        // high pair times low pair, then the two lane case
+        auto pair = MArgument{data.alloc.get_new_register(Type::Float32x4),
+                              Type::Float32x4};
+        res.result.emplace_back(X86Subtype::movhlps, pair, pair, quad);
+        res.result.emplace_back(GVecSubtype::vmul, pair, pair, quad);
+        auto pair_64 = MArgument{pair.reg.retype(Type::Float32x2),
+                                 Type::Float32x2};
+        res.result.emplace_back(X86Subtype::vmovshdup, res_reg, pair_64);
+        res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, pair_64);
+        break;
+      }
       default:
         fmt::println("{:cd}", hred_instr->args[0].get_type());
         fmt::println("{:cd}", hred_instr);
@@ -3081,6 +3185,19 @@ void base_rules(RuleSet &rules) {
                             as(swap ? a1 : a2, floats), MArgument(imm));
     return true;
   });
+  rules.add(pm::ByteShuffle, [](fir::Instr shuf_instr, MatchResult &res,
+                                ExtraMatchData &data) {
+    auto res_reg = valueToArg(shuf_instr.result(), res.result, data.alloc);
+    auto src = valueToArg(shuf_instr->args[0], res.result, data.alloc);
+    auto ctrl = valueToArg(shuf_instr->args[1], res.result, data.alloc);
+    const u32 bytes = get_size(res_reg.ty);
+    ASSERT(bytes == 16 || bytes == 32);
+    const Type bytes_ty = bytes == 16 ? Type::Int8x16 : Type::Int8x32;
+    auto as = [](MArgument v, Type t) { return MArgument{v.reg.retype(t), t}; };
+    res.result.emplace_back(X86Subtype::vpshufb, as(res_reg, bytes_ty),
+                            as(src, bytes_ty), as(ctrl, bytes_ty));
+    return true;
+  });
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
     auto res_reg = valueToArg(broad_instr.result(), res.result, data.alloc);
@@ -3228,15 +3345,17 @@ void base_rules(RuleSet &rules) {
                               MArgument(vcmp_predicate(cmp_instr)));
       return true;
     }
-    auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-    auto arg2 =
-        valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc, cmp_instr);
-    // auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+    auto sub_type =
+        static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype());
+    const bool flipped = flip_scalar_fcmp(sub_type);
+    auto arg1 = valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result,
+                           data.alloc);
+    auto arg2 = valueToArgPosMem(cmp_instr->args[flipped ? 0 : 1], res.result,
+                                 data.alloc, cmp_instr);
 
     GJumpSubtype op = GJumpSubtype::fcmp_oeq;
 
-    switch (
-        static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype())) {
+    switch (sub_type) {
       case fir::FCmpInstrSubType::IsNaN:
         op = GJumpSubtype::fcmp_isNaN;
         break;

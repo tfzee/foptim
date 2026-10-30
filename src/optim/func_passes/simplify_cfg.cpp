@@ -502,6 +502,21 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
   return KeptArg::Fail;
 }
 
+// lane indices and shuffle masks are immediates of the instruction, a block
+// argument cannot stand in for them
+bool is_immediate_operand(fir::Instr instr, u32 idx) {
+  if (instr->is(fir::InstrType::ExtractElement)) {
+    return idx == 1;
+  }
+  if (instr->is(fir::InstrType::InsertElement)) {
+    return idx == 2;
+  }
+  if (instr->is(fir::VectorISubType::Shuffle)) {
+    return idx == 2;
+  }
+  return false;
+}
+
 [[nodiscard]] bool check_args(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost, TVec<DiffValues> &difference_values,
@@ -509,6 +524,9 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
   for (u32 i = 0; i < i1->args.size(); i++) {
     auto &arg1 = i1->args[i];
     auto &arg2 = i2->args[i];
+    if (arg1 != arg2 && is_immediate_operand(i1, i)) {
+      return false;
+    }
     auto kept_res =
         match_kept_arg(arg1, arg2, i1->get_parent(), i2->get_parent(), arg_map);
     if (kept_res == KeptArg::Fail) {
@@ -1033,6 +1051,14 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::FCeil:
           case fir::IntrinsicSubType::FTrunc:
           case fir::IntrinsicSubType::Fma:
+          case fir::IntrinsicSubType::Clmul:
+          case fir::IntrinsicSubType::PackSS:
+          case fir::IntrinsicSubType::PackUS:
+          case fir::IntrinsicSubType::PMulHW:
+          case fir::IntrinsicSubType::PMaddWD:
+          case fir::IntrinsicSubType::PMaddUBSW:
+          case fir::IntrinsicSubType::PermD:
+          case fir::IntrinsicSubType::MoveMask:
           case fir::IntrinsicSubType::IsConstant:
           case fir::IntrinsicSubType::Memset:
           case fir::IntrinsicSubType::Memcpy:
@@ -1706,7 +1732,6 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   // gotta substitute bbargs if there are any
   if (!merge_target->args.empty()) {
     ASSERT(can_rename);
-    ASSERT(needs_rename);
 
     for (size_t arg_id = 0; arg_id < merge_target->args.size(); arg_id++) {
       subs.insert({fir::ValueR{merge_target->args[arg_id]},

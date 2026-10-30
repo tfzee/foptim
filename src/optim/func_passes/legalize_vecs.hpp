@@ -227,9 +227,105 @@ class LegalizeVecs final : public FunctionPass {
     return true;
   }
 
-  bool legalize(fir::Context &ctx, fir::Instr instr,
-                TVec<fir::Instr> &worklist, FloatPool &pool) {
+  // shuffles of byte and word lanes with a constant mask become one pshufb per
+  // source (zeroing the lanes that come from the other one) and an or. pshufb
+  // stays inside its 128 bit lane, a mask that crosses lanes is left alone
+  bool legalize_narrow_shuffle(fir::Context &ctx, fir::Instr instr,
+                               TVec<fir::Instr> &worklist) {
+    if (!instr->is(fir::VectorISubType::Shuffle) ||
+        !instr->args[2].is_constant() ||
+        !instr->args[2].as_constant()->is_vec()) {
+      return false;
+    }
+    const auto res_ty = instr->result_type()->as_vec();
+    const auto src_ty = instr->args[0].get_type()->as_vec();
+    if (res_ty.type != fir::VectorType::SubType::Integer ||
+        (res_ty.bitwidth != 8 && res_ty.bitwidth != 16)) {
+      return false;
+    }
+    const u32 lane_bytes = res_ty.bitwidth / 8;
+    const u32 src_bytes = src_ty.member_number * lane_bytes;
+    const u32 res_bytes = res_ty.member_number * lane_bytes;
+    if ((src_bytes != 16 && src_bytes != 32) || res_bytes > src_bytes) {
+      return false;
+    }
+    const auto &mask = instr->args[2].as_constant()->as_vec().members;
+    constexpr i128 Zero = 0x80;
+    TVec<i128> ctrl_a(src_bytes, Zero);
+    TVec<i128> ctrl_b(src_bytes, Zero);
+    bool use_a = false;
+    bool use_b = false;
+    for (u32 j = 0; j < mask.size(); j++) {
+      const i128 m = mask[j]->as_int();
+      if (m < 0) {
+        continue;
+      }
+      const bool second = m >= src_ty.member_number;
+      const u32 lane = static_cast<u32>(m) % src_ty.member_number;
+      for (u32 t = 0; t < lane_bytes; t++) {
+        const u32 pos = j * lane_bytes + t;
+        const u32 idx = lane * lane_bytes + t;
+        if (idx / 16 != pos / 16) {
+          return false;
+        }
+        (second ? ctrl_b : ctrl_a)[pos] = idx % 16;
+      }
+      (second ? use_b : use_a) = true;
+    }
+    use_a |= !use_b;
+
+    fir::Builder b{instr};
+    const auto byte_ty = ctx->get_vec_type(fir::VectorType::SubType::Integer, 8,
+                                           static_cast<u16>(src_bytes));
+    const auto shuffle_with = [&](fir::ValueR src, const TVec<i128> &ctrl) {
+      IRVec<fir::ConstantValueR> members;
+      for (const i128 c : ctrl) {
+        members.push_back(ctx->get_constant_int(c, 8));
+      }
+      auto bytes = lane_bytes == 1
+                       ? src
+                       : b.build_conversion_op(src, byte_ty,
+                                               fir::ConversionSubType::BitCast);
+      auto ctrl_vec =
+          fir::ValueR{ctx->get_constant_value(std::move(members), byte_ty)};
+      return b.build_vector_op(bytes, ctrl_vec, byte_ty,
+                               fir::VectorISubType::ByteShuffle);
+    };
+    fir::ValueR res;
+    if (use_a) {
+      res = shuffle_with(instr->args[0], ctrl_a);
+    }
+    if (use_b) {
+      auto from_b = shuffle_with(instr->args[1], ctrl_b);
+      res = use_a ? b.build_binary_op(res, from_b, fir::BinaryInstrSubType::Or)
+                  : from_b;
+    }
+    if (res_bytes == src_bytes) {
+      if (lane_bytes != 1) {
+        res = b.build_conversion_op(res, instr->result_type(),
+                                    fir::ConversionSubType::BitCast);
+      }
+    } else {
+      auto wide_ty = instr->args[0].get_type();
+      if (lane_bytes != 1) {
+        res = b.build_conversion_op(res, wide_ty,
+                                    fir::ConversionSubType::BitCast);
+      }
+      res = b.build_vector_op(res, instr->result_type(),
+                              fir::VectorISubType::ExtractLow);
+    }
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return true;
+  }
+
+  bool legalize(fir::Context &ctx, fir::Instr instr, TVec<fir::Instr> &worklist,
+                FloatPool &pool) {
     if (legalize_byte_shift(ctx, instr, worklist)) {
+      return true;
+    }
+    if (legalize_narrow_shuffle(ctx, instr, worklist)) {
       return true;
     }
     // constant vector operands get moved into globals, whatever else happens

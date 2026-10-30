@@ -604,6 +604,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         }
         case fir::VectorISubType::INVALID:
         case fir::VectorISubType::Shuffle:
+        case fir::VectorISubType::ByteShuffle:
         case fir::VectorISubType::Concat:
         case fir::VectorISubType::ExtractHigh:
         case fir::VectorISubType::ExtractLow:
@@ -1030,6 +1031,14 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           return a;
         }
         case fir::IntrinsicSubType::Fma:
+        case fir::IntrinsicSubType::Clmul:
+        case fir::IntrinsicSubType::PackSS:
+        case fir::IntrinsicSubType::PackUS:
+        case fir::IntrinsicSubType::PMulHW:
+        case fir::IntrinsicSubType::PMaddWD:
+        case fir::IntrinsicSubType::PMaddUBSW:
+        case fir::IntrinsicSubType::PermD:
+        case fir::IntrinsicSubType::MoveMask:
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:

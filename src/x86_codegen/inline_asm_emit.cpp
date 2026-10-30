@@ -131,21 +131,6 @@ std::string expand_asm_template(const fmir::MAsmBlock &block,
   size_t i = 0;
   while (i < tmpl.size()) {
     const char c = tmpl[i];
-    // dialect alternatives, always att
-    if (c == '{') {
-      i++;
-      continue;
-    }
-    if (c == '|') {
-      while (i < tmpl.size() && tmpl[i] != '}') {
-        i++;
-      }
-      continue;
-    }
-    if (c == '}') {
-      i++;
-      continue;
-    }
     if (c != '$') {
       res += c;
       i++;
@@ -161,6 +146,18 @@ std::string expand_asm_template(const fmir::MAsmBlock &block,
     if (tmpl[i] == '=') {
       res += fmt::format("{}", unique_id);
       i++;
+      continue;
+    }
+    // dialect alternatives $( att $| intel $), always att
+    if (tmpl[i] == '(' || tmpl[i] == ')') {
+      i++;
+      continue;
+    }
+    if (tmpl[i] == '|') {
+      i++;
+      while (i + 1 < tmpl.size() && !(tmpl[i] == '$' && tmpl[i + 1] == ')')) {
+        i++;
+      }
       continue;
     }
     const bool braced = tmpl[i] == '{';

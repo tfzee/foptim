@@ -123,3 +123,19 @@ TEST(InlineAsmEncode, TemplateExpansion) {
   EXPECT_EQ(foptim::codegen::expand_asm_template(block, ops, 4),
             "addq $7, %rax; movl %r9d, $5; # 4");
 }
+
+TEST(InlineAsmEncode, DialectAlternativesTakeAtt) {
+  using foptim::codegen::AsmOperandValue;
+  using foptim::fmir::CReg;
+  using foptim::fmir::MArgument;
+  using foptim::fmir::Type;
+  using foptim::fmir::VReg;
+  foptim::fmir::MAsmBlock block;
+  block.tmpl = foptim::IRString{"xchg$(q$|$)  $(%$|$)rbx,${1:q}; movl {%k1}, $0"};
+  block.operands.resize(2);
+  std::vector<AsmOperandValue> ops(2);
+  ops[0] = {true, MArgument{VReg{CReg::A, Type::Int64}, Type::Int64}};
+  ops[1] = {true, MArgument{VReg{CReg::R9, Type::Int64}, Type::Int64}};
+  EXPECT_EQ(foptim::codegen::expand_asm_template(block, ops, 0),
+            "xchgq  %rbx,%r9; movl {%k1}, %rax");
+}
