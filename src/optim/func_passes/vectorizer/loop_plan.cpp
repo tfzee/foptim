@@ -1091,8 +1091,8 @@ class LoopSeedProvider final : public SeedProvider {
     return true;
   }
 
-  bool plan_finish(PlanEnv &env, Seed & /*seed*/, Plan &plan) final {
-    LoopMemDep dep{*plan.evo, env.aa};
+  bool plan_finish(PlanEnv &env, Seed &seed, Plan &plan) final {
+    LoopMemDep dep{*plan.evo, env.aa, IterSpan{env.cfg, seed.loop}};
     const auto &acc = plan.loop.accesses;
     u32 best_vf = 0;
     i64 best_benefit = 0;

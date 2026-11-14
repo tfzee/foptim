@@ -1,6 +1,8 @@
 #pragma once
 #include <fmt/base.h>
 
+#include <chrono>
+
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
@@ -230,7 +232,10 @@ class BaseInlineAdvisor {
   static constexpr bool debug_print = false;
 
  public:
-  void begin_round() {}
+  void begin_round() {
+    n_inlined_instructions = 0;
+    n_inlined_calls = 0;
+  }
 
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr,
                                        InlineCallerCtx &caller,
@@ -296,6 +301,13 @@ class BaseInlineAdvisor {
       return true;
     }
 
+    if (n_inlined_instructions > 100 && n_inlined_calls > 50) {
+      if (debug_print) {
+        fmt::println("N already inlined a bunch");
+      }
+      return false;
+    }
+
     if (called_n_instrs <= (4 + info.n_args + (instr->has_result() ? 4 : 0))) {
       if (debug_print) {
         fmt::println("Y Shorter then setting up args");
@@ -326,14 +338,7 @@ class BaseInlineAdvisor {
       }
     }
 
-    if (n_inlined_instructions > 100 && n_inlined_calls > 50) {
-      if (debug_print) {
-        fmt::println("N already inlined a bunch");
-      }
-      return false;
-    }
-
-    if (self_n_instrs > 1000) {
+    if (self_n_instrs > 5000) {
       if (debug_print) {
         fmt::println("N self already big");
       }
@@ -348,8 +353,9 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    // only caller, the original gets removed by GDCE so nothing grows
-    if (self_func != v && v->get_n_uses() == 1 &&
+    // only caller, the original gets removed by GDCE so nothing grows, but a
+    // huge callee still costs real time to splice and reanalyze
+    if (self_func != v && called_n_instrs < 200 && v->get_n_uses() == 1 &&
         (v->attribs.linkage == fir::Linkage::Internal ||
          v->attribs.linkage == fir::Linkage::LinkOnceODR)) {
       if (debug_print) {
@@ -468,6 +474,8 @@ class Inline final : public ModulePass {
 
   void apply(fir::Function &func, const CallSCCs &sccs,
              InlineCalleeInfos &callees, AnalysisManager &analyMan) {
+    fmt::println(stderr, "INLINE_ENTER func={} n_instrs={}", func.name,
+                 func.n_instrs());
     Advisor adv;
     TVec<fir::Instr> calls;
     // call sites that were already decided, they are not looked at again
@@ -497,12 +505,23 @@ class Inline final : public ModulePass {
       InlineCallerCtx caller{func};
       adv.begin_round();
 
+      auto t0 = std::chrono::steady_clock::now();
+      size_t dbg_examined = 0;
       for (size_t bb_id = first_bb; bb_id < n_bbs_before; bb_id++) {
         auto bb = func.basic_blocks[bb_id];
         for (auto instr : bb->instructions) {
           if (!instr->is(fir::InstrType::CallInstr) ||
               !seen.insert(instr).second) {
             continue;
+          }
+          dbg_examined++;
+          if (func.n_instrs() > 500 && dbg_examined % 200 == 0) {
+            fmt::println(
+                "INLINE_PROGRESS func={} round={} examined={} elapsed_ms={}",
+                func.name, round, dbg_examined,
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t0)
+                    .count());
           }
           // inside a recursive SCC callees are not final, only calls of the
           // original body are inlined (one level per pass run)
@@ -520,6 +539,7 @@ class Inline final : public ModulePass {
           }
         }
       }
+      auto t1 = std::chrono::steady_clock::now();
       if (calls.empty()) {
         break;
       }
@@ -532,6 +552,16 @@ class Inline final : public ModulePass {
               1, round == 0 ? "InlinedCalls" : "InlinedCallsRetry",
               utils::StatCollector::StatType::StatFOptim);
         }
+      }
+      auto t2 = std::chrono::steady_clock::now();
+      if (func.n_instrs() > 500) {
+        fmt::println(
+            "INLINE_TIMING func={} round={} n_bbs_before={} n_instrs_before={} "
+            "n_instrs_after={} n_calls={} scan_ms={} splice_ms={}",
+            func.name, round, n_bbs_before, caller.base_n_instrs(),
+            func.n_instrs(), calls.size(),
+            std::chrono::duration<double, std::milli>(t1 - t0).count(),
+            std::chrono::duration<double, std::milli>(t2 - t1).count());
       }
       if (changed) {
         if (in_recursive_scc) {

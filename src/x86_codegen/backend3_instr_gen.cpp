@@ -1680,6 +1680,20 @@ size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &orig_instr,
       ASSERT(!instr.args[0].is_vec_reg());
       req.mnemonic = ZYDIS_MNEMONIC_SHL;
       return emit(out_buff, 0, &req);
+    case fmir::GArithSubtype::rol2:
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      ASSERT(!instr.args[0].is_vec_reg());
+      req.mnemonic = ZYDIS_MNEMONIC_ROL;
+      return emit(out_buff, 0, &req);
+    case fmir::GArithSubtype::ror2:
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      ASSERT(!instr.args[0].is_vec_reg());
+      req.mnemonic = ZYDIS_MNEMONIC_ROR;
+      return emit(out_buff, 0, &req);
     case fmir::GArithSubtype::shr2:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

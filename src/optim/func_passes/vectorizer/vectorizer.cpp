@@ -132,7 +132,9 @@ bool Vectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func,
               .dom = &dom,
               .aa = aa,
               .config = config};
-  RegionTree tree{cfg, linfo.info};
+  LoopNesting nest{cfg, linfo.info};
+  // one plan per loop of the nesting, null until a seed of that loop planned
+  TVec<Plan *> loop_plans(linfo.info.size(), nullptr);
   auto &stats = utils::StatCollector::get();
   stats.addi(static_cast<i64>(provider->seeds.size()), "LoopSeeds",
              utils::StatCollector::StatFOptim);
@@ -183,22 +185,22 @@ bool Vectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func,
       continue;
     }
     n_plans++;
-    tree.regions[static_cast<u32>(provider->seeds[i].loop - linfo.info.data())]
-        .plan = &plans[i];
+    loop_plans[static_cast<u32>(provider->seeds[i].loop - linfo.info.data())] =
+        &plans[i];
   }
   if (n_plans == 0) {
     return changed;
   }
   const auto chosen = select_plans(
-      tree, config.assumed_trip,
-      [&](fir::BasicBlock bb) { return slp_benefit(ctx, aa, bb); });
+      nest, loop_plans, config.assumed_trip,
+      [&](u32 bb_id) { return slp_benefit(ctx, aa, cfg.bbrs[bb_id].bb); });
   stats.addi(static_cast<i64>(n_plans - std::min(n_plans, chosen.size())),
              "LoopRejectedSelector", utils::StatCollector::StatFOptim);
   if (chosen.empty()) {
     return changed;
   }
   for (auto id : chosen) {
-    auto &plan = *tree.regions[id].plan;
+    auto &plan = *loop_plans[id];
     // the entry is the remainder of an earlier loop, now a second path in
     if (std::ranges::find(claimed, plan.evo->entry_block()) != claimed.end()) {
       stats.addi(1, "LoopRejectedSelector", utils::StatCollector::StatFOptim);

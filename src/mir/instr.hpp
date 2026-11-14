@@ -109,6 +109,8 @@ enum class GArithSubtype : u32 {
   shl2,
   shr2,
   sar2,
+  rol2,
+  ror2,
   land2,
   lor2,
   lxor2,

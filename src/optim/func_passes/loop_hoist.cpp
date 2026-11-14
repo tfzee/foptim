@@ -12,10 +12,6 @@ namespace foptim::optim {
 
 namespace {
 
-bool in_nodes(const TVec<u32> &nodes, u32 id) {
-  return std::ranges::find(nodes, id) != nodes.end();
-}
-
 struct HoistPlan {
   u32 pre;
   TVec<std::pair<u32, u16>> exits;
@@ -45,7 +41,7 @@ class Hoister {
       return true;
     }
     const u32 id = block_of(v);
-    return in_nodes(inner.body_nodes, id) || !in_nodes(outer.body_nodes, id);
+    return inner.contains(id) || !outer.contains(id);
   }
 
   static bool plain_instr(fir::Instr instr) {
@@ -71,23 +67,15 @@ class Hoister {
     return true;
   }
 
+  // `inner` has to be a loop nested in `outer` (LoopNesting::is_nested_in)
   bool plan(const LoopInfo &outer, const LoopInfo &inner, HoistPlan &out) {
-    if (inner.head == outer.head ||
-        inner.body_nodes.size() >= outer.body_nodes.size()) {
-      return false;
-    }
-    if (!std::ranges::all_of(inner.body_nodes, [&](u32 n) {
-          return in_nodes(outer.body_nodes, n);
-        })) {
-      return false;
-    }
     // the outer loop is entered from one block through one edge
     if (cfg.bbrs[outer.head].pred.size() != outer.tails.size() + 1) {
       return false;
     }
     u32 outer_pre = ~0U;
     for (auto p : cfg.bbrs[outer.head].pred) {
-      if (!in_nodes(outer.body_nodes, p)) {
+      if (!outer.contains(p)) {
         outer_pre = p;
       }
     }
@@ -108,7 +96,7 @@ class Hoister {
     u32 pre = ~0U;
     for (u32 n : inner.body_nodes) {
       for (auto p : cfg.bbrs[n].pred) {
-        if (in_nodes(inner.body_nodes, p)) {
+        if (inner.contains(p)) {
           continue;
         }
         if (n != inner.head || pre != ~0U) {
@@ -131,7 +119,7 @@ class Hoister {
       auto term = cfg.bbrs[n].bb->get_terminator();
       for (u32 i = 0; i < term->bbs.size(); i++) {
         const u32 t = cfg.get_bb_id(term->bbs[i].bb);
-        if (in_nodes(inner.body_nodes, t)) {
+        if (inner.contains(t)) {
           continue;
         }
         if (!out.exits.empty() && t != out.exit_target) {
@@ -141,7 +129,7 @@ class Hoister {
         out.exit_target = t;
       }
     }
-    if (out.exits.empty() || !in_nodes(outer.body_nodes, out.exit_target)) {
+    if (out.exits.empty() || !outer.contains(out.exit_target)) {
       return false;
     }
     out.pre = pre;
@@ -205,7 +193,7 @@ class Hoister {
     auto outer_head = cfg.bbrs[outer.head].bb;
     auto outer_pre = [&] {
       for (auto pr : cfg.bbrs[outer.head].pred) {
-        if (!in_nodes(outer.body_nodes, pr)) {
+        if (!outer.contains(pr)) {
           return cfg.bbrs[pr].bb;
         }
       }
@@ -324,6 +312,7 @@ PreservedAnalysis LoopHoist::apply(fir::Context &ctx, fir::Function &func) {
   CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
+  LoopNesting nest{cfg, linfo.info};
 
   bool changed = false;
   bool restart = true;
@@ -341,7 +330,10 @@ PreservedAnalysis LoopHoist::apply(fir::Context &ctx, fir::Function &func) {
     for (u32 oi : order) {
       for (u32 ii : order) {
         HoistPlan p{};
-        if (oi == ii || !h.plan(linfo.info[oi], linfo.info[ii], p)) {
+        // any loop nested in oi, not only a direct child: the nest in between
+        // may depend on oi while this one does not
+        if (!nest.is_nested_in(ii, oi) ||
+            !h.plan(linfo.info[oi], linfo.info[ii], p)) {
           continue;
         }
         h.apply(linfo.info[oi], linfo.info[ii], p);
@@ -358,6 +350,7 @@ PreservedAnalysis LoopHoist::apply(fir::Context &ctx, fir::Function &func) {
       cfg.update(func, false);
       dom.update(cfg);
       linfo.update(dom);
+      nest.update(cfg, linfo.info);
     }
   }
   return changed ? PreservedAnalysis::none() : PreservedAnalysis::all();

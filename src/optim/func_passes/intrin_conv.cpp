@@ -12,6 +12,7 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/analysis/mem/alias_query.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 
 namespace foptim::optim {
@@ -140,15 +141,16 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 
 // store and load are the accesses of the loop, their metadata can prove the
 // regions apart where the addresses cannot (they may be from different
-// iterations).
+// iterations). span is the loop they are in, both addresses move with it so it
+// only lets the query rule the base out, never the offsets.
 CopyKind classify_copy(const PtrForm &dst, const PtrForm &src, i128 bytes,
                        i128 elem_size, fir::Instr store, fir::Instr load,
-                       AliasAnalyis &aa) {
+                       AliasAnalyis &aa, const IterSpan &span) {
   if (dst.stride != elem_size || src.stride != elem_size) {
     return CopyKind::None;
   }
   const auto meta_disjoint = [&] {
-    return aa.alias_access(store, load, true) ==
+    return aa.alias_access(store, load, true, &span) ==
            AliasAnalyis::AAResult::NoAlias;
   };
   if (dst.base == src.base) {
@@ -505,8 +507,9 @@ bool match_memsetcpy(fir::Function &func) {
         continue;
       }
       const i128 elem_size = load_instr->result_type()->get_size();
-      const auto kind = classify_copy(*dst_form, *src_form, r * elem_size,
-                                      elem_size, store_instr, load_instr, aa);
+      const auto kind =
+          classify_copy(*dst_form, *src_form, r * elem_size, elem_size,
+                        store_instr, load_instr, aa, IterSpan{&cfg, &l});
       if (kind == CopyKind::None) {
         continue;
       }

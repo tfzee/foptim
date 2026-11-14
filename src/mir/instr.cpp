@@ -111,6 +111,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GArithSubtype, shl2);
         ReturnString(GArithSubtype, shr2);
         ReturnString(GArithSubtype, sar2);
+        ReturnString(GArithSubtype, rol2);
+        ReturnString(GArithSubtype, ror2);
         ReturnString(GArithSubtype, land2);
         ReturnString(GArithSubtype, lor2);
         ReturnString(GArithSubtype, lxor2);
@@ -335,6 +337,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GArithSubtype::shl2:
         case GArithSubtype::shr2:
         case GArithSubtype::sar2:
+        case GArithSubtype::rol2:
+        case GArithSubtype::ror2:
         case GArithSubtype::land2:
         case GArithSubtype::lor2:
         case GArithSubtype::lxor2:
@@ -619,6 +623,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GArithSubtype::shl2:
         case GArithSubtype::shr2:
         case GArithSubtype::sar2:
+        case GArithSubtype::rol2:
+        case GArithSubtype::ror2:
         case GArithSubtype::land2:
         case GArithSubtype::lxor2:
         case GArithSubtype::add2:

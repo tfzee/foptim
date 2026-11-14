@@ -210,7 +210,9 @@ class ParallelFunctionPassManager {
              AnalysisManager & /*analMan*/) {
     ASSERT(tracker != nullptr);
     std::atomic<bool> any_changed{false};
-    for (auto *func : ctx->storage.functions.all()) {
+    const auto &funcs = ctx->storage.functions.all();
+    for (size_t i = funcs.size(); i-- > 0;) {
+      auto *func = funcs[i];
       if (func->is_decl()) {
         continue;
       }

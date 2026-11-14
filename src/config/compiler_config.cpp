@@ -177,6 +177,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new PrintAnalysisConf{};
     } else if (name == "PrintFunc") {
       pass = new PrintFuncConf{};
+    } else if (name == "PrintCostModel") {
+      pass = new PrintCostModelConf{};
     } else if (name == "VerifyFunc") {
       pass = new VerifyFuncConf{};
     } else {

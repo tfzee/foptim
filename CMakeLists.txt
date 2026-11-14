@@ -120,6 +120,29 @@ if(FOPTIM_FAST_LINKER)
 endif()
 # add_link_options(-fsanitize=thread -fPIE -pie)
 
+# cost model table, generated from the csv into the build directory
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(COST_TABLE_DIR ${CMAKE_BINARY_DIR}/generated/cost_model)
+set(COST_TABLE_INC ${COST_TABLE_DIR}/x86_cost_tables.inc)
+# one entry per microarchitecture, <MicroArch enumerator>=<csv>
+set(COST_MICROARCHS
+    Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4.csv)
+set(COST_CSVS)
+foreach(entry ${COST_MICROARCHS})
+  string(REGEX REPLACE "^[^=]*=" "" csv ${entry})
+  list(APPEND COST_CSVS ${csv})
+endforeach()
+add_custom_command(
+  OUTPUT ${COST_TABLE_INC}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${COST_TABLE_DIR}
+  COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py
+          ${COST_TABLE_INC} ${COST_MICROARCHS}
+  DEPENDS ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py ${COST_CSVS}
+          ${CMAKE_SOURCE_DIR}/src/optim/cost_model/x86_op_class.hpp
+  VERBATIM)
+set_source_files_properties(./src/optim/cost_model/machine.cpp
+  PROPERTIES OBJECT_DEPENDS ${COST_TABLE_INC})
+
 add_library (foptim OBJECT
                 #loading
                 ./src/llvm/llir_loader.cpp
@@ -162,6 +185,11 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/mem/provenance.cpp
                 ./src/optim/analysis/constraint_analysis.cpp
                 ./src/optim/analysis/attributer/KnownBits.cpp
+                #cost_model
+                ./src/optim/cost_model/machine.cpp
+                ./src/optim/cost_model/fir_lowering_estimate.cpp
+                ./src/optim/cost_model/cost.cpp
+                ./src/optim/cost_model/aggregators.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
                 ./src/optim/func_passes/loop_hoist.cpp
@@ -234,6 +262,7 @@ add_library (foptim OBJECT
 
 target_compile_options(foptim PRIVATE -fno-exceptions)
 target_include_directories(foptim PUBLIC ./src/)
+target_include_directories(foptim PRIVATE ${COST_TABLE_DIR})
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PUBLIC ${llvm_libs} Threads::Threads unordered_dense::unordered_dense)
 

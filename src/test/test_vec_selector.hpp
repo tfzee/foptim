@@ -8,22 +8,26 @@ using namespace foptim::optim::vec;
 
 constexpr u32 AssumedTrip = 64;
 
-// regions without a CFG: parent links, plans and the benefit of a block in
+// a nesting without a CFG: parent links, plans and the benefit of a block in
 // one execution are all the selector looks at
 struct SelectorCase {
-  RegionTree tree;
-  // plans are referenced by the regions
+  foptim::optim::LoopNesting nest;
+  // the plans the selector sees, one entry per loop
+  TVec<Plan *> loop_plans;
+  // owns what loop_plans points at
   std::deque<Plan> plans;
 
   u32 add(i32 parent, std::optional<i64> plan_benefit,
           std::optional<i128> const_trip = std::nullopt, u32 n_blocks = 0) {
-    const auto id = static_cast<u32>(tree.regions.size());
-    LoopRegion r;
-    r.parent = parent;
+    const auto id = static_cast<u32>(nest.size());
+    nest.parent.push_back(parent);
+    nest.children.emplace_back();
+    nest.own_blocks.emplace_back();
+    loop_plans.push_back(nullptr);
     if (parent < 0) {
-      tree.roots.push_back(id);
+      nest.roots.push_back(id);
     } else {
-      tree.regions[static_cast<u32>(parent)].children.push_back(id);
+      nest.children[static_cast<u32>(parent)].push_back(id);
     }
     if (plan_benefit) {
       Plan p;
@@ -31,21 +35,20 @@ struct SelectorCase {
       p.benefit = *plan_benefit;
       p.loop.const_trip = const_trip;
       plans.push_back(std::move(p));
-      r.plan = &plans.back();
+      loop_plans[id] = &plans.back();
     }
     // the blocks are only counted, the benefit callback ignores which one
     for (u32 i = 0; i < n_blocks; i++) {
-      r.own_blocks.push_back(fir::BasicBlock{fir::BasicBlock::invalid()});
+      nest.own_blocks[id].push_back(0);
     }
-    tree.regions.push_back(std::move(r));
     return id;
   }
 };
 
 // every own block saves `per_block` in one execution
 TVec<u32> select(SelectorCase &c, i64 per_block = 0) {
-  return select_plans(c.tree, AssumedTrip,
-                      [&](fir::BasicBlock) -> i64 { return per_block; });
+  return select_plans(c.nest, c.loop_plans, AssumedTrip,
+                      [&](u32) -> i64 { return per_block; });
 }
 }  // namespace
 

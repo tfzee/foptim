@@ -179,6 +179,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GArithSubtype::shl2:
         case GArithSubtype::shr2:
         case GArithSubtype::sar2:
+        case GArithSubtype::rol2:
+        case GArithSubtype::ror2:
         case GArithSubtype::land2:
         case GArithSubtype::lor2:
         case GArithSubtype::lxor2:
@@ -494,6 +496,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case GArithSubtype::shl2:
         case GArithSubtype::shr2:
         case GArithSubtype::sar2:
+        case GArithSubtype::rol2:
+        case GArithSubtype::ror2:
         case GArithSubtype::land2:
         case GArithSubtype::lor2:
         case GArithSubtype::add2:

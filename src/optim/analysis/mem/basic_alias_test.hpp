@@ -8,6 +8,7 @@
 namespace foptim::optim {
 
 class Provenance;
+struct IterSpan;
 
 // Thin wrapper over AliasQuery. With use_cache the Provenance comes from the
 // AnalysisManager, otherwise the object owns one that reset() drops (module
@@ -30,12 +31,14 @@ struct AliasAnalyis {
   bool is_known_local_stack(fir::ValueR v);
 
   // size 0 means any size. across_iterations: a and b may be from different
-  // iterations of a loop, see AliasQuery
+  // iterations of a loop, span names that loop, see AliasQuery and IterSpan
   AAResult alias(fir::ValueR a, fir::ValueR b, size_t a_size = 0,
-                 size_t b_size = 0, bool across_iterations = false);
+                 size_t b_size = 0, bool across_iterations = false,
+                 const IterSpan *span = nullptr);
   // two loads or stores, uses their metadata
   AAResult alias_access(fir::Instr a, fir::Instr b,
-                        bool across_iterations = false);
+                        bool across_iterations = false,
+                        const IterSpan *span = nullptr);
 
  private:
   Provenance &get(fir::ValueR a, fir::ValueR b);

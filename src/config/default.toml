@@ -193,6 +193,11 @@ assumedTrip = 64
 show = []
 [pass.fir.PrintFunc]
 name_matching = ""
+[pass.fir.PrintCostModel]
+#   instrs  per-instruction lat/tput/size predicted by src/optim/cost_model
+#   blocks  per-block resource/critical-path/estimate (BlockThroughputCost)
+#   loops   per-loop trip count / chain latency / total cost (LoopCostAnalysis)
+show = []
 [pass.fir.VerifyFunc]
 
 

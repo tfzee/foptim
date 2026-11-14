@@ -130,7 +130,9 @@ TEST(AccessMetaQuery, ScopesAreOneInstanceOnly) {
   EXPECT_EQ(q.alias(a, c), AliasResult::No);
   EXPECT_EQ(q.alias(c, a), AliasResult::No);
   EXPECT_EQ(q.alias(b, c), AliasResult::Must);
-  EXPECT_EQ(q.alias(a, b, true), AliasResult::Must);
+  // across iterations scopes say nothing, and without an IterSpan p may be a
+  // pointer the loop moves, so the accesses may overlap
+  EXPECT_EQ(q.alias(a, b, true), AliasResult::May);
   EXPECT_TRUE(foptim::optim::verify_access_meta(*m.f.func));
 }
 

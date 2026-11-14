@@ -61,6 +61,61 @@ struct LoopSetup {
   foptim::optim::LoopInfoAnalysis loops;
   explicit LoopSetup(foptim::fir::Function &f) : cfg(f), dom(cfg), loops(dom) {}
 };
+
+// three deep nest with a sibling of the middle loop, same exit condition
+// entry: c = arg != 0; br h0
+// h0:  br h1                       L0 = {h0, h1, h2, x1, x0, sib, x2}
+// h1:  br h2                       L1 = {h1, h2, x1}
+// h2:  cond_br c, h2, x1           L2 = {h2}
+// x1:  cond_br c, h1, x0
+// x0:  br sib
+// sib: cond_br c, sib, x2          L3 = {sib}, a sibling of L1 inside L0
+// x2:  cond_br c, h0, exit
+// exit: ret 0
+struct ThreeDeepNest {
+  using BB = foptim::fir::BasicBlock;
+  foptim::fir::Context ctx{nullptr};
+  foptim::fir::FunctionR func;
+  BB h0{BB::invalid()}, h1{BB::invalid()}, h2{BB::invalid()}, x1{BB::invalid()},
+      x0{BB::invalid()}, sib{BB::invalid()}, x2{BB::invalid()};
+
+  ThreeDeepNest()
+      : func(ctx.data->create_function(
+            "f", ctx.data->get_func_ty(ctx.data->get_int_type(32),
+                                       {ctx.data->get_int_type(32)}))) {
+    auto i32 = ctx.data->get_int_type(32);
+    auto b = func.builder();
+    auto entry = func.func->get_entry();
+    for (BB *bb : {&h0, &h1, &h2, &x1, &x0, &sib, &x2}) {
+      *bb = b.append_bb();
+    }
+    auto exit_bb = b.append_bb();
+
+    b.at_end(entry);
+    auto c = b.build_int_cmp(ValueR{entry->args[0]},
+                             ValueR{ctx.data->get_constant_value(0, i32)},
+                             foptim::fir::ICmpInstrSubType::NE);
+    b.build_branch(h0);
+
+    const auto latch = [&](BB from, BB back, BB out) {
+      b.at_end(from);
+      b.build_cond_branch(c, back, out);
+    };
+    b.at_end(h0);
+    b.build_branch(h1);
+    b.at_end(h1);
+    b.build_branch(h2);
+    latch(h2, h2, x1);
+    latch(x1, h1, x0);
+    b.at_end(x0);
+    b.build_branch(sib);
+    latch(sib, sib, x2);
+    latch(x2, h0, exit_bb);
+
+    b.at_end(exit_bb);
+    b.build_return(ValueR{ctx.data->get_constant_value(0, i32)});
+  }
+};
 }  // namespace
 
 TEST(ScalarEvoTest, InductionVariables) {
@@ -111,6 +166,71 @@ TEST(ScalarEvoTest, FoldingAndMax) {
   EXPECT_EQ(evo.mk_max(n, n, true), n);
   EXPECT_EQ(evo.mk_select(evo.mk_const(1, 1), c3, c5), c3);
   EXPECT_EQ(evo.mk_select(evo.mk_const(0, 1), c3, c5), c5);
+}
+
+TEST(LoopNestingTest, ThreeDeepWithSibling) {
+  ThreeDeepNest n;
+  LoopSetup s{*n.func.func};
+  ASSERT_EQ(s.loops.info.size(), 4);
+  foptim::optim::LoopNesting nest{s.cfg, s.loops.info};
+  ASSERT_EQ(nest.size(), 4);
+
+  // the loops in the order LoopInfoAnalysis found them
+  const auto loop_of = [&](foptim::fir::BasicBlock header) {
+    const foptim::u32 id = s.cfg.get_bb_id(header);
+    for (foptim::u32 l = 0; l < nest.size(); l++) {
+      if (s.loops.info[l].head == id) {
+        return l;
+      }
+    }
+    ADD_FAILURE() << "no loop with that header";
+    return ~0U;
+  };
+  const auto l0 = loop_of(n.h0);
+  const auto l1 = loop_of(n.h1);
+  const auto l2 = loop_of(n.h2);
+  const auto l3 = loop_of(n.sib);
+
+  EXPECT_EQ(nest.roots, (foptim::TVec<foptim::u32>{l0}));
+  EXPECT_EQ(nest.parent[l0], -1);
+  EXPECT_EQ(nest.parent[l1], static_cast<foptim::i32>(l0));
+  EXPECT_EQ(nest.parent[l2], static_cast<foptim::i32>(l1));
+  EXPECT_EQ(nest.parent[l3], static_cast<foptim::i32>(l0));
+  EXPECT_EQ(nest.children[l0].size(), 2);
+  EXPECT_EQ(nest.children[l1], (foptim::TVec<foptim::u32>{l2}));
+  EXPECT_TRUE(nest.children[l2].empty());
+
+  // the whole nest is nested in the outer loop, siblings are not in each other
+  EXPECT_TRUE(nest.is_nested_in(l2, l0));
+  EXPECT_TRUE(nest.is_nested_in(l2, l1));
+  EXPECT_TRUE(nest.is_nested_in(l3, l0));
+  EXPECT_FALSE(nest.is_nested_in(l0, l2));
+  EXPECT_FALSE(nest.is_nested_in(l3, l1));
+  EXPECT_FALSE(nest.is_nested_in(l1, l3));
+  EXPECT_FALSE(nest.is_nested_in(l0, l0));
+
+  // a block belongs to the innermost loop that contains it
+  const auto own = [&](foptim::u32 l) {
+    auto blocks = nest.own_blocks[l];
+    std::ranges::sort(blocks);
+    return blocks;
+  };
+  const auto ids = [&](std::initializer_list<foptim::fir::BasicBlock> bbs) {
+    foptim::TVec<foptim::u32> out;
+    for (auto bb : bbs) {
+      out.push_back(s.cfg.get_bb_id(bb));
+    }
+    std::ranges::sort(out);
+    return out;
+  };
+  EXPECT_EQ(own(l0), ids({n.h0, n.x0, n.x2}));
+  EXPECT_EQ(own(l1), ids({n.h1, n.x1}));
+  EXPECT_EQ(own(l2), ids({n.h2}));
+  EXPECT_EQ(own(l3), ids({n.sib}));
+  // the entry block is outside of every loop
+  EXPECT_EQ(nest.innermost_of[s.cfg.entry], -1);
+  EXPECT_EQ(nest.innermost_of[s.cfg.get_bb_id(n.h2)],
+            static_cast<foptim::i32>(l2));
 }
 
 TEST(TripCountTest, ConstantAffine) {

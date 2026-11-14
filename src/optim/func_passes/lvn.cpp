@@ -445,9 +445,41 @@ class MemForwarder {
   TMap<u64, TVec<fir::Instr>> seen;
 };
 
+// signature of a pure expression to bucket CSE candidates, only a pre filter,
+// eql_instr_expr does the real comparison
+u64 hash_pure_expr(fir::Instr instr) {
+  const fir::InstrData &data = *instr.get_raw_ptr();
+  u64 h = (static_cast<u64>(data.instr_type) << 16) ^ data.subtype;
+  // commutative ops match with swapped operands, so hash order independent
+  if (instr->is_commutative() && data.args.size() == 2) {
+    h ^= ankerl::unordered_dense::hash<fir::ValueR>{}(data.args[0]) ^
+         ankerl::unordered_dense::hash<fir::ValueR>{}(data.args[1]);
+    return h;
+  }
+  for (const auto &arg : data.args) {
+    h = h * 0x9E3779B97F4A7C15ULL +
+        ankerl::unordered_dense::hash<fir::ValueR>{}(arg);
+  }
+  return h;
+}
+
+u64 hash_icmp_operands(fir::Instr instr) {
+  u64 h = ankerl::unordered_dense::hash<fir::ValueR>{}(instr->args[0]);
+  h = h * 0x9E3779B97F4A7C15ULL +
+      ankerl::unordered_dense::hash<fir::ValueR>{}(instr->args[1]);
+  return h;
+}
+
+constexpr size_t kLvnMemWindow = 64;
+
 bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                AliasAnalyis &aa) {
   bool modified = false;
+  // pure CSE and the ICmp EQ/NE fold only compare against earlier pure
+  // instructions at any distance, so hash tables of candidates keep this
+  // linear on huge straight line blocks
+  TMap<u64, TVec<fir::Instr>> pure_table;
+  TMap<u64, TVec<fir::Instr>> icmp_table;
   for (size_t i = 0; i < bb->instructions.size(); i++) {
     auto instr = bb->instructions[i];
     if (gvn_applicable(instr) && apply_gvn(instr, bb, cfg, dom)) {
@@ -456,48 +488,74 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       continue;
     }
 
-    // for a pure instr only the expression matching below can fire and that
-    // needs the same instr type, everything else needs a load/store as instr
-    const bool pure = lvn_applicable(instr);
-    const auto pure_type = instr->instr_type;
-    for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
-      ASSERT(i2 > i);
-      auto instr2 = bb->instructions[i2];
-      if (pure && instr2->instr_type != pure_type) {
-        continue;
-      }
-      if (lvn_applicable(instr2)) {
-        if (eql_instr_expr(instr, instr2)) {
-          instr->intersect_poison_flags(*instr2.get_raw_ptr());
-          instr2->replace_all_uses(instr.result());
-          ASSERT(instr2->get_n_uses() == 0);
-          instr2.destroy();
-          i2--;
+    // the pure bucket insertion waits until after the ICmp fold, which may
+    // still destroy instr and would leave a dangling handle
+    bool folded = false;
+    TVec<fir::Instr> *pure_bucket = nullptr;
+    if (lvn_applicable(instr)) {
+      auto &bucket = pure_table[hash_pure_expr(instr)];
+      pure_bucket = &bucket;
+      for (auto earlier : bucket) {
+        if (eql_instr_expr(earlier, instr)) {
+          earlier->intersect_poison_flags(*instr.get_raw_ptr());
+          instr->replace_all_uses(earlier.result());
+          ASSERT(instr->get_n_uses() == 0);
+          instr.destroy();
+          i--;
           modified = true;
+          folded = true;
+          break;
+        }
+      }
+    }
+
+    if (!folded && instr->is(fir::InstrType::ICmp)) {
+      auto &bucket = icmp_table[hash_icmp_operands(instr)];
+      for (auto earlier : bucket) {
+        if (!earlier->args[0].eql(instr->args[0]) ||
+            !earlier->args[1].eql(instr->args[1])) {
           continue;
         }
-        if (instr->is(fir::InstrType::ICmp) &&
-            instr2->is(fir::InstrType::ICmp) &&
-            instr->args[0].eql(instr2->args[0]) &&
-            instr->args[1].eql(instr2->args[1])) {
-          bool opposite_eql =
-              (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ) &&
-               instr2->subtype ==
-                   static_cast<u32>(fir::ICmpInstrSubType::NE)) ||
-              (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE) &&
-               instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
-          if (opposite_eql) {
-            fir::Builder bb{instr2};
-            auto res =
-                bb.build_unary_op(instr.result(), fir::UnaryInstrSubType::Not);
-            instr2->replace_all_uses(res);
-            instr2.destroy();
-            i2--;
-            modified = true;
-            continue;
-          }
+        bool opposite_eql =
+            (earlier->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ) &&
+             instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE)) ||
+            (earlier->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE) &&
+             instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
+        if (opposite_eql) {
+          fir::Builder buh{instr};
+          auto res = buh.build_unary_op(earlier.result(),
+                                        fir::UnaryInstrSubType::Not);
+          instr->replace_all_uses(res);
+          instr.destroy();
+          i--;
+          modified = true;
+          folded = true;
+          break;
         }
       }
+      if (!folded) {
+        bucket.push_back(instr);
+      }
+    }
+
+    if (folded) {
+      continue;
+    }
+    if (pure_bucket != nullptr) {
+      pure_bucket->push_back(instr);
+    }
+
+    // the rest needs an alias aware scan between two candidates, which the
+    // tables do not cover. mergeable pairs are adjacent in practice, so the
+    // lookahead is bounded to keep huge blocks from going quadratic
+    if (!instr->is(fir::InstrType::StoreInstr) &&
+        !instr->is(fir::InstrType::LoadInstr)) {
+      continue;
+    }
+    const size_t window_end =
+        std::min(bb->instructions.size(), i + 1 + kLvnMemWindow);
+    for (size_t i2 = i + 1; i2 < window_end; i2++) {
+      auto instr2 = bb->instructions[i2];
 
       // if we store and afterwards store to the same address
       //  and there is nobody loading that memory inbetween we can

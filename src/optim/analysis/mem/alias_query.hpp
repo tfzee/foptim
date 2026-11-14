@@ -7,6 +7,23 @@
 
 namespace foptim::optim {
 
+class CFG;
+struct LoopInfo;
+
+// loop an across_iterations question spans. addresses whose base and index
+// terms are defined outside it differ only in their constant offsets, so the
+// question reduces to the same iteration one. without a span it stays
+// conservative
+struct IterSpan {
+  const CFG *cfg = nullptr;
+  const LoopInfo *loop = nullptr;
+};
+
+// p has the same value in every iteration of span.loop: base and every index
+// term are constants or defined outside it. a pointer the loop bumps does not
+// count, its address moves
+bool invariant_in_span(const PtrShape &p, const IterSpan *span);
+
 enum class AliasResult : u8 {
   // the byte ranges are disjoint
   No,
@@ -40,19 +57,24 @@ class AliasQuery {
   explicit AliasQuery(Provenance &prov) : prov(&prov) {}
 
   // With across_iterations a and b may be from different loop iterations, so
-  // locations sharing a variable index are only compared by their base.
+  // same base is only compared by the base, a span gives back the offset
+  // comparison for addresses the loop does not move
   AliasResult alias(const MemLoc &a, const MemLoc &b,
-                    bool across_iterations = false);
+                    bool across_iterations = false,
+                    const IterSpan *span = nullptr);
   AliasResult alias(fir::ValueR a, u32 a_size, fir::ValueR b, u32 b_size,
-                    bool across_iterations = false);
+                    bool across_iterations = false,
+                    const IterSpan *span = nullptr);
 
   // The metadata can prove accesses apart that the addresses say may overlap
   // (incompatible types never access the same bytes). Null is unknown. Scopes
   // are ignored across_iterations, they belong to one instance of the code.
   AliasResult alias(const MemLoc &a, const fir::AccessMeta *ma, const MemLoc &b,
-                    const fir::AccessMeta *mb, bool across_iterations = false);
+                    const fir::AccessMeta *mb, bool across_iterations = false,
+                    const IterSpan *span = nullptr);
   // two loads or stores
-  AliasResult alias(fir::Instr a, fir::Instr b, bool across_iterations = false);
+  AliasResult alias(fir::Instr a, fir::Instr b, bool across_iterations = false,
+                    const IterSpan *span = nullptr);
   [[nodiscard]] bool meta_disjoint(const fir::AccessMeta *a,
                                    const fir::AccessMeta *b,
                                    bool use_scopes) const;

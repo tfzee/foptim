@@ -27,6 +27,7 @@
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/merge_alloca.hpp"
 #include "optim/func_passes/print.hpp"
+#include "optim/cost_model/print_cost_model.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/func_passes/sora.hpp"
@@ -315,6 +316,61 @@ struct PrintAnalysisConf : public ModulePassConf<PrintAnalysisConf>,
     return true;
   }
   void construct_module_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
+};
+struct PrintCostModelConf : public FunctionPassConf<PrintCostModelConf>,
+                            optim::PrintCostModel::Config {
+  static constexpr const char *BaseName = "PrintCostModel";
+  using Pass = optim::PrintCostModel;
+  [[nodiscard]] bool can_skip_when_clean() const override { return false; }
+  // show = ["instrs", "blocks", "loops"] or show = "instrs,blocks,loops"
+  bool pass_parse(toml::table &tbl) {
+    const auto add = [](std::string_view name, u8 &mask) {
+      if (name == "instrs") {
+        mask |= Pass::Instrs;
+      } else if (name == "blocks") {
+        mask |= Pass::Blocks;
+      } else if (name == "loops") {
+        mask |= Pass::Loops;
+      } else {
+        fmt::println(stderr,
+                     "PrintCostModel: unknown option '{}' (instrs, blocks, "
+                     "loops)",
+                     name);
+        return false;
+      }
+      return true;
+    };
+    for (auto &&[key, value] : tbl) {
+      if (key.str() != "show" && key.str() != "extends") {
+        fmt::println(stderr, "PrintCostModel: unknown option '{}'", key.str());
+        return false;
+      }
+    }
+    u8 mask = 0;
+    if (auto *arr = tbl["show"].as_array()) {
+      for (auto &&el : *arr) {
+        if (!add(el.value_or<std::string_view>(""), mask)) {
+          return false;
+        }
+      }
+    } else if (auto str = tbl["show"].value<std::string_view>()) {
+      std::string_view rest = *str;
+      while (!rest.empty()) {
+        const auto comma = rest.find(',');
+        if (!add(rest.substr(0, comma), mask)) {
+          return false;
+        }
+        rest = comma == std::string_view::npos ? "" : rest.substr(comma + 1);
+      }
+    }
+    if (tbl.contains("show")) {
+      show = mask;
+    }
+    return true;
+  }
+  void construct_function_pass(Pass &p) {
     p.config = *static_cast<Pass::Config *>(this);
   };
 };

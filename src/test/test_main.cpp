@@ -5,6 +5,7 @@
 #include "test_apint.hpp"
 #include "test_bitset.hpp"
 #include "test_const_div.hpp"
+#include "test_cost_model.hpp"
 #include "test_general.hpp"
 #include "test_inline_asm.hpp"
 #include "test_int128.hpp"

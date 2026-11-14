@@ -109,11 +109,16 @@ void LoopInfoAnalysis::update_impl(DomType &dom) {
     //   continue;
     // }
 
+    utils::BitSet<> body_set{cfg.bbrs.size(), false};
+    for (u32 node : body_nodes) {
+      body_set[node].set(true);
+    }
+
     TVec<u32> leaving_nodes;
     leaving_nodes.reserve(body_nodes.size() / 2);
     for (u32 node : body_nodes) {
       for (auto succ : cfg.bbrs[node].succ) {
-        if (std::ranges::find(body_nodes, succ) == body_nodes.end()) {
+        if (!body_set[succ]) {
           leaving_nodes.push_back(node);
         }
       }
@@ -124,6 +129,7 @@ void LoopInfoAnalysis::update_impl(DomType &dom) {
         tails,
         std::move(body_nodes),
         std::move(leaving_nodes),
+        std::move(body_set),
     });
   }
 }
@@ -135,6 +141,67 @@ void LoopInfo::dump() const {
 void LoopInfoAnalysis::dump() const {
   for (const auto &loop : info) {
     loop.dump();
+  }
+}
+
+void LoopNesting::update(const CFG &cfg, const TVec<LoopInfo> &loops) {
+  const u32 n = static_cast<u32>(loops.size());
+  parent.clear();
+  children.clear();
+  own_blocks.clear();
+  roots.clear();
+  innermost_of.clear();
+  parent.resize(n, -1);
+  children.resize(n);
+  own_blocks.resize(n);
+  innermost_of.resize(cfg.bbrs.size(), -1);
+  if (n == 0) {
+    return;
+  }
+
+  // the innermost loop of a block is the last to claim it, biggest body first
+  TVec<u32> order;
+  order.reserve(n);
+  for (u32 i = 0; i < n; i++) {
+    order.push_back(i);
+  }
+  std::ranges::stable_sort(order, [&](u32 a, u32 b) {
+    return loops[a].body_nodes.size() > loops[b].body_nodes.size();
+  });
+  for (u32 l : order) {
+    // enclosing loops are bigger, they claimed the header already
+    parent[l] = innermost_of[loops[l].head];
+    for (u32 b : loops[l].body_nodes) {
+      innermost_of[b] = static_cast<i32>(l);
+    }
+  }
+  for (u32 l = 0; l < n; l++) {
+    if (parent[l] < 0) {
+      roots.push_back(l);
+    } else {
+      children[static_cast<u32>(parent[l])].push_back(l);
+    }
+  }
+  for (u32 b = 0; b < innermost_of.size(); b++) {
+    if (innermost_of[b] >= 0) {
+      own_blocks[static_cast<u32>(innermost_of[b])].push_back(b);
+    }
+  }
+}
+
+bool LoopNesting::is_nested_in(u32 inner, u32 outer) const {
+  for (i32 p = parent[inner]; p >= 0; p = parent[static_cast<u32>(p)]) {
+    if (static_cast<u32>(p) == outer) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void LoopNesting::dump() const {
+  for (u32 l = 0; l < size(); l++) {
+    fmt::println("Loop {}\n  Parent: {}\n  Children: {}\n  Own: {}\n", l,
+                 parent[l], children[l], own_blocks[l]);
   }
 }
 
@@ -188,7 +255,7 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     return false;
   }
   for (u32 p : cfg.bbrs[info.head].pred) {
-    if (std::ranges::find(info.body_nodes, p) == info.body_nodes.end()) {
+    if (!info.contains(p)) {
       auto incoming_bb_term = cfg.bbrs[p].bb->get_terminator();
       auto outgoing_id = incoming_bb_term.get_bb_id(head);
       auto arg = incoming_bb_term->bbs[outgoing_id].args[0];
@@ -1083,11 +1150,18 @@ SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
         const auto sub = static_cast<BT>(instr->subtype);
         if (sub == BT::IntAdd || sub == BT::PtrAdd || sub == BT::IntSub ||
             sub == BT::IntMul) {
-          // the offset of a ptr add has to be as wide as the pointer
-          if (value_bw(instr->args[0]) == bw &&
-              value_bw(instr->args[1]) == bw) {
-            const SCEVRef lhs = expr_of(instr->args[0], depth + 1);
-            const SCEVRef rhs = expr_of(instr->args[1], depth + 1);
+          // a constant operand is read at the width of the operation, its
+          // interned type may differ (ptr add scaled by 4:i32). anything else
+          // has to be as wide as the result
+          auto operand = [&](fir::ValueR v) {
+            if (v.is_constant_int()) {
+              return mk_const(v.as_constant()->as_int(), bw);
+            }
+            return value_bw(v) == bw ? expr_of(v, depth + 1) : mk_unknown(bw);
+          };
+          {
+            const SCEVRef lhs = operand(instr->args[0]);
+            const SCEVRef rhs = operand(instr->args[1]);
             if (sub == BT::IntMul) {
               r = mk_mul(lhs, rhs);
             } else if (sub == BT::IntSub) {
@@ -1717,8 +1791,7 @@ bool ptr_steps_no_wrap(CFG &cfg, const LoopInfo &linfo, fir::ValueR v,
   if (v.is_bb_arg()) {
     auto arg = v.as_bb_arg();
     if (arg->get_parent() != head) {
-      return !std::ranges::contains(linfo.body_nodes,
-                                    cfg.get_bb_id(arg->get_parent()));
+      return !linfo.contains(cfg.get_bb_id(arg->get_parent()));
     }
     if (through_header) {
       return true;
@@ -1742,8 +1815,7 @@ bool ptr_steps_no_wrap(CFG &cfg, const LoopInfo &linfo, fir::ValueR v,
     return false;
   }
   auto instr = v.as_instr();
-  if (!std::ranges::contains(linfo.body_nodes,
-                             cfg.get_bb_id(instr->get_parent()))) {
+  if (!linfo.contains(cfg.get_bb_id(instr->get_parent()))) {
     return true;
   }
   if (!instr->is(fir::BinaryInstrSubType::PtrAdd) ||
@@ -1948,8 +2020,7 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     return false;
   }
   auto in_loop = [&](fir::BasicBlock bb) {
-    return std::ranges::find(linfo.body_nodes, cfg.get_bb_id(bb)) !=
-           linfo.body_nodes.end();
+    return linfo.contains(cfg.get_bb_id(bb));
   };
   const u32 leaving = linfo.leaving_nodes[0];
 
@@ -1963,25 +2034,32 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
   for (auto node : linfo.body_nodes) {
     for (auto succ : cfg.bbrs[node].succ) {
       if (succ != linfo.head && dom.dominates(succ, node) &&
-          std::ranges::find(linfo.body_nodes, succ) != linfo.body_nodes.end()) {
+          linfo.contains(succ)) {
         if (!allow_inner_loops) {
           return false;
         }
         // the nodes of the inner loop are the ones that reach the back edge
         // without passing its header
         TVec<u32> work{node};
-        TVec<u32> seen{succ, node};
+        utils::BitSet<> seen{cfg.bbrs.size(), false};
+        seen[succ].set(true);
+        seen[node].set(true);
         while (!work.empty()) {
           const u32 n = work.back();
           work.pop_back();
+          // the inner header stops the walk, for a single block inner loop
+          // node == succ and the walk would run past it into the outer loop
+          if (n == succ) {
+            continue;
+          }
           for (auto p : cfg.bbrs[n].pred) {
-            if (std::ranges::find(seen, p) == seen.end()) {
-              seen.push_back(p);
+            if (!seen[p]) {
+              seen[p].set(true);
               work.push_back(p);
             }
           }
         }
-        if (std::ranges::find(seen, leaving) != seen.end()) {
+        if (seen[leaving]) {
           return false;
         }
       }

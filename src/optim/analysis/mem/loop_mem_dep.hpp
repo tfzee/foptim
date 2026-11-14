@@ -1,5 +1,6 @@
 #pragma once
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/analysis/mem/alias_query.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/analysis/mem/block_mem_access.hpp"
 
@@ -18,20 +19,25 @@ class LoopMemDep {
     bool is_store = false;
   };
 
-  LoopMemDep(ScalarEvo &evo, AliasAnalyis &aa) : evo(evo), aa(aa) {}
+  // span is the loop the accesses belong to, it lets the alias query answer
+  // pairs whose addresses the loop does not move (an empty one is sound but
+  // gives up on them, see IterSpan)
+  LoopMemDep(ScalarEvo &evo, AliasAnalyis &aa, IterSpan span = {})
+      : evo(evo), aa(aa), span(span) {}
 
   [[nodiscard]] MemDep query(const Access &a, const Access &b, u32 vf);
 
  private:
   ScalarEvo &evo;
   AliasAnalyis &aa;
+  IterSpan span;
 };
 
 inline MemDep LoopMemDep::query(const Access &a, const Access &b, u32 vf) {
   if (!a.is_store && !b.is_store) {
     return MemDep::Independent;
   }
-  if (access_dep(aa, a.instr, b.instr, true) == MemDep::Independent) {
+  if (access_dep(aa, a.instr, b.instr, true, &span) == MemDep::Independent) {
     return MemDep::Independent;
   }
   if (a.addr == InvalidSCEV || b.addr == InvalidSCEV) {

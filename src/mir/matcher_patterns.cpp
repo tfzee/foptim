@@ -1726,6 +1726,40 @@ static bool word_shift_by_scalar(fir::Instr shift_instr, X86Subtype op,
   return true;
 }
 
+// (x << c) | (x >> (bits - c)), or with + instead of |, is a rotate: rol by
+// the smaller side's constant, or ror if the shr side is smaller.
+template <class Combinator>
+static bool match_rotate(Combinator combinator, fir::Instr instr,
+                         MatchResult &res, ExtraMatchData &data) {
+  fir::ValueR x1;
+  fir::ValueR x2;
+  i128 c1 = 0;
+  i128 c2 = 0;
+  if (!instr->result_type()->is_int() ||
+      !pm::match(instr,
+                 pm::commutative(combinator,
+                                 pm::Shl(pm::value(x1), pm::const_int(c1)),
+                                 pm::Shr(pm::value(x2), pm::const_int(c2)))) ||
+      !(x1 == x2)) {
+    return false;
+  }
+  auto bits = instr->result_type()->as_int();
+  if (c1 <= 0 || c1 >= bits || c1 + c2 != bits) {
+    return false;
+  }
+  auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+  auto a = valueToArg(x1, res.result, data.alloc);
+  res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+  if (c1 <= c2) {
+    res.result.emplace_back(GArithSubtype::rol2, res_reg,
+                            MArgument::Int(static_cast<u64>(c1), Type::Int8));
+  } else {
+    res.result.emplace_back(GArithSubtype::ror2, res_reg,
+                            MArgument::Int(static_cast<u64>(c2), Type::Int8));
+  }
+  return true;
+}
+
 void vec_rules(RuleSet &rules) {
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
@@ -1801,6 +1835,10 @@ void base_binary_rules(RuleSet &rules) {
                             valueToArg(instr->args[1], res.result, data.alloc));
     return true;
   };
+  rules.add(pm::IntAdd, [](fir::Instr instr, MatchResult &res,
+                           ExtraMatchData &data) {
+    return match_rotate(pm::IntAdd, instr, res, data);
+  });
   rules.add(pm::IntAdd, i1_add_sub);
   rules.add(pm::IntSub, i1_add_sub);
   rules.add(pm::IntAdd, [](fir::Instr add_instr, MatchResult &res,
@@ -2127,6 +2165,10 @@ void base_binary_rules(RuleSet &rules) {
                                                data.alloc, add_instr));
     }
     return true;
+  });
+  rules.add(pm::Or, [](fir::Instr instr, MatchResult &res,
+                       ExtraMatchData &data) {
+    return match_rotate(pm::Or, instr, res, data);
   });
   rules.add(
       pm::Or, [](fir::Instr or_instr, MatchResult &res, ExtraMatchData &data) {

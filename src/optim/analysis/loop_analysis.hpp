@@ -7,6 +7,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/APInt.hpp"
+#include "utils/bitset.hpp"
 #include "utils/map.hpp"
 #include "utils/set.hpp"
 
@@ -21,6 +22,10 @@ struct LoopInfo {
   TVec<u32> body_nodes;
   // all nodes that leave
   TVec<u32> leaving_nodes;
+  // bb_id -> in body_nodes, avoids scanning body_nodes
+  utils::BitSet<> body_set;
+
+  [[nodiscard]] bool contains(u32 bb_id) const { return body_set[bb_id]; }
 
   void dump() const;
 };
@@ -38,6 +43,33 @@ class LoopInfoAnalysis {
 
   void update(Dominators &dom);
   void update(DominatorTree &dom);
+  void dump() const;
+};
+
+// nesting over LoopInfoAnalysis::info, index i is loop i. the parent is the
+// smallest other loop containing it, loops with different headers are disjoint
+// or nested so it is a forest. built on demand, a snapshot of the loops
+class LoopNesting {
+ public:
+  // per loop, index of the enclosing loop, -1 for an outermost one
+  TVec<i32> parent;
+  TVec<TVec<u32>> children;
+  // body nodes of the loop that are not in a nested loop
+  TVec<TVec<u32>> own_blocks;
+  // the loops without a parent
+  TVec<u32> roots;
+  // bb id -> the innermost loop containing it, -1 outside of every loop
+  TVec<i32> innermost_of;
+
+  LoopNesting() = default;
+  LoopNesting(const CFG &cfg, const TVec<LoopInfo> &loops) {
+    update(cfg, loops);
+  }
+  void update(const CFG &cfg, const TVec<LoopInfo> &loops);
+
+  [[nodiscard]] size_t size() const { return parent.size(); }
+  // inner is nested in outer, not the same loop
+  [[nodiscard]] bool is_nested_in(u32 inner, u32 outer) const;
   void dump() const;
 };
 

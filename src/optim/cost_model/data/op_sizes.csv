@@ -1,0 +1,32 @@
+# typical encoded size in bytes per op class, not part of the uops.info data
+# and shared by every microarchitecture
+op_class,size_bytes
+ALU_RR,3
+ALU_RI,4
+ALU_RM,4
+LEA,4
+IMUL_RR,3
+IMUL_RM,4
+IDIV32,2
+IDIV64,3
+SHIFT_RI,3
+SHIFT_RR,3
+CMOV,3
+SETCC,3
+CMP_JCC_FUSED,2
+JCC,2
+JMP,2
+MOV_RR,2
+LOAD,4
+STORE,4
+POPCNT,4
+LZCNT,4
+TZCNT,4
+BSWAP,2
+CALL,5
+FP_ALU,4
+FP_DIV,4
+FP_CMP,4
+VEC_ALU_128,4
+VEC_ALU_256,5
+VEC_SHUFFLE,5

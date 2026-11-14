@@ -567,7 +567,8 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     src = MArgument::stack_slot(stack_slot_id, src.ty);
     return true;
   } else if (instr.is(GArithSubtype::shl2) || instr.is(GArithSubtype::shr2) ||
-             instr.is(GArithSubtype::sar2)) {
+             instr.is(GArithSubtype::sar2) || instr.is(GArithSubtype::rol2) ||
+             instr.is(GArithSubtype::ror2)) {
     // shift [mem], imm/cl: only the shifted value may live in memory, the
     // count has to stay an immediate / cl
     auto &a0 = instr.args[0];

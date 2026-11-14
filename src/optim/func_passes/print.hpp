@@ -3,6 +3,7 @@
 #include "ir/function.hpp"
 #include "ir/print_ids.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/loop_analysis.hpp"
 #include "optim/analysis/mem/alias_query.hpp"
 #include "optim/analysis/mem/memory_ssa.hpp"
 #include "optim/function_pass.hpp"
@@ -40,6 +41,7 @@ class PrintAnalysis final : public ModulePass {
     Alias = 1U << 1,
     Provenance = 1U << 2,
     Accesses = 1U << 3,
+    LoopAlias = 1U << 4,
   };
   struct Config {
     u8 show = 0;
@@ -75,6 +77,9 @@ class PrintAnalysis final : public ModulePass {
     }
     if ((config.show & Alias) != 0) {
       print_alias(func);
+    }
+    if ((config.show & LoopAlias) != 0) {
+      print_loop_alias(func);
     }
   }
 
@@ -196,6 +201,43 @@ class PrintAnalysis final : public ModulePass {
                      : mr == ModRef::Ref    ? "ref"
                      : mr == ModRef::Mod    ? "mod"
                                             : "modref");
+      }
+    }
+    fmt::println("");
+  }
+
+  /*
+    Per loop, the across iterations answer for every pair of its loads /
+    stores, without and with the IterSpan of that loop. "span" is the sharper
+    of the two whenever the loop moves neither address, which is what the
+    jammed lanes of one accumulator need. Accesses are named by their index in
+    the accesses dump.
+  */
+  static void print_loop_alias(fir::Function &func) {
+    auto &cfg = AnalysisManager::cfg(func);
+    LoopInfoAnalysis loops{AnalysisManager::dom(func)};
+    AliasQuery aq{AnalysisManager::provenance(func)};
+    fmt::println("loop alias of {}", func.getName());
+    const auto &all = AnalysisManager::mem_accesses(func).accesses();
+    for (u32 li = 0; li < loops.info.size(); li++) {
+      const LoopInfo &loop = loops.info[li];
+      const IterSpan span{&cfg, &loop};
+      TVec<u32> ls;
+      for (u32 i = 0; i < all.size(); i++) {
+        if (all[i].is_load_store() && ls.size() < MaxAliasAccesses &&
+            loop.contains(cfg.get_bb_id(all[i].instr->get_parent()))) {
+          ls.push_back(i);
+        }
+      }
+      fmt::println("  loop {}", li);
+      for (size_t i = 0; i < ls.size(); i++) {
+        for (size_t j = i + 1; j < ls.size(); j++) {
+          auto a = all[ls[i]].instr;
+          auto b = all[ls[j]].instr;
+          fmt::println("    {} {}: across={} span={}", ls[i], ls[j],
+                       alias_name(aq.alias(a, b, true)),
+                       alias_name(aq.alias(a, b, true, &span)));
+        }
       }
     }
     fmt::println("");

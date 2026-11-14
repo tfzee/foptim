@@ -31,11 +31,9 @@ class LoopSimplify final : public FunctionPass {
   static void for_each_outside_used(CFG &cfg, const LoopInfo &loop, F &&f) {
     auto outside = [&](const fir::Use &u) {
       if (u.type == fir::UseType::BBArg) {
-        return !std::ranges::contains(loop.body_nodes,
-                                      cfg.get_bb_id(u.user->bbs[u.argId].bb));
+        return !loop.contains(cfg.get_bb_id(u.user->bbs[u.argId].bb));
       }
-      return !std::ranges::contains(loop.body_nodes,
-                                    cfg.get_bb_id(u.user->get_parent()));
+      return !loop.contains(cfg.get_bb_id(u.user->get_parent()));
     };
     for (auto b : loop.body_nodes) {
       for (auto arg : cfg.bbrs[b].bb->args) {
@@ -82,8 +80,7 @@ class LoopSimplify final : public FunctionPass {
       }
       fir::Builder bb{leaver_term};
       auto leave_index = 0;
-      if (std::ranges::contains(loop.body_nodes,
-                                cfg.get_bb_id(leaver_term->bbs[0].bb))) {
+      if (loop.contains(cfg.get_bb_id(leaver_term->bbs[0].bb))) {
         leave_index = 1;
       }
       auto new_branch = bb.build_branch(leaver_term->bbs[leave_index].bb);
@@ -307,8 +304,7 @@ class LoopSimplify final : public FunctionPass {
           auto use = (*base.get_uses())[uidp1 - 1];
           // the exit block can dominate the loop itself (nested loops), the
           // uses inside the loop see the per iteration values
-          if (std::ranges::contains(loop.body_nodes,
-                                    cfg.get_bb_id(use.user->get_parent()))) {
+          if (loop.contains(cfg.get_bb_id(use.user->get_parent()))) {
             continue;
           }
           if (dominated_blocks.contains(use.user->get_parent())) {
@@ -331,14 +327,17 @@ class LoopSimplify final : public FunctionPass {
   }
 
   // may instr in any iteration write (or with reads also read) what ref
-  // accesses, alias scopes are not used since they only hold in one iteration
+  // accesses, alias scopes are not used since they only hold in one iteration.
+  // span is the loop, so accesses the loop does not move (the jammed lanes of
+  // one accumulator) are still compared by their offsets
   static bool touches(AliasQuery &aq, fir::Instr instr, const MemAccess &a,
-                      fir::Instr ref, const MemLoc &loc, bool reads) {
+                      fir::Instr ref, const MemLoc &loc, bool reads,
+                      const IterSpan &span) {
     if (a.is_load_store() && !a.ordered) {
       if (a.kind == MemAccess::Kind::Load && !reads) {
         return false;
       }
-      return aq.alias(instr, ref, true) != AliasResult::No;
+      return aq.alias(instr, ref, true, &span) != AliasResult::No;
     }
     auto m = aq.mod_ref(instr, loc);
     return reads ? m != ModRef::NoModRef : may_write(m);
@@ -348,14 +347,13 @@ class LoopSimplify final : public FunctionPass {
   // to a new block on every exit edge, the store has to run before every exit
   bool sink_store_to_exits(fir::Function &func, CFG &cfg, Dominators &dom,
                            const LoopInfo &loop) {
-    auto in_loop = [&](u32 id) {
-      return std::ranges::contains(loop.body_nodes, id);
-    };
+    auto in_loop = [&](u32 id) { return loop.contains(id); };
     // unreachable loops have no header in their body
     if (!in_loop(loop.head)) {
       return false;
     }
     AliasQuery aq{AnalysisManager::provenance(func)};
+    const IterSpan span{&cfg, &loop};
     for (auto sb : loop.body_nodes) {
       for (auto store : cfg.bbrs[sb].bb->instructions) {
         if (!store->is(fir::InstrType::StoreInstr)) {
@@ -385,7 +383,7 @@ class LoopSimplify final : public FunctionPass {
               continue;
             }
             auto a = classify_access(instr);
-            if (a && touches(aq, instr, *a, store, access->loc, true)) {
+            if (a && touches(aq, instr, *a, store, access->loc, true, span)) {
               ok = false;
             }
           }
@@ -438,9 +436,7 @@ class LoopSimplify final : public FunctionPass {
   bool promote_memory_accumulator(fir::Context &ctx, fir::Function &func,
                                   CFG &cfg, Dominators &dom,
                                   const LoopInfo &loop) {
-    auto in_loop = [&](u32 id) {
-      return std::ranges::contains(loop.body_nodes, id);
-    };
+    auto in_loop = [&](u32 id) { return loop.contains(id); };
     auto &preds = cfg.bbrs[loop.head].pred;
     if (!in_loop(loop.head) || preds.size() != loop.tails.size() + 1) {
       return false;
@@ -457,6 +453,7 @@ class LoopSimplify final : public FunctionPass {
     }
     auto header = cfg.bbrs[loop.head].bb;
     AliasQuery aq{AnalysisManager::provenance(func)};
+    const IterSpan span{&cfg, &loop};
 
     for (auto load : header->instructions) {
       if (!load->is(fir::InstrType::LoadInstr)) {
@@ -498,7 +495,7 @@ class LoopSimplify final : public FunctionPass {
             store_bb = b;
             continue;
           }
-          if (touches(aq, instr, *a, load, access->loc, false)) {
+          if (touches(aq, instr, *a, load, access->loc, false, span)) {
             ok = false;
           }
         }
@@ -557,8 +554,11 @@ class LoopSimplify final : public FunctionPass {
     //  TODO: handle if its values are used after and their result value is
     //  known/can be calculated withuot loop
     for (; loop_ip1 <= loops.info.size(); loop_ip1++) {
-      if (promote_memory_accumulator(ctx, func, cfg, dom,
-                                     loops.info.at(loop_ip1 - 1))) {
+      // one call promotes one accumulator and only adds header arguments, so
+      // the cfg and the loops stay valid. Jammed lanes are several
+      // accumulators in one loop, keep going until none is left
+      while (promote_memory_accumulator(ctx, func, cfg, dom,
+                                        loops.info.at(loop_ip1 - 1))) {
         modified = true;
       }
       if (propagate_to_after_loop(cfg, loops, loop_ip1 - 1) ||

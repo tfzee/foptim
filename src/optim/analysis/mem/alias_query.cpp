@@ -2,16 +2,53 @@
 
 #include <algorithm>
 
+#include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "optim/analysis/loop_analysis.hpp"
 
 namespace foptim::optim {
 
+namespace {
+// v holds the same value in every iteration of loop
+bool value_invariant(fir::ValueR v, const CFG &cfg, const LoopInfo &loop) {
+  if (v.is_constant()) {
+    return true;
+  }
+  fir::BasicBlock def{fir::BasicBlock::invalid()};
+  if (v.is_instr()) {
+    def = v.as_instr()->get_parent();
+  } else if (v.is_bb_arg()) {
+    def = v.as_bb_arg()->get_parent();
+  } else {
+    return false;
+  }
+  // a value of another function is not in this loop, the CFG would assert
+  if (!def.is_valid() || def->get_parent().func != cfg.func) {
+    return false;
+  }
+  return !loop.contains(cfg.get_bb_id(def));
+}
+}  // namespace
+
+bool invariant_in_span(const PtrShape &p, const IterSpan *span) {
+  if (span == nullptr || span->cfg == nullptr || span->loop == nullptr) {
+    return false;
+  }
+  const CFG &cfg = *span->cfg;
+  const LoopInfo &loop = *span->loop;
+  return value_invariant(p.base, cfg, loop) &&
+         std::ranges::all_of(p.terms(), [&](const IndexTerm &t) {
+           return value_invariant(t.index, cfg, loop);
+         });
+}
+
 AliasResult AliasQuery::alias(const MemLoc &a, const MemLoc &b,
-                              bool across_iterations) {
+                              bool across_iterations, const IterSpan *span) {
   if (a.ptr.same_base(b.ptr)) {
-    if (across_iterations && a.ptr.has_terms()) {
+    // same base and index terms, if the loop moves none the offsets decide
+    if (across_iterations && !invariant_in_span(a.ptr, span)) {
       return AliasResult::May;
     }
     if (a.ptr.offset == b.ptr.offset) {
@@ -85,8 +122,8 @@ bool AliasQuery::meta_disjoint(const fir::AccessMeta *a,
 
 AliasResult AliasQuery::alias(const MemLoc &a, const fir::AccessMeta *ma,
                               const MemLoc &b, const fir::AccessMeta *mb,
-                              bool across_iterations) {
-  const AliasResult r = alias(a, b, across_iterations);
+                              bool across_iterations, const IterSpan *span) {
+  const AliasResult r = alias(a, b, across_iterations, span);
   if (r == AliasResult::No) {
     return r;
   }
@@ -94,7 +131,7 @@ AliasResult AliasQuery::alias(const MemLoc &a, const fir::AccessMeta *ma,
 }
 
 AliasResult AliasQuery::alias(fir::Instr a, fir::Instr b,
-                              bool across_iterations) {
+                              bool across_iterations, const IterSpan *span) {
   const auto la = access_loc(a);
   const auto lb = access_loc(b);
   ASSERT(la && lb);
@@ -103,14 +140,15 @@ AliasResult AliasQuery::alias(fir::Instr a, fir::Instr b,
   return alias(MemLoc{.ptr = decompose_ptr(la->ptr), .size = la->size},
                fa->get_access_meta(a),
                MemLoc{.ptr = decompose_ptr(lb->ptr), .size = lb->size},
-               fb->get_access_meta(b), across_iterations);
+               fb->get_access_meta(b), across_iterations, span);
 }
 
 AliasResult AliasQuery::alias(fir::ValueR a, u32 a_size, fir::ValueR b,
-                              u32 b_size, bool across_iterations) {
+                              u32 b_size, bool across_iterations,
+                              const IterSpan *span) {
   return alias(MemLoc{.ptr = decompose_ptr(a), .size = a_size},
                MemLoc{.ptr = decompose_ptr(b), .size = b_size},
-               across_iterations);
+               across_iterations, span);
 }
 
 ModRef AliasQuery::access_mod_ref(fir::ValueR ptr, u32 size, const MemLoc &loc,

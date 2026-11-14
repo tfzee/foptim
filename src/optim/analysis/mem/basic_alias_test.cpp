@@ -57,14 +57,15 @@ bool AliasAnalyis::is_known_local_stack(fir::ValueR v) {
 
 AliasAnalyis::AAResult AliasAnalyis::alias(fir::ValueR a, fir::ValueR b,
                                            size_t a_size, size_t b_size,
-                                           bool across_iterations) {
+                                           bool across_iterations,
+                                           const IterSpan *span) {
   ZoneScopedN("AliasAnalysis");
   if (a == b) {
     return AAResult::Alias;
   }
   AliasQuery q{get(a, b)};
   switch (q.alias(a, static_cast<u32>(a_size), b, static_cast<u32>(b_size),
-                  across_iterations)) {
+                  across_iterations, span)) {
     case AliasResult::No:
       return AAResult::NoAlias;
     case AliasResult::Must:
@@ -77,10 +78,11 @@ AliasAnalyis::AAResult AliasAnalyis::alias(fir::ValueR a, fir::ValueR b,
 }
 
 AliasAnalyis::AAResult AliasAnalyis::alias_access(fir::Instr a, fir::Instr b,
-                                                  bool across_iterations) {
+                                                  bool across_iterations,
+                                                  const IterSpan *span) {
   ZoneScopedN("AliasAnalysis");
   AliasQuery q{get(a->get_parent()->get_parent().func)};
-  switch (q.alias(a, b, across_iterations)) {
+  switch (q.alias(a, b, across_iterations, span)) {
     case AliasResult::No:
       return AAResult::NoAlias;
     case AliasResult::Must:

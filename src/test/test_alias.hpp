@@ -8,6 +8,9 @@
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
+#include "optim/analysis/loop_analysis.hpp"
 #include "optim/analysis/mem/alias_query.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/helper/helper.hpp"
@@ -237,6 +240,125 @@ TEST(AliasQuery, ResultKinds) {
   EXPECT_EQ(q.alias(m.a, 8, m.bb, 8), AliasResult::May);
   EXPECT_EQ(q.alias(m.alloca1, 8, m.a, 8), AliasResult::No);
   EXPECT_EQ(q.alias(m.null, 8, m.a, 8), AliasResult::No);
+}
+
+namespace {
+/*
+  f(base, n):
+  entry:      inv = n + 1
+              br loop(0, base)
+  loop(i, p): i1 = i + 1
+              p1 = p + 8
+              cond_br i1 < 100, loop(i1, p1), exit
+
+  inv is loop invariant, i and p are not. base is an argument, so an address
+  under base alone does not move either.
+*/
+struct LoopAliasModule {
+  foptim::fir::Context ctx{nullptr};
+  foptim::fir::TypeR i64{ctx.data->get_int_type(64)};
+  foptim::fir::TypeR ptr{ctx.data->get_ptr_type()};
+  foptim::fir::FunctionR f;
+  foptim::fir::Builder b;
+  foptim::fir::BasicBlock loop_bb{foptim::fir::BasicBlock::invalid()};
+
+  // base, the invariant index, the induction variable, the bumped pointer
+  ValueR base, inv, iv, bumped;
+
+  ValueR k(foptim::i64 v) {
+    return ValueR{ctx.data->get_constant_value(v, i64)};
+  }
+  // base + idx (one index term), plus a constant byte offset on top
+  ValueR at(ValueR p, ValueR idx, foptim::i64 off) {
+    return b.build_ptr_add(b.build_ptr_add(p, idx), k(off));
+  }
+  ValueR add8(ValueR p) { return b.build_ptr_add(p, k(8)); }
+
+  LoopAliasModule()
+      : f(ctx.data->create_function(
+            "f", ctx.data->get_func_ty(ctx.data->get_void_type(),
+                                       {ptr, i64}))),
+        b(f.builder()) {
+    auto entry = f.func->get_entry();
+    loop_bb = b.append_bb();
+    loop_bb.add_arg(ctx.data->storage.insert_bb_arg(loop_bb, i64));
+    loop_bb.add_arg(ctx.data->storage.insert_bb_arg(loop_bb, ptr));
+    auto exit_bb = b.append_bb();
+
+    b.at_end(entry);
+    base = ValueR{entry->args[0]};
+    inv = b.build_int_add(ValueR{entry->args[1]}, k(1));
+    auto br = b.build_branch(loop_bb);
+    br.add_bb_arg(0, k(0));
+    br.add_bb_arg(0, base);
+
+    b.at_end(loop_bb);
+    iv = ValueR{loop_bb->args[0]};
+    bumped = ValueR{loop_bb->args[1]};
+    auto i_next = b.build_int_add(iv, k(1));
+    auto p_next = b.build_ptr_add(bumped, k(8));
+    auto cond = b.build_int_cmp(i_next, k(100),
+                                foptim::fir::ICmpInstrSubType::SLT);
+    auto cbr = b.build_cond_branch(cond, loop_bb, exit_bb);
+    cbr.add_bb_arg(0, i_next);
+    cbr.add_bb_arg(0, p_next);
+
+    b.at_end(exit_bb);
+    b.build_return();
+  }
+};
+}  // namespace
+
+// the span lets an across_iterations question compare offsets of addresses the
+// loop does not move, which unroll and jam needs for accumulator lanes
+TEST(AliasQuery, IterSpanInvariantTerms) {
+  LoopAliasModule m;
+  ASSERT_TRUE(m.ctx.data->verify());
+  using foptim::optim::AliasQuery;
+  using foptim::optim::AliasResult;
+  using foptim::optim::IterSpan;
+
+  foptim::optim::CFG cfg{*m.f.func};
+  foptim::optim::Dominators dom{cfg};
+  foptim::optim::LoopInfoAnalysis loops{dom};
+  ASSERT_EQ(loops.info.size(), 1u);
+  const IterSpan span{&cfg, &loops.info[0]};
+
+  foptim::optim::Provenance prov{*m.f.func};
+  AliasQuery q{prov};
+
+  // same base, the same invariant term, 8 bytes apart: the jammed lanes
+  auto inv_a = m.at(m.base, m.inv, 0);
+  auto inv_b = m.at(m.base, m.inv, 8);
+  EXPECT_EQ(q.alias(inv_a, 8, inv_b, 8), AliasResult::No);
+  EXPECT_EQ(q.alias(inv_a, 8, inv_b, 8, true), AliasResult::May);
+  EXPECT_EQ(q.alias(inv_a, 8, inv_b, 8, true, &span), AliasResult::No);
+  EXPECT_EQ(q.alias(inv_b, 8, inv_a, 8, true, &span), AliasResult::No);
+  // overlapping ranges under an invariant term still overlap
+  EXPECT_EQ(q.alias(inv_a, 16, inv_b, 8, true, &span), AliasResult::Partial);
+  EXPECT_EQ(q.alias(inv_a, 8, m.at(m.base, m.inv, 0), 8, true, &span),
+            AliasResult::Must);
+  // an unknown size can not be ruled out by the offsets
+  EXPECT_EQ(q.alias(inv_a, 0, inv_b, 8, true, &span), AliasResult::May);
+
+  // the induction variable moves every iteration, so the same shape stays May
+  auto var_a = m.at(m.base, m.iv, 0);
+  auto var_b = m.at(m.base, m.iv, 8);
+  EXPECT_EQ(q.alias(var_a, 8, var_b, 8), AliasResult::No);
+  EXPECT_EQ(q.alias(var_a, 8, var_b, 8, true, &span), AliasResult::May);
+
+  // no index term but the loop bumps the base, so it must not be No
+  EXPECT_EQ(q.alias(m.bumped, 8, m.add8(m.bumped), 8), AliasResult::No);
+  EXPECT_EQ(q.alias(m.bumped, 8, m.add8(m.bumped), 8, true, &span),
+            AliasResult::May);
+  // an invariant base without terms does compare by offset
+  EXPECT_EQ(q.alias(m.base, 8, m.add8(m.base), 8, true, &span),
+            AliasResult::No);
+
+  // a loop the values are not invariant in is conservative, an empty span is
+  // none
+  const IterSpan empty{};
+  EXPECT_EQ(q.alias(inv_a, 8, inv_b, 8, true, &empty), AliasResult::May);
 }
 
 TEST(AliasQuery, ModRef) {
