@@ -1461,6 +1461,7 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
   }
   rec_start.assign(n_args, InvalidSCEV);
   rec_step.assign(n_args, InvalidSCEV);
+  arg_start.assign(n_args, InvalidSCEV);
   no_wrap.clear();
   for (size_t i = 0; i < n_args; i++) {
     const fir::ValueR arg{head->args[i]};
@@ -1471,6 +1472,7 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
     if (!exprs[start].invariant) {
       continue;
     }
+    arg_start[i] = start;
     SCEVRef step = InvalidSCEV;
     bool ok = !backs[i].empty();
     for (auto back : backs[i]) {
@@ -1487,23 +1489,59 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
     }
   }
 
+  arg_backs = std::move(backs);
   classify_values();
+}
+
+// a header argument that is no recurrence yet but whose back edges all pass
+// {start + c,+,c} is {start,+,c}. found ones can make others recurrences, and
+// the expressions memoized while looking used the old classification
+bool ScalarEvo::derive_recurrences() {
+  auto head = cfg->bbrs[loop->head].bb;
+  const size_t n_args = head->args.size();
+  bool found = false;
+  for (size_t i = 0; i < n_args; i++) {
+    if (rec_start[i] != InvalidSCEV || arg_start[i] == InvalidSCEV ||
+        arg_backs[i].empty()) {
+      continue;
+    }
+    SCEVRef step = InvalidSCEV;
+    for (auto back : arg_backs[i]) {
+      const SCEVRef b = expr_of(back, 0);
+      if (!is_addrec(b) ||
+          !same_expr(exprs[b].a, mk_add(arg_start[i], exprs[b].b)) ||
+          (step != InvalidSCEV && !same_expr(step, exprs[b].b))) {
+        step = InvalidSCEV;
+        break;
+      }
+      step = exprs[b].b;
+    }
+    if (step != InvalidSCEV) {
+      rec_start[i] = arg_start[i];
+      rec_step[i] = step;
+      found = true;
+    }
+  }
+  return found;
 }
 
 void ScalarEvo::classify_values() {
   // 2. everything again with the header arguments replaced by what they are
-  lookup.clear();
-  loop_vals.clear();
   auto head = cfg->bbrs[loop->head].bb;
   const size_t n_args = head->args.size();
-  for (size_t i = 0; i < n_args; i++) {
-    const fir::ValueR arg{head->args[i]};
-    const SCEVRef r = rec_start[i] != InvalidSCEV
-                          ? mk_addrec(rec_start[i], rec_step[i])
-                          : mk_unknown(value_bw(arg));
-    lookup.insert({arg, r});
-    loop_vals.push_back(arg);
-  }
+  // the last round found nothing, so what it memoized is final
+  do {
+    lookup.clear();
+    loop_vals.clear();
+    for (size_t i = 0; i < n_args; i++) {
+      const fir::ValueR arg{head->args[i]};
+      const SCEVRef r = rec_start[i] != InvalidSCEV
+                            ? mk_addrec(rec_start[i], rec_step[i])
+                            : mk_unknown(value_bw(arg));
+      lookup.insert({arg, r});
+      loop_vals.push_back(arg);
+    }
+  } while (derive_recurrences());
   for (auto node : loop->body_nodes) {
     auto bb = cfg->bbrs[node].bb;
     if (node != loop->head) {

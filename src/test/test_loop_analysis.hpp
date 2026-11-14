@@ -55,6 +55,54 @@ struct CountingLoop {
   }
 };
 
+// entry: br loop(0, d_start)
+// loop(i, d): i1 = i + 1; d1 = ext(i1) * 8; c = i1 < 10; cond_br c, loop(i1,
+// d1), exit exit: ret d is the shape LoopRotate leaves for a header value base
+// + 8 * i that the body uses. i is i64, or i32 sign extended to i64 when narrow
+struct DerivedLoop {
+  foptim::fir::Context ctx{nullptr};
+  foptim::fir::FunctionR func;
+  ValueR i_arg;
+  ValueR i_next;
+  ValueR d_arg;
+
+  DerivedLoop(foptim::i64 d_start, bool narrow)
+      : func(ctx.data->create_function(
+            "f", ctx.data->get_func_ty(ctx.data->get_void_type(), {}))) {
+    auto i64 = ctx.data->get_int_type(64);
+    auto ity = narrow ? ctx.data->get_int_type(32) : i64;
+    auto builder = func.builder();
+    auto entry_bb = func.func->get_entry();
+    auto loop_bb = builder.append_bb();
+    loop_bb.add_arg(ctx.data->storage.insert_bb_arg(loop_bb, ity));
+    loop_bb.add_arg(ctx.data->storage.insert_bb_arg(loop_bb, i64));
+    auto exit_bb = builder.append_bb();
+
+    builder.at_end(entry_bb);
+    auto br = builder.build_branch(loop_bb);
+    br.add_bb_arg(0, ValueR{ctx.data->get_constant_value(0, ity)});
+    br.add_bb_arg(0, ValueR{ctx.data->get_constant_value(d_start, i64)});
+
+    builder.at_end(loop_bb);
+    i_arg = ValueR{loop_bb->args[0]};
+    d_arg = ValueR{loop_bb->args[1]};
+    i_next = builder.build_int_add(
+        i_arg, ValueR{ctx.data->get_constant_value(1, ity)});
+    auto wide = narrow ? builder.build_sext(i_next, i64) : i_next;
+    auto d_next = builder.build_int_mul(
+        wide, ValueR{ctx.data->get_constant_value(8, i64)});
+    auto cond = builder.build_int_cmp(
+        i_next, ValueR{ctx.data->get_constant_value(10, ity)},
+        foptim::fir::ICmpInstrSubType::SLT);
+    auto cbr = builder.build_cond_branch(cond, loop_bb, exit_bb);
+    cbr.add_bb_arg(0, i_next);
+    cbr.add_bb_arg(0, d_next);
+
+    builder.at_end(exit_bb);
+    builder.build_return();
+  }
+};
+
 struct LoopSetup {
   foptim::optim::CFG cfg;
   foptim::optim::Dominators dom;
@@ -166,6 +214,40 @@ TEST(ScalarEvoTest, FoldingAndMax) {
   EXPECT_EQ(evo.mk_max(n, n, true), n);
   EXPECT_EQ(evo.mk_select(evo.mk_const(1, 1), c3, c5), c3);
   EXPECT_EQ(evo.mk_select(evo.mk_const(0, 1), c3, c5), c5);
+}
+
+TEST(ScalarEvoTest, DerivedRecurrence) {
+  // the back edge passes (i + 1) * 8 = {8,+,8} and d starts at 0, so d is 8 * i
+  DerivedLoop l{0, false};
+  LoopSetup s{*l.func.func};
+  foptim::optim::ScalarEvo evo{s.cfg, s.loops.info[0]};
+  auto d = evo.get(l.d_arg);
+  ASSERT_TRUE(evo.is_const_addrec(d));
+  EXPECT_EQ(evo.eval_at(d, 0), 0);
+  EXPECT_EQ(evo.eval_at(d, 5), 40);
+}
+
+TEST(ScalarEvoTest, DerivedRecurrenceWrongStart) {
+  // d is 3 in the first iteration and 8 * i after that, no recurrence
+  DerivedLoop l{3, false};
+  LoopSetup s{*l.func.func};
+  foptim::optim::ScalarEvo evo{s.cfg, s.loops.info[0]};
+  EXPECT_FALSE(evo.is_addrec(evo.get(l.d_arg)));
+  EXPECT_FALSE(evo.is_invariant(evo.get(l.d_arg)));
+}
+
+TEST(ScalarEvoTest, DerivedRecurrenceNeedsNoWrap) {
+  // sext(i + 1) of an i32 counter is only a recurrence of the wide type once
+  // the counter is known not to wrap, then d is derived from it
+  DerivedLoop l{0, true};
+  LoopSetup s{*l.func.func};
+  foptim::optim::ScalarEvo evo{s.cfg, s.loops.info[0]};
+  EXPECT_FALSE(evo.is_addrec(evo.get(l.d_arg)));
+  evo.assume_no_wrap(evo.get(l.i_next), true);
+  auto d = evo.get(l.d_arg);
+  ASSERT_TRUE(evo.is_const_addrec(d));
+  EXPECT_EQ(evo.eval_at(d, 0), 0);
+  EXPECT_EQ(evo.eval_at(d, 5), 40);
 }
 
 TEST(LoopNestingTest, ThreeDeepWithSibling) {

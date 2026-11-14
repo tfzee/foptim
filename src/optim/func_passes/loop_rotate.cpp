@@ -160,22 +160,9 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     }
   }
 
-  if (cfg.bbrs[linfo.head].pred.size() > 1 + linfo.tails.size()) {
-    failure({.reason = "TODO: Impl preheader insertion",
-             .loc = {cfg.bbrs[linfo.head].bb}});
-    return false;
-  }
-  TVec<fir::BasicBlock> head_preds;
-  for (auto pred : cfg.bbrs[linfo.head].pred) {
-    if (linfo.tails.size() > 1 && std::ranges::contains(linfo.tails, pred)) {
-      continue;
-    }
-    head_preds.push_back(cfg.bbrs[pred].bb);
-  }
-  if (linfo.tails.size() > 1) {
-    // Several back edges would each get their own copy of the header and so
-    // their own exit test. Merge them into one block first, the copy of the
-    // header makes it the single latch of the rotated loop.
+  // a block that takes the arguments of the header and jumps to it, the edges
+  // of the given blocks into the header go to it instead
+  auto merge_edges = [&](const TVec<u32> &from) {
     auto merged = fir::Builder(header_bb).append_bb();
     for (auto arg : header_bb->args) {
       merged.add_arg(ctx->storage.insert_bb_arg(merged, arg->get_type()));
@@ -186,15 +173,41 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     for (auto arg : merged->args) {
       jmp.add_bb_arg(0, fir::ValueR{arg});
     }
-    for (auto tail : linfo.tails) {
-      auto term = cfg.bbrs[tail].bb->get_terminator();
+    for (auto pred : from) {
+      auto term = cfg.bbrs[pred].bb->get_terminator();
       for (u16 i = 0; i < term->bbs.size(); i++) {
         if (term->bbs[i].bb == header_bb) {
           term.replace_bb(i, merged, true);
         }
       }
     }
-    head_preds.push_back(merged);
+    return merged;
+  };
+
+  TVec<u32> outside_preds;
+  for (auto pred : cfg.bbrs[linfo.head].pred) {
+    if (!std::ranges::contains(linfo.tails, pred) &&
+        !std::ranges::contains(outside_preds, pred)) {
+      outside_preds.push_back(pred);
+    }
+  }
+  TVec<fir::BasicBlock> head_preds;
+  if (outside_preds.size() > 1) {
+    // one copy of the header in a new preheader instead of one per entry
+    head_preds.push_back(merge_edges(outside_preds));
+  } else {
+    for (auto pred : outside_preds) {
+      head_preds.push_back(cfg.bbrs[pred].bb);
+    }
+  }
+  if (linfo.tails.size() == 1) {
+    head_preds.push_back(cfg.bbrs[linfo.tails[0]].bb);
+  }
+  if (linfo.tails.size() > 1) {
+    // Several back edges would each get their own copy of the header and so
+    // their own exit test. Merge them into one block first, the copy of the
+    // header makes it the single latch of the rotated loop.
+    head_preds.push_back(merge_edges(linfo.tails));
   }
   // every predecessor gets a copy of the header so it has to end in a plain
   // jump, split the other edges

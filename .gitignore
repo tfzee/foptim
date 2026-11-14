@@ -1,4 +1,5 @@
 build/
+build-rel/
 compile_commands.json
 test/Output/
 __pycache__/

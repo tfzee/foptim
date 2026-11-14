@@ -66,7 +66,7 @@ passes = [
       "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp", "ConstraintProp",
-      "InstSimplify", "SimplifyCFG", "LICM", "LoopHoist", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
+      "InstSimplify", "SimplifyCFG", "LICM", "LoopHoist", "LoopRotate", "InstSimplify", "SimplifyCFG", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
       "LVN", "SCCP", "IntrinSimplify", "InstSimplify", "ConstLoopEval", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",

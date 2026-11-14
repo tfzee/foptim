@@ -323,7 +323,8 @@ static foptim::fir::LibFunc detect_libfunc(const llvm::Function &func,
   return builtin ? info->func : foptim::fir::LibFunc::None;
 }
 
-// long double is f64 in FIR, so the f80 overloads of llvm intrinsics are the f64 ones
+// long double is f64 in FIR, so the f80 overloads of llvm intrinsics are the
+// f64 ones
 static std::string double_intrinsic_name(const llvm::Function &func) {
   std::string name = func.getName().str();
   if (!func.empty() || !name.starts_with("llvm.")) {
@@ -955,8 +956,9 @@ void convert_call(const llvm::Instruction *any_instr,
                                    builder, valueToValue, mod, b2b);
       auto mask = convert_instr_arg(call_instr->getArgOperand(1), fctx, ffunc,
                                     builder, valueToValue, mod, b2b);
-      auto addr = builder.build_conversion_op(
-          ptr, fctx->get_int_type(64), foptim::fir::ConversionSubType::PtrToInt);
+      auto addr =
+          builder.build_conversion_op(ptr, fctx->get_int_type(64),
+                                      foptim::fir::ConversionSubType::PtrToInt);
       auto masked = builder.build_binary_op(
           addr, mask, foptim::fir::BinaryInstrSubType::And);
       valueToValue.insert(
@@ -969,7 +971,9 @@ void convert_call(const llvm::Instruction *any_instr,
     if (c->getName().starts_with("llvm.stackrestore")) {
       return;
     }
-    if (c->getName().starts_with("llvm.stacksave")) {
+    // null even for level 0, where it should be rbp
+    if (c->getName().starts_with("llvm.stacksave") ||
+        c->getName().starts_with("llvm.frameaddress")) {
       valueToValue.insert(
           {any_instr, foptim::fir::ValueR(fctx->get_constant_null())});
       return;
@@ -2463,8 +2467,9 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
                        gep->getPointerOperand())) {
           reloc_ref = fctx->get_constant_value(
               fctx->get_function(fir_function_name(*func).c_str()));
-        } else if (const auto *alias = llvm::dyn_cast_or_null<llvm::GlobalAlias>(
-                       gep->getPointerOperand());
+        } else if (const auto *alias =
+                       llvm::dyn_cast_or_null<llvm::GlobalAlias>(
+                           gep->getPointerOperand());
                    alias != nullptr &&
                    valueToValue.contains(alias->getAliaseeObject())) {
           // aliases are set up after the initializers

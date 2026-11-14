@@ -151,7 +151,10 @@ struct SCEVExpr {
 // Scalar evolution of the values of one loop. The single source of truth for
 // induction variables: every value in the loop gets an expression, header
 // arguments that are `x += invariant` become add recurrences and anything
-// built from them (x + 1, 4 * x + n, ...) is an add recurrence again.
+// built from them (x + 1, 4 * x + n, ...) is an add recurrence again. A header
+// argument whose back edge value is a recurrence {s + c,+,c} and whose start
+// is s is the recurrence {s,+,c} too (what LoopRotate makes of a header value
+// like base + 8 * i that the body uses).
 class ScalarEvo {
   TVec<SCEVExpr> exprs;
   // structurally equal nodes share one SCEVRef (hash -> candidates), Unknown
@@ -166,6 +169,11 @@ class ScalarEvo {
 
   TVec<SCEVRef> rec_start;
   TVec<SCEVRef> rec_step;
+  // per header argument the invariant start (InvalidSCEV if not known) and the
+  // values of the back edges
+  TVec<SCEVRef> arg_start;
+  TVec<TVec<fir::ValueR>> arg_backs;
+  bool derive_recurrences();
   // narrow recurrences known not to wrap in the executed iterations
   struct NoWrap {
     SCEVRef rec;
