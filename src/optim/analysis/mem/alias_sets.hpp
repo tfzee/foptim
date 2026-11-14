@@ -30,11 +30,12 @@ class AliasSetTable {
  public:
   // superset of everything, never disjoint from anything
   static constexpr SetId Unknown = 0;
-  // everything but the stack objects that never escape
+  // everything but the stack and heap objects that never escape
   static constexpr SetId Foreign = 1;
   static constexpr SetId Null = 2;
   static constexpr SetId Stack = 3;
   static constexpr SetId Globals = 4;
+  // the result of malloc like calls (one object each), may be null
   static constexpr SetId Heap = 5;
   static constexpr SetId ReadOnlyGlobals = 6;
   // pointer arguments, not the own stack, noalias memory or fresh allocations

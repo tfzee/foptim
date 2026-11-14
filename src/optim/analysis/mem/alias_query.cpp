@@ -30,6 +30,25 @@ bool value_invariant(fir::ValueR v, const CFG &cfg, const LoopInfo &loop) {
   }
   return !loop.contains(cfg.get_bb_id(def));
 }
+
+// an access through null is undefined, so the null parts of a union never
+// make two accesses alias
+bool non_null_disjoint(const AliasSetTable &tab, SetId a, SetId b) {
+  auto leaves = [&](const SetId &s) {
+    return tab.is_union(s) ? tab.parts(s) : std::span<const SetId>{&s, 1};
+  };
+  for (auto x : leaves(a)) {
+    if (tab.subset(x, AliasSetTable::Null)) {
+      continue;
+    }
+    for (auto y : leaves(b)) {
+      if (!tab.subset(y, AliasSetTable::Null) && !tab.disjoint(x, y)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 }  // namespace
 
 bool invariant_in_span(const PtrShape &p, const IterSpan *span) {
@@ -59,14 +78,10 @@ AliasResult AliasQuery::alias(const MemLoc &a, const MemLoc &b,
     }
     return *a.overlaps(b) ? AliasResult::Partial : AliasResult::No;
   }
-  const SetId sa = prov->set_of(a.ptr.addr);
-  const SetId sb = prov->set_of(b.ptr.addr);
-  const auto &tab = prov->table();
-  if (tab.subset(sa, AliasSetTable::Null) ||
-      tab.subset(sb, AliasSetTable::Null) || tab.disjoint(sa, sb)) {
-    return AliasResult::No;
-  }
-  return AliasResult::May;
+  return non_null_disjoint(prov->table(), prov->set_of(a.ptr.addr),
+                           prov->set_of(b.ptr.addr))
+             ? AliasResult::No
+             : AliasResult::May;
 }
 
 namespace {
@@ -172,16 +187,17 @@ ModRef AliasQuery::call_mod_ref(fir::Instr call, const MemLoc &loc) {
       r = ModRef::Mod;
     }
   }
-  // a stack object that never escapes can only be reached through the
-  // pointers the call is given
+  // a stack or heap object that never escapes can only be reached through
+  // the pointers the call is given
   const auto &tab = prov->table();
   const SetId loc_set = prov->set_of(loc.ptr.addr);
-  if (!tab.disjoint(loc_set, AliasSetTable::Foreign)) {
+  if (!non_null_disjoint(tab, loc_set, AliasSetTable::Foreign)) {
     return r;
   }
   for (size_t i = 1; i < call->args.size(); i++) {
     auto arg = call->args[i];
-    if (arg.get_type()->is_ptr() && !tab.disjoint(prov->set_of(arg), loc_set)) {
+    if (arg.get_type()->is_ptr() &&
+        !non_null_disjoint(tab, prov->set_of(arg), loc_set)) {
       return r;
     }
   }

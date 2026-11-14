@@ -24,6 +24,13 @@ struct AllocaEscapeInfo {
   TSet<fir::ValueR> derived;
 };
 
+struct EscapeOptions {
+  // a return of the address as this result is no escape
+  i32 returned_as = -1;
+  // a block argument that gets the address carries it on instead of escaping
+  bool through_block_args = false;
+};
+
 namespace {
 
 struct SelfRange {
@@ -51,7 +58,8 @@ inline bool ranges_overlap(const SelfRange &a, const SelfRange &b) {
 
 }  // namespace
 
-inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
+inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val,
+                                              const EscapeOptions &opts = {}) {
   AllocaEscapeInfo info;
   auto &derived = info.derived;
   derived.insert(alloca_val);
@@ -91,11 +99,22 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
 
     for (auto v : snapshot) {
       for (auto &use : *v.get_uses()) {
+        if (use.type == fir::UseType::BBArg && opts.through_block_args) {
+          const auto &target = use.user->bbs[use.argId];
+          if (target.args[use.bbArgId] == v) {
+            add(fir::ValueR{target.bb->args[use.bbArgId]});
+          }
+          continue;
+        }
         if (use.type != fir::UseType::NormalArg) {
           escape();
           return info;
         }
         auto user = use.user;
+        // the use list of a multi result value has the uses of all results
+        if (!(user->args[use.argId] == v)) {
+          continue;
+        }
         switch (user->instr_type) {
           case fir::InstrType::ICmp:
           case fir::InstrType::FCmp:
@@ -156,6 +175,12 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
             call_reads = true;
             break;
           }
+          case fir::InstrType::ReturnInstr:
+            if (static_cast<i32>(use.argId) != opts.returned_as) {
+              escape();
+              return info;
+            }
+            break;
           case fir::InstrType::SelectInstr:
             if (use.argId == 0) {
               escape();

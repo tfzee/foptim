@@ -177,6 +177,7 @@ bool kill_dead_results(fir::FunctionR func, fir::Context &ctx,
     new_rets.push_back(ctx->get_void_type());
   }
   func.func->func_ty = ctx->get_func_ty(new_rets, func_ty.arg_types);
+  func->remap_result_attribs(func_ty.return_types, new_index);
   for (auto use : func->get_uses()) {
     auto call = use.user;
     // ascending, a result only moves to a lower index
@@ -198,8 +199,11 @@ bool kill_dead_results(fir::FunctionR func, fir::Context &ctx,
     ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
     auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
     ctx->storage.functions.rename(old_name.c_str(), new_name);
+    // a compiler helper keeps its no_inline
+    if (func_renamed->attribs.linkage == fir::Linkage::LinkOnceODR) {
+      func_renamed->attribs.no_inline = false;
+    }
     func_renamed->attribs.linkage = fir::Linkage::Internal;
-    func_renamed->attribs.no_inline = false;
   }
   return true;
 }
@@ -306,8 +310,11 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
       ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
       auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
       ctx->storage.functions.rename(old_name.c_str(), new_name);
+      // a compiler helper keeps its no_inline
+      if (func_renamed->attribs.linkage == fir::Linkage::LinkOnceODR) {
+        func_renamed->attribs.no_inline = false;
+      }
       func_renamed->attribs.linkage = fir::Linkage::Internal;
-      func_renamed->attribs.no_inline = false;
       return true;
     }
   }
@@ -357,9 +364,12 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx,
       ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
       auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
       ctx->storage.functions.rename(old_name.c_str(), new_name);
-      func_renamed->attribs.linkage = fir::Linkage::Internal;
       // TODO: Technically legal but might be counter productive
-      func_renamed->attribs.no_inline = false;
+      // a compiler helper keeps its no_inline
+      if (func_renamed->attribs.linkage == fir::Linkage::LinkOnceODR) {
+        func_renamed->attribs.no_inline = false;
+      }
+      func_renamed->attribs.linkage = fir::Linkage::Internal;
       return true;
     }
   }

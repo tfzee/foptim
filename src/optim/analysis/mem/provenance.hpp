@@ -18,8 +18,12 @@ namespace foptim::optim {
     null / poison              Null
     argument                   Incoming (IncomingNonNull with nonnull, an
                                object under Restrict with noalias)
-    load, call                 Foreign (also the alloca for a load out of an
-                               alloca that stores pointers into itself)
+    noalias result of a call   own object under Heap, disjoint from Foreign if
+                               it never escapes (then a union with Null unless
+                               also nonnull), from Null if also nonnull
+    load, call                 Foreign (also the alloca or heap object for a
+                               load out of one that stores pointers into
+                               itself)
     PtrAdd(p, index)           S(p), Unknown if p is null. Without inbounds
                                IncomingNonNull becomes Incoming
     select, block argument     union of the incoming sets, solved as a fixpoint
@@ -27,7 +31,10 @@ namespace foptim::optim {
     everything else            Unknown
 
   Pointers into the same object are never disjoint by set, the offsets decide
-  those (mem_access.hpp). Cached by the AnalysisManager, dropped by every pass
+  those (mem_access.hpp). Two heap objects may get the same address once the
+  first is freed, they are still disjoint because no access of the first may
+  follow the free and the free call orders the accesses. One allocation call
+  in a loop is the same set in every iteration. Cached by the AnalysisManager, dropped by every pass
   that changed anything.
 */
 class Provenance {
@@ -54,6 +61,8 @@ class Provenance {
   bool is_stack(fir::ValueR v) {
     return tab.subset(set_of(v), AliasSetTable::Stack);
   }
+  // heap memory or null
+  bool is_heap(fir::ValueR v);
   bool is_global(fir::ValueR v) {
     return tab.subset(set_of(v), AliasSetTable::Globals);
   }

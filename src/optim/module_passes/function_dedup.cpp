@@ -241,6 +241,7 @@ u64 type_key(fir::TypeR ty) { return reinterpret_cast<u64>(ty.get_raw_ptr()); }
 // instruction the kind, operand count and result type.
 u64 structure_key(const fir::Function *f) {
   u64 h = type_key(f->func_ty);
+  h = mix_hash(h, f->attribs.ret_noalias | f->attribs.ret_nonnull << 8);
   for (const auto &bb : f->basic_blocks) {
     h = mix_hash(h, bb->n_instrs());
     h = mix_hash(h, bb->n_args());

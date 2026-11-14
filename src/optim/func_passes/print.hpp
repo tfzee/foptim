@@ -150,7 +150,8 @@ class PrintAnalysis final : public ModulePass {
     auto &prov = AnalysisManager::provenance(func);
     fmt::println("provenance of {}", func.getName());
     const auto line = [&](fir::ValueR v) {
-      fmt::println("  {}:{}{}{}{}{}", v, prov.is_stack(v) ? " stack" : "",
+      fmt::println("  {}:{}{}{}{}{}{}", v, prov.is_stack(v) ? " stack" : "",
+                   prov.is_heap(v) ? " heap" : "",
                    prov.is_global(v) ? " global" : "",
                    prov.definitely_null(v) ? " null" : "",
                    prov.non_null(v) ? " nonnull" : " maybe_null",

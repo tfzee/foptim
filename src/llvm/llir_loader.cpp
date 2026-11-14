@@ -291,6 +291,8 @@ static bool libfunc_shape_matches(foptim::fir::LibFunc f,
       return sig(ptr, {ptr, ptr, i64, i64});
     case LibFunc::MemsetChk:
       return sig(ptr, {ptr, i32, i64, i64});
+    case LibFunc::PosixMemalign:
+      return sig(i32, {ptr, i64, i64});
     default:
       // floating point functions, all parameters have the result type
       return fty.getReturnType()->isFloatingPointTy() &&
@@ -997,6 +999,35 @@ void convert_call(const llvm::Instruction *any_instr,
                             valueToValue, mod, b2b),
           foptim::fir::UnaryInstrSubType::FloatSqrt);
       valueToValue.insert({any_instr, res});
+      return;
+    }
+    if (detect_libfunc(*c, fctx.config->optim.assume_cstdlib_beheaviour) ==
+            foptim::fir::LibFunc::PosixMemalign &&
+        fctx->has_function(foptim::fir::PosixMemalignHelper)) {
+      // the out pointer keeps its old value on failure
+      auto helper = fctx->get_function(foptim::fir::PosixMemalignHelper);
+      auto out = convert_instr_arg(call_instr->getOperand(0), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+      foptim::fir::ValueR args[] = {
+          convert_instr_arg(call_instr->getOperand(1), fctx, ffunc, builder,
+                            valueToValue, mod, b2b),
+          convert_instr_arg(call_instr->getOperand(2), fctx, ffunc, builder,
+                            valueToValue, mod, b2b)};
+      auto ptr_ty = fctx->get_ptr_type();
+      auto i32 = fctx->get_int_type(32);
+      auto old = builder.build_load(ptr_ty, out, false, false);
+      const foptim::fir::TypeR rets[] = {ptr_ty, i32};
+      auto call = builder.build_call(
+          foptim::fir::ValueR{fctx->get_constant_value(helper)},
+          helper->func_ty, rets, args);
+      auto ok = builder.build_int_cmp(
+          call.result(1),
+          foptim::fir::ValueR{fctx->get_constant_value(foptim::i128{0}, i32)},
+          foptim::fir::ICmpInstrSubType::EQ);
+      builder.build_store(out,
+                          builder.build_select(ptr_ty, ok, call.result(0), old),
+                          false, false);
+      valueToValue.insert({any_instr, call.result(1)});
       return;
     }
     if (detect_libfunc(*c, fctx.config->optim.assume_cstdlib_beheaviour) ==
@@ -2160,6 +2191,16 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->attribs.libfunc = lf;
   }
 
+  if (func.getReturnType()->isPointerTy()) {
+    const auto &ret = func.getAttributes().getRetAttrs();
+    foff_func->set_result_attribs(
+        ret.hasAttribute(llvm::Attribute::NoAlias) ? 1 : 0,
+        ret.hasAttribute(llvm::Attribute::NonNull) ||
+                ret.getDereferenceableBytes() > 0
+            ? 1
+            : 0);
+  }
+
   if (func.doesNotAccessMemory()) {
     foff_func->attribs.mem_read_none = true;
   } else if (func.onlyReadsMemory()) {
@@ -2739,6 +2780,11 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     // frem is a call to fmod
     if (module_has_frem(mod)) {
       generate_fmod(fctx);
+    }
+    if (fctx->has_function("posix_memalign") &&
+        fctx->get_function("posix_memalign")->attribs.libfunc ==
+            foptim::fir::LibFunc::PosixMemalign) {
+      foptim::fir::generate_posix_memalign_helper(fctx);
     }
   }
   {

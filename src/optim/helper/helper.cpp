@@ -49,6 +49,11 @@ bool is_known_nonnull(fir::ValueR v, u32 depth) {
   if (instr->is(fir::InstrType::AllocaInstr)) {
     return true;
   }
+  if (instr->is(fir::InstrType::CallInstr) && instr->args[0].is_constant() &&
+      instr->args[0].as_constant()->is_func()) {
+    return instr->args[0].as_constant()->as_func()->result_nonnull(
+        v.result_idx());
+  }
   if (instr->is(fir::BinaryInstrSubType::PtrAdd) && instr->InBounds) {
     return is_known_nonnull(instr->args[0], depth - 1);
   }

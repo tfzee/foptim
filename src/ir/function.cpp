@@ -2,6 +2,8 @@
 
 #include <fmt/color.h>
 
+#include <algorithm>
+
 #include "builder.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/print_ids.hpp"
@@ -12,6 +14,46 @@
 namespace foptim::fir {
 
 Builder FunctionR::builder() { return Builder{*this}; }
+
+namespace {
+bool same_results(TypeR a, TypeR b) {
+  return a == b || std::ranges::equal(a->as_func().return_types,
+                                      b->as_func().return_types);
+}
+}  // namespace
+
+bool Function::result_noalias(u32 i) const {
+  return i < 8 && ((attribs.ret_noalias >> i) & 1) != 0 &&
+         same_results(attribs.ret_attribs_ty, func_ty);
+}
+
+bool Function::result_nonnull(u32 i) const {
+  return i < 8 && ((attribs.ret_nonnull >> i) & 1) != 0 &&
+         same_results(attribs.ret_attribs_ty, func_ty);
+}
+
+void Function::set_result_attribs(u8 noalias, u8 nonnull) {
+  attribs.ret_noalias = noalias;
+  attribs.ret_nonnull = nonnull;
+  attribs.ret_attribs_ty = func_ty;
+}
+
+void Function::remap_result_attribs(std::span<const TypeR> old_results,
+                                    std::span<const u8> new_index) {
+  u8 na = 0;
+  u8 nn = 0;
+  const bool valid =
+      (attribs.ret_noalias | attribs.ret_nonnull) != 0 &&
+      std::ranges::equal(attribs.ret_attribs_ty->as_func().return_types,
+                         old_results);
+  for (u32 i = 0; valid && i < new_index.size() && i < 8; i++) {
+    if (new_index[i] < 8) {
+      na |= static_cast<u8>((attribs.ret_noalias >> i) & 1) << new_index[i];
+      nn |= static_cast<u8>((attribs.ret_nonnull >> i) & 1) << new_index[i];
+    }
+  }
+  set_result_attribs(na, nn);
+}
 
 void Function::dump_data_dependency_graph(const char *filename) const {
   auto *file = std::fopen(filename, "w");

@@ -3,6 +3,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/callgraph.hpp"
+#include "optim/analysis/mem/alloca_escape.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/analysis/mem/ptr_arg_use.hpp"
 #include "optim/helper/WFVector.hpp"
@@ -92,6 +93,117 @@ class FuncPropAnnotator final : public ModulePass {
       }
     }
     return r;
+  }
+
+  // every value returned as result r is null or a pointer into the noalias
+  // result of a call that reaches nothing else than this result
+  static bool returns_fresh(
+      const TVec<fir::Instr> &rets, u32 r,
+      const TMap<fir::ValueR, TVec<fir::ValueR>> &incoming) {
+    TVec<fir::ValueR> work;
+    TSet<fir::ValueR> seen;
+    TVec<fir::ValueR> sources;
+    for (auto ret : rets) {
+      work.push_back(ret->args[r]);
+    }
+    while (!work.empty()) {
+      const auto v = work.back();
+      work.pop_back();
+      if (!seen.insert(v).second) {
+        continue;
+      }
+      if (v.is_constant()) {
+        if (!v.as_constant()->is_null()) {
+          return false;
+        }
+        continue;
+      }
+      if (v.is_bb_arg()) {
+        const auto it = incoming.find(v);
+        if (it == incoming.end()) {
+          return false;
+        }
+        for (auto in : it->second) {
+          work.push_back(in);
+        }
+        continue;
+      }
+      if (!v.is_instr()) {
+        return false;
+      }
+      const auto instr = v.as_instr();
+      if (instr->is(fir::InstrType::SelectInstr)) {
+        work.push_back(instr->args[1]);
+        work.push_back(instr->args[2]);
+      } else if (instr->is(fir::BinaryInstrSubType::PtrAdd)) {
+        work.push_back(instr->args[0]);
+      } else if (instr->is(fir::InstrType::CallInstr) &&
+                 instr->args[0].is_constant() &&
+                 instr->args[0].as_constant()->is_func() &&
+                 instr->args[0].as_constant()->as_func()->result_noalias(
+                     v.result_idx())) {
+        sources.push_back(v);
+      } else {
+        return false;
+      }
+    }
+    const EscapeOptions opts{.returned_as = static_cast<i32>(r),
+                             .through_block_args = true};
+    return std::ranges::none_of(sources, [&](fir::ValueR s) {
+      return analyze_alloca_escape(s, opts).escapes;
+    });
+  }
+
+  // noalias and nonnull of the pointer results of a definition, only ever
+  // added. a definition that may be replaced at link time says nothing
+  static bool deduce_result_attribs(fir::Function &f) {
+    const auto &ft = f.func_ty->as_func();
+    const u32 n = ft.n_results();
+    if (n == 0 || n > 8 || f.attribs.linkage == fir::Linkage::Weak ||
+        f.attribs.linkage == fir::Linkage::LinkOnce) {
+      return false;
+    }
+    TVec<fir::Instr> rets;
+    TMap<fir::ValueR, TVec<fir::ValueR>> incoming;
+    for (auto bb : f.basic_blocks) {
+      auto term = bb->get_terminator();
+      if (term->is(fir::InstrType::ReturnInstr)) {
+        rets.push_back(term);
+      }
+      for (const auto &target : term->bbs) {
+        for (u32 j = 0; j < target.args.size(); j++) {
+          incoming[fir::ValueR{target.bb->args[j]}].push_back(target.args[j]);
+        }
+      }
+    }
+    if (rets.empty()) {
+      return false;
+    }
+    u8 na = 0;
+    u8 nn = 0;
+    for (u32 r = 0; r < n; r++) {
+      if (!ft.return_types[r]->is_ptr()) {
+        continue;
+      }
+      if (f.result_noalias(r) || returns_fresh(rets, r, incoming)) {
+        na |= 1U << r;
+      }
+      if (f.result_nonnull(r) || std::ranges::all_of(rets, [&](fir::Instr ret) {
+            return is_known_nonnull(ret->args[r]);
+          })) {
+        nn |= 1U << r;
+      }
+    }
+    bool same = true;
+    for (u32 r = 0; r < n; r++) {
+      same = same && f.result_noalias(r) == (((na >> r) & 1) != 0) &&
+             f.result_nonnull(r) == (((nn >> r) & 1) != 0);
+    }
+    if (same) {
+      return false;
+    }
+    f.set_result_attribs(na, nn);
+    return true;
   }
 
   // A pointer argument is nonnull if every call passes a nonnull pointer, for
@@ -203,6 +315,9 @@ class FuncPropAnnotator final : public ModulePass {
           arg->readonly = true;
           modified = true;
         }
+      }
+      if (deduce_result_attribs(*v)) {
+        modified = true;
       }
       // after the memory attributes, it needs mem_read_none
       auto new_wfvec = can_whole_function_vectorize(

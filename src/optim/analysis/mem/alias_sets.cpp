@@ -37,7 +37,7 @@ AliasSetTable::AliasSetTable(RootsTag /*unused*/) {
   create(foreign);  // Null
   create(top);      // Stack
   create(foreign);  // Globals
-  create(foreign);  // Heap
+  create(top);      // Heap
   const SetId globals[] = {Globals};
   create(globals);  // ReadOnlyGlobals
   create(foreign);  // Incoming
@@ -46,12 +46,15 @@ AliasSetTable::AliasSetTable(RootsTag /*unused*/) {
   create(foreign);   // Restrict
   ASSERT(size() == NumRoots);
 
-  const SetId disjoint_roots[] = {Null, Stack, Globals, Heap};
-  for (size_t i = 0; i < 4; i++) {
-    for (size_t j = i + 1; j < 4; j++) {
+  const SetId disjoint_roots[] = {Null, Stack, Globals};
+  for (size_t i = 0; i < 3; i++) {
+    for (size_t j = i + 1; j < 3; j++) {
       declare_disjoint(disjoint_roots[i], disjoint_roots[j]);
     }
   }
+  // a fresh allocation may be null like a noalias argument
+  declare_disjoint(Heap, Stack);
+  declare_disjoint(Heap, Globals);
   declare_disjoint(Incoming, Stack);
   declare_disjoint(Incoming, Heap);
   declare_disjoint(IncomingNonNull, Null);

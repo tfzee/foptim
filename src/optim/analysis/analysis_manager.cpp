@@ -195,7 +195,9 @@ u64 AnalysisManager::hash_interface(const fir::Function &func) {
                  a.must_return << 2 | a.no_recurse << 3 | a.no_inline << 4 |
                  a.no_return << 5 | a.cold << 6 | a.must_inline << 7 |
                  a.mem_write_only << 8 | a.mem_read_only << 9 |
-                 a.mem_read_none << 10 | a.maybe_can_wfvec << 11);
+                 a.mem_read_none << 10 | a.maybe_can_wfvec << 11 |
+                 static_cast<u64>(a.ret_noalias) << 12 |
+                 static_cast<u64>(a.ret_nonnull) << 20);
   return h;
 }
 

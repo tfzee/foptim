@@ -19,6 +19,21 @@ using T = AliasSetTable;
 constexpr u32 MaxRounds = 32;
 constexpr u32 MaxDeriveDepth = 8;
 
+// the callee of a direct call with a noalias result
+const fir::Function *fresh_callee(fir::Instr instr) {
+  if (!instr->is(fir::InstrType::CallInstr) || !instr->args[0].is_constant() ||
+      !instr->args[0].as_constant()->is_func()) {
+    return nullptr;
+  }
+  const auto *f = instr->args[0].as_constant()->as_func().func;
+  return f->attribs.ret_noalias != 0 ? f : nullptr;
+}
+
+bool fresh_result(fir::Instr instr, u32 r) {
+  const auto *f = fresh_callee(instr);
+  return f != nullptr && f->result_noalias(r) && instr.result_type(r)->is_ptr();
+}
+
 // the set of base + index, a pointer computed from another one stays in its
 // object (like LLVM, going outside of it is undefined behavior)
 SetId ptr_add_set(AliasSetTable &tab, SetId base, bool in_bounds) {
@@ -49,25 +64,41 @@ Provenance::Provenance(fir::Function &func) : tab(func.ctx->alias_sets()) {
   FDMap<fir::ValueR, SetId> load_of_alloca;
   for (const auto bb : func.basic_blocks) {
     for (const auto instr : bb->instructions) {
-      if (!instr->is(fir::InstrType::AllocaInstr)) {
+      const bool is_alloca = instr->is(fir::InstrType::AllocaInstr);
+      if (!is_alloca && fresh_callee(instr) == nullptr) {
         continue;
       }
-      auto info = analyze_alloca_escape(instr.result());
-      const SetId foreign[] = {T::Foreign};
-      SetId obj = info.escapes ? tab.create_object(T::Stack, foreign)
-                               : tab.create_object(T::Stack);
-      if (!info.escapes) {
-        tab.declare_disjoint(obj, T::Foreign);
-        if (info.has_self_ptr) {
-          for (const auto &v : info.derived) {
-            if (v.is_instr() && v.as_instr()->is(fir::InstrType::LoadInstr)) {
-              load_of_alloca[v] = obj;
+      for (u32 r = 0; r < instr.n_results(); r++) {
+        if (!is_alloca && !fresh_result(instr, r)) {
+          continue;
+        }
+        const auto res = instr.result(r);
+        auto info = analyze_alloca_escape(res);
+        const SetId foreign[] = {T::Foreign};
+        const SetId root = is_alloca ? T::Stack : T::Heap;
+        SetId obj = info.escapes ? tab.create_object(root, foreign)
+                                 : tab.create_object(root);
+        // an object that is disjoint from Foreign is disjoint from Null too, so
+        // a heap object that may be null is a union with Null
+        const bool maybe_null =
+            !is_alloca && !fresh_callee(instr)->result_nonnull(r);
+        if (!is_alloca && !maybe_null) {
+          tab.declare_disjoint(obj, T::Null);
+        }
+        if (!info.escapes) {
+          tab.declare_disjoint(obj, T::Foreign);
+          if (info.has_self_ptr) {
+            for (const auto &v : info.derived) {
+              if (v.is_instr() && v.as_instr()->is(fir::InstrType::LoadInstr)) {
+                load_of_alloca[v] = obj;
+              }
             }
           }
         }
+        sets[res] =
+            maybe_null && !info.escapes ? tab.union_of(obj, T::Null) : obj;
+        escaping[res] = info.escapes;
       }
-      sets[instr.result()] = obj;
-      escaping[instr.result()] = info.escapes;
     }
   }
 
@@ -192,7 +223,7 @@ Provenance::Provenance(fir::Function &func) : tab(func.ctx->alias_sets()) {
         }
         const u32 n_res = instr.n_results();
         for (u32 r = 0; r < n_res; r++) {
-          if (!instr.result_type(r)->is_ptr()) {
+          if (!instr.result_type(r)->is_ptr() || fresh_result(instr, r)) {
             continue;
           }
           update(instr.result(r), n_res == 1
@@ -271,6 +302,22 @@ SetId Provenance::derive(fir::ValueR v, u32 depth) {
   }
   // new loads may read a pointer back out of an alloca, so they stay unknown
   return T::Unknown;
+}
+
+bool Provenance::is_heap(fir::ValueR v) {
+  const SetId s = set_of(v);
+  if (!tab.is_union(s)) {
+    return tab.subset(s, T::Heap);
+  }
+  bool any = false;
+  for (auto p : tab.parts(s)) {
+    if (tab.subset(p, T::Heap)) {
+      any = true;
+    } else if (!tab.subset(p, T::Null)) {
+      return false;
+    }
+  }
+  return any;
 }
 
 bool Provenance::escapes(fir::ValueR alloca) const {

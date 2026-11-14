@@ -44,10 +44,18 @@ void generate_memcpy(fir::Context &fctx);
 void generate_memset(fir::Context &fctx);
 void generate_memmove(fir::Context &fctx);
 void generate_memcmp(fir::Context &fctx);
-// declares the libm function (and its float version) a math intrinsic is lowered to
-void generate_libm_for_intrinsic(fir::Context &fctx, std::string_view llvm_name);
+// declares the libm function (and its float version) a math intrinsic is
+// lowered to
+void generate_libm_for_intrinsic(fir::Context &fctx,
+                                 std::string_view llvm_name);
 void generate_trunc(fir::Context &fctx);
 void generate_fmod(fir::Context &fctx);
 void generate_trap(fir::Context &fctx);
+
+// (ptr, err) PosixMemalignHelper(align, size) calls posix_memalign and returns
+// the pointer, null on failure. The pointer is a new object (noalias result),
+// which the call through an out pointer cannot say
+inline constexpr const char *PosixMemalignHelper = "foptim.posix_memalign";
+void generate_posix_memalign_helper(fir::Context &fctx);
 
 }  // namespace foptim::fir

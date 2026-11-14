@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <span>
 #include <utility>
 
 #include "basic_block.hpp"
@@ -53,7 +54,30 @@ class Function : public Attributable, public LockedUsed {
     // mark as potentially be able to be whole function vectorized (but verify
     // before applying since it can easliy be invalidated)
     u8 maybe_can_wfvec : 1 = 0;
+
+    // one bit per result, results from 8 on are never marked, read them
+    // through Function::result_noalias / result_nonnull
+    u8 ret_noalias = 0;
+    u8 ret_nonnull = 0;
+    // the type the bits were set for
+    FunctionTypeR ret_attribs_ty;
   };
+
+  // noalias means the result is a new object no other pointer of the caller
+  // points into (malloc like), it may still be null unless it is nonnull too.
+  // The bits only count while the return types are the ones they were set for,
+  // so a pass that changes the results without remapping only loses them. A
+  // pass that keeps the types but changes what a result means has to clear
+  // them.
+  [[nodiscard]] bool result_noalias(u32 i) const;
+  [[nodiscard]] bool result_nonnull(u32 i) const;
+  // for the current return types
+  void set_result_attribs(u8 noalias, u8 nonnull);
+  void clear_result_attribs() { set_result_attribs(0, 0); }
+  // call after func_ty got the new results, new_index[i] is the new position
+  // of the old result i (old_results[i]), 255 if it was dropped
+  void remap_result_attribs(std::span<const TypeR> old_results,
+                            std::span<const u8> new_index);
 
   ContextData *ctx;
   IRString name;

@@ -108,6 +108,31 @@ void generate_libm_for_intrinsic(foptim::fir::Context &fctx,
                    fname.c_str());
 }
 
+void generate_posix_memalign_helper(foptim::fir::Context &fctx) {
+  if (fctx->has_function(PosixMemalignHelper)) {
+    return;
+  }
+  auto *callee = fctx->get_function("posix_memalign").func;
+  auto ptr = fctx->get_ptr_type();
+  auto i32 = fctx->get_int_type(32);
+  auto i64 = fctx->get_int_type(64);
+  const TypeR rets[] = {ptr, i32};
+  auto f = fctx->create_function(PosixMemalignHelper,
+                                 fctx->get_func_ty(rets, {i64, i64}));
+  f->attribs.no_inline = true;
+  f->set_result_attribs(0b01, 0);
+  auto entry = f->get_entry();
+  auto b = f.builder();
+  b.at_end(entry);
+  auto slot = b.build_alloca(ValueR{fctx->get_constant_value(i128{8}, i64)});
+  b.build_store(slot, ValueR{fctx->get_constant_null()}, false, false);
+  ValueR args[] = {slot, ValueR{entry->args[0]}, ValueR{entry->args[1]}};
+  auto err = b.build_call(ValueR{fctx->get_constant_value(callee)},
+                          callee->func_ty, i32, args);
+  const ValueR res[] = {b.build_load(ptr, slot, false, false), err};
+  b.build_return(res);
+}
+
 void generate_trap(foptim::fir::Context &fctx) {
   if (fctx->has_function("abort")) {
     return;

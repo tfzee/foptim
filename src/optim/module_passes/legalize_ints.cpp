@@ -960,6 +960,14 @@ PreservedAnalysis LegalizeInts::apply(fir::Context &ctx, JobSheduler * /*shed*/,
     }
     if (sig_wide) {
       f->func_ty = legal_func_type(ctx, old_ty);
+      TVec<u8> new_index;
+      u32 pos = 0;
+      for (auto t : old_ty.return_types) {
+        const u32 n = n_limbs(t);
+        new_index.push_back(n == 0 && pos < 255 ? static_cast<u8>(pos) : 255);
+        pos += n == 0 ? 1 : n;
+      }
+      f->remap_result_attribs(old_ty.return_types, new_index);
       analyMan.touched_signature(*f);
     } else {
       analyMan.touched_body(*f);

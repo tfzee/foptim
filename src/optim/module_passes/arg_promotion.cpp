@@ -122,6 +122,7 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
 
   {  // type cleanup
     func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+    func->clear_result_attribs();
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
@@ -310,6 +311,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   // TODO("impl");
   const auto &func_ty = func.func->func_ty->as_func();
   func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+  func->clear_result_attribs();
   for (auto use : func.func->get_uses()) {
     use.user->extra_type = func.func->func_ty;
     use.user->set_result_type(res_type);
