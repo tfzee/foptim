@@ -91,9 +91,10 @@ class ConstraintAnalysis {
     using is_avalanching = void;
     uint64_t operator()(const ConstrKey &k) const noexcept {
       return ankerl::unordered_dense::detail::wyhash::mix(
-          ankerl::unordered_dense::hash<fir::Instr>()(k.origin_instr),
-          (static_cast<uint64_t>(k.e1) << 32 | k.e2) * 16 +
-              static_cast<uint64_t>(k.type));
+          ankerl::unordered_dense::hash<fir::Instr>()(k.origin_instr) ^
+              ((static_cast<uint64_t>(k.e1) << 32 | k.e2) * 16 +
+               static_cast<uint64_t>(k.type)),
+          UINT64_C(0x9E3779B97F4A7C15));
     }
   };
   FDMap<fir::ValueR, ExprId> expr_ids;

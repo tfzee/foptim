@@ -110,9 +110,11 @@ struct ankerl::unordered_dense::hash<foptim::fir::Use> {
   [[nodiscard]] auto operator()(const foptim::fir::Use &k) const noexcept
       -> uint64_t {
     namespace wy = ankerl::unordered_dense::detail::wyhash;
-    return wy::mix(hash<foptim::fir::Instr>()(k.user),
-                   (static_cast<uint64_t>(k.argId) << 24) |
-                       (static_cast<uint64_t>(k.bbArgId) << 8) |
-                       static_cast<uint64_t>(static_cast<foptim::u8>(k.type)));
+    // mix multiplies its arguments, the second one must never be 0
+    return wy::mix(hash<foptim::fir::Instr>()(k.user) ^
+                       ((static_cast<uint64_t>(k.argId) << 24) |
+                        (static_cast<uint64_t>(k.bbArgId) << 8) |
+                        static_cast<uint64_t>(static_cast<foptim::u8>(k.type))),
+                   UINT64_C(0x9E3779B97F4A7C15));
   }
 };

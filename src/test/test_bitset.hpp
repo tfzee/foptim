@@ -55,6 +55,33 @@ TEST(BitSetTest, BasicSetIter) {
   }
 }
 
+TEST(BitSetTest, IterAcrossWords) {
+  using foptim::u64;
+  for (size_t n_bits : {1UL, 63UL, 64UL, 65UL, 200UL}) {
+    foptim::utils::BitSet<u64> bb{n_bits, false};
+    std::vector<size_t> expected;
+    for (size_t i : {0UL, 1UL, 62UL, 63UL, 64UL, 127UL, 130UL, 199UL}) {
+      if (i < n_bits) {
+        bb[i].set(true);
+        expected.push_back(i);
+      }
+    }
+    std::vector<size_t> got;
+    for (auto i : bb) {
+      got.push_back(i);
+    }
+    EXPECT_EQ(got, expected) << n_bits;
+
+    bb.reset(true);
+    got.clear();
+    for (auto i : bb) {
+      got.push_back(i);
+    }
+    EXPECT_EQ(got.size(), n_bits);
+    EXPECT_EQ(got.back(), n_bits - 1);
+  }
+}
+
 TEST(BitSetTest, BasicSetGet) {
   using foptim::u64;
   constexpr size_t N_BITS = 68;

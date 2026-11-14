@@ -1,0 +1,8 @@
+# sizes are per core (L1D, L2) or per CCD (LLC), latency is the load to use
+# latency in cycles on a hit at that level. the MEM row is a miss all the way
+# out, only its latency is used.
+level,size_bytes,line_size,assoc,latency
+L1D,32768,64,8,4
+L2,1048576,64,8,14
+LLC,33554432,64,16,50
+MEM,0,64,0,300

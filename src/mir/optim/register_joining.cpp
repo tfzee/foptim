@@ -57,13 +57,12 @@ void RegisterJoining::apply_impl(MFunc &func) {
         // fmt::println("TRYING JOIN {}", pinned_target_reg);
         // lives.at(pinned_target_reg).dump();
 
-        if (!colls.at(pinned_target_reg)
-                 .contains(reg_to_uid(virtual_value_reg))) {
+        if (!colls.collides(pinned_target_reg, reg_to_uid(virtual_value_reg))) {
           // fmt::println(" WORKED");
           reg_mapping[virtual_value_reg.virt_id()] = pinned_target_reg.c_reg();
-          const auto &other_colls = colls.at(virtual_value_reg);
-          colls.at(pinned_target_reg)
-              .insert(other_colls.begin(), other_colls.end());
+          for (auto uid : colls.at(virtual_value_reg)) {
+            colls.insert(pinned_target_reg, uid);
+          }
         } else {
           // fmt::println(" FAILED");
         }

@@ -3,6 +3,7 @@
 #include "mir/func.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
+#include "utils/todo.hpp"
 
 namespace foptim::fmir {
 
@@ -173,12 +174,55 @@ struct LinearRangeSet {
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func);
 
+// Collision set of every register, the uids of the registers it is alive at
+// the same time with. Registers and the members of a set are kept in the order
+// they were first added, a register keeps the VReg (and type) it was first
+// added with.
+class RegColl {
+ public:
+  RegColl() = default;
+  explicit RegColl(size_t n_uids);
+
+  // adds r with an empty set
+  void touch(VReg r) { slot(r); }
+  // adds uid to the set of r
+  void insert(VReg r, size_t uid);
+  [[nodiscard]] bool contains(VReg r) const {
+    const size_t uid = reg_to_uid(r);
+    return uid < uid_slot.size() && uid_slot[uid] != kNoSlot;
+  }
+  // is uid in the set of r
+  [[nodiscard]] bool collides(VReg r, size_t uid) const;
+  [[nodiscard]] const TVec<size_t> &at(VReg r) const {
+    ASSERT(contains(r));
+    return sets[uid_slot[reg_to_uid(r)]];
+  }
+  [[nodiscard]] size_t size() const { return regs.size(); }
+  [[nodiscard]] VReg reg(size_t i) const { return regs[i]; }
+  [[nodiscard]] const TVec<size_t> &set(size_t i) const { return sets[i]; }
+
+ private:
+  static constexpr u32 kNoSlot = static_cast<u32>(-1);
+  // registers with a bigger uid keep their members in pairs only
+  static constexpr size_t kMaxMatrixUids = 8192;
+
+  u32 slot(VReg r);
+
+  TVec<VReg> regs;
+  TVec<TVec<size_t>> sets;
+  TVec<u32> uid_slot;
+  // membership as a matrix over the uids below dim (row = owner of the set)
+  size_t dim = 0;
+  TVec<u64> bits;
+  // membership of everything outside the matrix
+  TSet<u64> pairs;
+};
+
 // Collision sets of all registers (which registers are alive at the same time).
 // If `call_crossings` is given it receives for every virtual register (by uid)
 // the summed weight of the calls it is alive across, the weight of a call is
 // the weight of its block in `block_weights` (1 if that is null).
-TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
-                                  const TVec<f32> *block_weights = nullptr,
-                                  TMap<size_t, f32> *call_crossings = nullptr);
+RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights = nullptr,
+                 TMap<size_t, f32> *call_crossings = nullptr);
 
 }  // namespace foptim::fmir

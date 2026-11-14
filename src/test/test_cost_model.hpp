@@ -275,3 +275,17 @@ TEST(RegisterPressureEstimateTest, OverlappingLiveRangesCountedCorrectly) {
   const cm::RegisterPressureEstimate rp{entry};
   EXPECT_EQ(rp.max_pressure(), 3u);
 }
+
+TEST(CostModelMachine, CacheHierarchy) {
+  const cm::Machine m = test_machine();
+  EXPECT_EQ(m.cache(0).size, 32768u);
+  EXPECT_EQ(m.cache(1).size, 1048576u);
+  EXPECT_EQ(m.cache(2).size, 33554432u);
+  double prev = 0.0;
+  for (u32 l = 0; l < cm::kNumCacheLevels; l++) {
+    EXPECT_EQ(m.cache(l).line_size, 64u);
+    EXPECT_GT(m.cache(l).latency, prev);
+    prev = m.cache(l).latency;
+  }
+  EXPECT_GT(m.mem_latency(), prev);
+}

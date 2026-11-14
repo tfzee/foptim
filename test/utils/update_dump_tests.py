@@ -49,10 +49,11 @@ from UpdateTestChecks import common
 # attributes (ir/function.cpp writes "\n; " and then the attribute list). That
 # is `; ` for a function with no attributes and `; NO_RECURSE, MEM(READ), `
 # for one with some, so the terminator is a comment line, not a fixed string.
+# The globals the FIR printer writes before the functions end a block too.
 DUMP_BLOCK_RE = re.compile(
     r"^(?P<header>(?P<kind>[a-z][a-z0-9 ]*?) of (?P<func>[A-Za-z0-9_.$-]+))[ \t]*\n"
     r"(?P<body>.*?)"
-    r"(?=^[a-z][a-z0-9 ]*? of [A-Za-z0-9_.$-]+[ \t]*\n|^;|^func\s|\Z)",
+    r"(?=^[a-z][a-z0-9 ]*? of [A-Za-z0-9_.$-]+[ \t]*\n|^;|^func\s|^GLOBAL\s|\Z)",
     flags=(re.M | re.S),
 )
 

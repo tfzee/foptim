@@ -127,8 +127,11 @@ set(COST_TABLE_INC ${COST_TABLE_DIR}/x86_cost_tables.inc)
 # one entry per microarchitecture, <MicroArch enumerator>=<csv>
 set(COST_MICROARCHS
     Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4.csv)
+# cache hierarchy of the same microarchitectures
+set(COST_CACHE_MICROARCHS
+    cache:Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4_cache.csv)
 set(COST_CSVS)
-foreach(entry ${COST_MICROARCHS})
+foreach(entry ${COST_MICROARCHS} ${COST_CACHE_MICROARCHS})
   string(REGEX REPLACE "^[^=]*=" "" csv ${entry})
   list(APPEND COST_CSVS ${csv})
 endforeach()
@@ -136,7 +139,7 @@ add_custom_command(
   OUTPUT ${COST_TABLE_INC}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${COST_TABLE_DIR}
   COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py
-          ${COST_TABLE_INC} ${COST_MICROARCHS}
+          ${COST_TABLE_INC} ${COST_MICROARCHS} ${COST_CACHE_MICROARCHS}
   DEPENDS ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py ${COST_CSVS}
           ${CMAKE_SOURCE_DIR}/src/optim/cost_model/x86_op_class.hpp
   VERBATIM)

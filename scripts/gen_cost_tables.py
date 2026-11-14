@@ -4,10 +4,13 @@
 
 Usage:
     scripts/gen_cost_tables.py <output.inc> <ArchName>=<csv-path>...
+        [cache:<ArchName>=<csv-path>...]
 
 One table per microarchitecture plus table_of(MicroArch), which needs a
 MicroArch enumerator named ArchName. CMake runs it into the build directory
-whenever a csv, this script or the X86OpClass enum changes. The op-class order
+whenever a csv, this script or the X86OpClass enum changes. A cache: argument
+gives the cache hierarchy of the same architecture (rows L1D, L2, LLC, MEM),
+every architecture needs one. The op-class order
 of the arrays is read out of that enum, so it lines up with Machine::table().
 """
 
@@ -77,16 +80,64 @@ def table_lines(arch_name, csv_path, order):
     return lines
 
 
+CACHE_LEVELS = ["L1D", "L2", "LLC"]
+
+
+def cache_lines(arch_name, csv_path):
+    lines = [x for x in csv_path.read_text().splitlines(keepends=True)
+             if not x.lstrip().startswith("#")]
+    rows = {r["level"]: r for r in csv.DictReader(lines)}
+    missing = [n for n in CACHE_LEVELS + ["MEM"] if n not in rows]
+    if missing:
+        raise SystemExit(f"{csv_path} is missing rows for: {', '.join(missing)}")
+    out = [
+        f"// {arch_name}: {csv_path}",
+        f"static constexpr foptim::optim::cost_model::CacheLevel k{arch_name}Cache[] = {{",
+    ]
+    for name in CACHE_LEVELS:
+        r = rows[name]
+        out.append(
+            "    {{{size}, {line}, {assoc}, {lat}}},  // {name}".format(
+                size=int(r["size_bytes"]),
+                line=int(r["line_size"]),
+                assoc=int(r["assoc"]),
+                lat=float(r["latency"]),
+                name=name,
+            )
+        )
+    out.append("};")
+    out.append(
+        "static_assert(sizeof(k{0}Cache) / sizeof(k{0}Cache[0]) == "
+        "foptim::optim::cost_model::kNumCacheLevels);".format(arch_name)
+    )
+    out.append(
+        f"static constexpr double k{arch_name}MemLatency = {float(rows['MEM']['latency'])};"
+    )
+    return out
+
+
 def main():
-    if len(sys.argv) < 3 or any("=" not in a for a in sys.argv[2:]):
+    args = sys.argv[2:]
+    if len(sys.argv) < 3 or any("=" not in a for a in args):
         raise SystemExit(__doc__)
     out_path = Path(sys.argv[1])
-    archs = [(a.split("=", 1)[0], Path(a.split("=", 1)[1])) for a in sys.argv[2:]]
+    archs = []
+    caches = {}
+    for a in args:
+        key, path = a.split("=", 1)
+        if key.startswith("cache:"):
+            caches[key[len("cache:"):]] = Path(path)
+        else:
+            archs.append((key, Path(path)))
+    for name, _ in archs:
+        if name not in caches:
+            raise SystemExit(f"no cache:{name}=<csv> given")
     order = read_enum_order()
 
     lines = ["// GENERATED FILE -- do not edit by hand."]
     for name, csv_path in archs:
         lines += table_lines(name, csv_path, order)
+        lines += cache_lines(name, caches[name])
     lines.append("")
     lines.append(
         "inline const foptim::optim::cost_model::TableRow *table_of("
@@ -98,6 +149,29 @@ def main():
         lines.append(f"      return k{name}Table;")
     lines.append("  }")
     lines.append("  return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append(
+        "inline const foptim::optim::cost_model::CacheLevel *cache_of("
+        "foptim::optim::cost_model::MicroArch arch) {"
+    )
+    lines.append("  switch (arch) {")
+    for name, _ in archs:
+        lines.append(f"    case foptim::optim::cost_model::MicroArch::{name}:")
+        lines.append(f"      return k{name}Cache;")
+    lines.append("  }")
+    lines.append("  return nullptr;")
+    lines.append("}")
+    lines.append("")
+    lines.append(
+        "inline double mem_latency_of(foptim::optim::cost_model::MicroArch arch) {"
+    )
+    lines.append("  switch (arch) {")
+    for name, _ in archs:
+        lines.append(f"    case foptim::optim::cost_model::MicroArch::{name}:")
+        lines.append(f"      return k{name}MemLatency;")
+    lines.append("  }")
+    lines.append("  return 0.0;")
     lines.append("}")
     out_path.write_text("\n".join(lines) + "\n")
     print(f"wrote {out_path} ({len(archs)} microarchitectures)")

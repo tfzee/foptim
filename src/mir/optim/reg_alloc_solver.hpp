@@ -6,6 +6,7 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include <optional>
 
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
@@ -306,8 +307,13 @@ struct CostGraph {
   TVec<u64> node_uid;
   TVec<u8> node_kind;
   TVec<CostVector> node_costs;
+  // read through neigh() and degree() once reductions started, removed entries
+  // stay in the list with other == kNoNode until it is read again
   TVec<TVec<Adj>> neighbours;
+  TVec<u32> n_dead;
   TVec<CostMatrix> edges;
+  // position of an edge in the neighbour list of its lower and its higher node
+  TVec<std::array<u32, 2>> edge_slot;
   // (min node, max node) -> index into edges
   TMap<u64, u32> edge_lookup;
   // Nodes that are still part of the graph. Order matters since it decides
@@ -315,6 +321,8 @@ struct CostGraph {
   // moves the last element into the hole.
   TVec<u32> active;
   TVec<u32> active_pos;
+  // if set every node whose degree or position in active changes is appended
+  TVec<u32> *touched = nullptr;
 
   u32 node(u64 uid) {
     if (uid >= uid_to_node.size()) {
@@ -327,6 +335,7 @@ struct CostGraph {
       node_kind.push_back(default_kind(uid));
       node_costs.emplace_back();
       neighbours.emplace_back();
+      n_dead.push_back(0);
       active_pos.push_back(static_cast<u32>(active.size()));
       active.push_back(n);
     }
@@ -369,8 +378,15 @@ struct CostGraph {
     auto idx = static_cast<u32>(edges.size());
     edges.push_back(m);
     edge_lookup.emplace(edge_key(a, b), idx);
+    auto &slot = edge_slot.emplace_back();
+    slot[a < b ? 0 : 1] = static_cast<u32>(neighbours[a].size());
+    slot[a < b ? 1 : 0] = static_cast<u32>(neighbours[b].size());
     neighbours[a].push_back({b, idx});
     neighbours[b].push_back({a, idx});
+    if (touched != nullptr) {
+      touched->push_back(a);
+      touched->push_back(b);
+    }
     return idx;
   }
 
@@ -409,12 +425,44 @@ struct CostGraph {
     }
   }
 
-  void remove_neighbour(u32 from, u32 to_remove) {
-    auto &list = neighbours[from];
-    list.erase(
-        std::remove_if(list.begin(), list.end(),
-                       [to_remove](Adj a) { return a.other == to_remove; }),
-        list.end());
+  [[nodiscard]] u32 degree(u32 n) const {
+    return static_cast<u32>(neighbours[n].size()) - n_dead[n];
+  }
+
+  // the neighbours of n in the order they were added
+  const TVec<Adj> &neigh(u32 n) {
+    auto &list = neighbours[n];
+    if (n_dead[n] == 0) {
+      return list;
+    }
+    u32 w = 0;
+    for (auto adj : list) {
+      if (adj.other == kNoNode) {
+        continue;
+      }
+      edge_slot[adj.edge][n < adj.other ? 0 : 1] = w;
+      list[w++] = adj;
+    }
+    list.resize(w);
+    n_dead[n] = 0;
+    return list;
+  }
+
+  // drops the edge adj (seen from to) from the neighbours of from
+  void remove_neighbour(u32 from, u32 to, Adj adj) {
+    neighbours[from][edge_slot[adj.edge][from < to ? 0 : 1]].other = kNoNode;
+    n_dead[from]++;
+    if (touched != nullptr) {
+      touched->push_back(from);
+    }
+  }
+
+  void detach(u32 n) {
+    neighbours[n].clear();
+    n_dead[n] = 0;
+    if (touched != nullptr) {
+      touched->push_back(n);
+    }
   }
 
   void erase_active(u32 pos) {
@@ -423,14 +471,21 @@ struct CostGraph {
     if (pos < active.size()) {
       active[pos] = last;
       active_pos[last] = pos;
+      if (touched != nullptr) {
+        touched->push_back(last);
+      }
     }
+  }
+
+  [[nodiscard]] bool is_active(u32 n) const {
+    return active_pos[n] < active.size() && active[active_pos[n]] == n;
   }
 
   void dump() {
     fmt::println("GRAPH {} NODES", active.size());
     for (u32 node : active) {
       fmt::print(" {} => ", uid_to_reg(node_uid[node]));
-      for (auto n : neighbours[node]) {
+      for (auto n : neigh(node)) {
         fmt::print(" {}, ", uid_to_reg(node_uid[n.other]));
       }
       fmt::println("");
@@ -443,20 +498,22 @@ struct CostGraph {
     node_kind.clear();
     node_costs.clear();
     neighbours.clear();
+    n_dead.clear();
     edges.clear();
+    edge_slot.clear();
     edge_lookup.clear();
     active.clear();
     active_pos.clear();
+    touched = nullptr;
   }
 };
 
 inline bool R1_Reduction(u32 node, CostGraph &graph,
                          TVec<StackRecord> &allocation_stack) {
-  auto &neigh = graph.neighbours[node];
-  if (neigh.size() != 1) {
+  if (graph.degree(node) != 1) {
     return false;
   }
-  Adj n0 = neigh[0];
+  Adj n0 = graph.neigh(node)[0];
   const CostMatrix m_ab = graph.edges[n0.edge];
   const bool ab_flip = node < n0.other;
   const u8 k_a = graph.node_kind[node];
@@ -488,20 +545,20 @@ inline bool R1_Reduction(u32 node, CostGraph &graph,
   for (u32 i = 0; i < n_b; i++) {
     v_b[i] += add_vb[i];
   }
-  graph.remove_neighbour(n0.other, node);
-  neigh.clear();
+  graph.remove_neighbour(n0.other, node, n0);
+  graph.detach(node);
   return true;
 }
 
 inline bool R2_Reduction(u32 node, CostGraph &graph,
                          TVec<StackRecord> &allocation_stack) {
-  auto &neigh = graph.neighbours[node];
-  if (neigh.size() != 2) {
+  if (graph.degree(node) != 2) {
     return false;
   }
   // a - M_ab - b - M_bc - c
   //  -->
   //  a - M_ac - c and b is pushed
+  const auto &neigh = graph.neigh(node);
   Adj n0 = neigh[0];
   Adj n1 = neigh[1];
 
@@ -587,42 +644,137 @@ inline bool R2_Reduction(u32 node, CostGraph &graph,
   } else {
     graph.add_edge(neigh0, neigh1, new_ac);
   }
-  graph.remove_neighbour(neigh0, node);
-  graph.remove_neighbour(neigh1, node);
-  graph.neighbours[node].clear();
+  graph.remove_neighbour(neigh0, node, n0);
+  graph.remove_neighbour(neigh1, node, n1);
+  graph.detach(node);
   return true;
 }
 
-inline bool RM_Reduction(CostGraph &graph,
-                         TVec<StackRecord> &allocation_stack) {
-  u32 victim_node = kNoNode;
-  f32 min_spill_metric = std::numeric_limits<f32>::max();
+// Chaitin style heuristic, the node with the smallest weight/degree is ejected
+// first. Precolored nodes can never be spilled.
+inline std::optional<f32> rm_metric(const CostGraph &graph, u32 node) {
+  const u32 degree = graph.degree(node);
+  if (degree == 0 || graph.is_concrete(node)) {
+    return std::nullopt;
+  }
+  const f32 metric = graph.node_costs[node].cost[0] / static_cast<f32>(degree);
+  if (!(metric < std::numeric_limits<f32>::max())) {
+    return std::nullopt;
+  }
+  return metric;
+}
 
-  // Heuristic Selection: Find the best node to eject from graph to maybe spill
-  for (u32 node : graph.active) {
-    const auto &neigh = graph.neighbours[node];
-    // precolored nodes can never be spilled
-    if (neigh.empty() || graph.is_concrete(node)) {
-      continue;
+// The candidates of RM_Reduction in the order a scan over active picks them,
+// smallest metric first and ties to the lower position in active. Binary heap
+// of nodes that knows where each node is, the nodes in CostGraph::touched are
+// moved to their new place before the best one is taken.
+struct RMQueue {
+  struct Key {
+    f32 metric;
+    u32 pos;
+  };
+  TVec<u32> heap;
+  TVec<u32> heap_pos;
+  TVec<Key> key;
+  TVec<u32> touched;
+
+  [[nodiscard]] bool before(u32 a, u32 b) const {
+    return key[a].metric < key[b].metric ||
+           (key[a].metric == key[b].metric && key[a].pos < key[b].pos);
+  }
+
+  void place(u32 i, u32 n) {
+    heap[i] = n;
+    heap_pos[n] = i;
+  }
+
+  void sift_up(u32 i) {
+    const u32 n = heap[i];
+    while (i > 0) {
+      const u32 parent = (i - 1) / 2;
+      if (!before(n, heap[parent])) {
+        break;
+      }
+      place(i, heap[parent]);
+      i = parent;
     }
+    place(i, n);
+  }
 
-    // TODO: precalculate spill weights
-    f32 spill_weight = graph.node_costs[node].cost[0];
-    f32 degree = static_cast<f32>(neigh.size());
+  void sift_down(u32 i) {
+    const u32 n = heap[i];
+    const auto size = static_cast<u32>(heap.size());
+    while (true) {
+      u32 child = (2 * i) + 1;
+      if (child >= size) {
+        break;
+      }
+      if (child + 1 < size && before(heap[child + 1], heap[child])) {
+        child++;
+      }
+      if (!before(heap[child], n)) {
+        break;
+      }
+      place(i, heap[child]);
+      i = child;
+    }
+    place(i, n);
+  }
 
-    // Chaitin style heuristic: minimize weight/degree
-    f32 metric = spill_weight / degree;
-    if (metric < min_spill_metric) {
-      min_spill_metric = metric;
-      victim_node = node;
+  void remove(u32 n) {
+    const u32 i = heap_pos[n];
+    heap_pos[n] = kNoNode;
+    const u32 last = heap.back();
+    heap.pop_back();
+    if (i < heap.size()) {
+      place(i, last);
+      sift_up(i);
+      sift_down(heap_pos[last]);
     }
   }
 
+  void update(const CostGraph &graph, u32 n) {
+    const auto metric = graph.is_active(n) ? rm_metric(graph, n) : std::nullopt;
+    if (!metric) {
+      if (heap_pos[n] != kNoNode) {
+        remove(n);
+      }
+      return;
+    }
+    key[n] = {.metric = *metric, .pos = graph.active_pos[n]};
+    if (heap_pos[n] == kNoNode) {
+      heap.push_back(n);
+      heap_pos[n] = static_cast<u32>(heap.size() - 1);
+    }
+    sift_up(heap_pos[n]);
+    sift_down(heap_pos[n]);
+  }
+
+  // removes the best node from the queue
+  u32 pop_best(const CostGraph &graph) {
+    heap_pos.resize(graph.n_nodes(), kNoNode);
+    key.resize(graph.n_nodes());
+    for (u32 n : touched) {
+      update(graph, n);
+    }
+    touched.clear();
+    if (heap.empty()) {
+      return kNoNode;
+    }
+    const u32 best = heap[0];
+    remove(best);
+    return best;
+  }
+};
+
+inline bool RM_Reduction(CostGraph &graph, TVec<StackRecord> &allocation_stack,
+                         RMQueue &queue) {
+  const u32 victim_node = queue.pop_best(graph);
   // If no nodes are left, the graph is solved/empty!
   if (victim_node == kNoNode) {
     return false;
   }
-  auto &neigh_list = graph.neighbours[victim_node];
+  const auto &neigh_list = graph.neigh(victim_node);
 
   auto &record = allocation_stack.emplace_back();
   record.type = ReductionType::RM;
@@ -636,9 +788,9 @@ inline bool RM_Reduction(CostGraph &graph,
     broken.flip = victim_node < adj.other;
     record.broken_edges.push_back(broken);
 
-    graph.remove_neighbour(adj.other, victim_node);
+    graph.remove_neighbour(adj.other, victim_node, adj);
   }
-  neigh_list.clear();
+  graph.detach(victim_node);
   graph.erase_active(graph.active_pos[victim_node]);
   return true;
 }
@@ -647,6 +799,9 @@ inline void minimize_graph(CostGraph &graph,
                            TVec<StackRecord> &allocation_stack) {
   // at most one record per node
   allocation_stack.reserve(graph.n_nodes());
+  RMQueue queue;
+  queue.touched.assign(graph.active.begin(), graph.active.end());
+  graph.touched = &queue.touched;
   while (true) {
     bool found_low_degree_node = false;
     bool found_any_virtual = false;
@@ -685,16 +840,17 @@ inline void minimize_graph(CostGraph &graph,
     }
 
     // Spill / Minimum-degree reduction step if no degree 1 or 2 nodes remain
-    if (!RM_Reduction(graph, allocation_stack)) {
+    if (!RM_Reduction(graph, allocation_stack, queue)) {
       break;
     }
   }
+  graph.touched = nullptr;
 
   for (u32 node : graph.active) {
     if (graph.is_concrete(node)) {
       continue;
     }
-    ASSERT(graph.neighbours[node].empty());
+    ASSERT(graph.degree(node) == 0);
     auto &record = allocation_stack.emplace_back();
     record.node = node;
     record.type = ReductionType::RM;

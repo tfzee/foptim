@@ -144,15 +144,16 @@ struct CostModelInput {
   u64 first_spill_temp_id = 0;
 };
 
-void setup_costs(const MFunc &func, CostGraph &graph,
-                 const TMap<VReg, TSet<size_t>> &lifetimes,
+void setup_costs(const MFunc &func, CostGraph &graph, const RegColl &lifetimes,
                  const CostModelInput &model) {
   graph.node_costs.reserve(lifetimes.size());
   graph.neighbours.reserve(lifetimes.size());
   graph.node_uid.reserve(lifetimes.size());
   graph.active.reserve(lifetimes.size());
   graph.active_pos.reserve(lifetimes.size());
-  for (const auto &[reg, coll] : lifetimes) {
+  for (size_t i = 0; i < lifetimes.size(); i++) {
+    const VReg reg = lifetimes.reg(i);
+    const auto &coll = lifetimes.set(i);
     auto uid = reg_to_uid(reg);
     u32 node = graph.node(uid);
     graph.set_kind(node, kind_of(reg));
@@ -264,8 +265,7 @@ void setup_costs(const MFunc &func, CostGraph &graph,
 // give one side the register of the other, if that is free among all of its
 // neighbours. Hottest copies first.
 void coalesce_copies(const MFunc &func, const CostModelInput &model,
-                     const TMap<VReg, TSet<size_t>> &lifetimes,
-                     TMap<u64, CReg> &assignment) {
+                     const RegColl &lifetimes, TMap<u64, CReg> &assignment) {
   struct Copy {
     VReg dst, src;
     f32 weight;
@@ -284,8 +284,7 @@ void coalesce_copies(const MFunc &func, const CostModelInput &model,
           !assignment.contains(s.virt_id())) {
         continue;
       }
-      auto it = lifetimes.find(d);
-      if (it == lifetimes.end() || it->second.contains(reg_to_uid(s))) {
+      if (!lifetimes.contains(d) || lifetimes.collides(d, reg_to_uid(s))) {
         continue;
       }
       copies.push_back({d, s, model.block_weights[bb_id]});
@@ -860,8 +859,8 @@ void dump_alloc_failure(const MFunc &func, const CostGraph &graph,
     for (auto adj : graph.neighbours[node]) {
       temps += is_temp(adj.other) ? 1U : 0U;
     }
-    cands.push_back({node, static_cast<u32>(graph.neighbours[node].size()),
-                     temps});
+    cands.push_back(
+        {node, static_cast<u32>(graph.neighbours[node].size()), temps});
   }
   std::ranges::sort(cands, [](const Cand &a, const Cand &b) {
     return a.unspillable_neigh > b.unspillable_neigh;
@@ -875,8 +874,8 @@ void dump_alloc_failure(const MFunc &func, const CostGraph &graph,
     fmt::println(stderr,
                  "  ${} kind {} degree {} unspillable neighbours {} "
                  "(allocatable registers of the kind: {})",
-                 reg.virt_id(), graph.node_kind[cands[c].node],
-                 cands[c].degree, cands[c].unspillable_neigh,
+                 reg.virt_id(), graph.node_kind[cands[c].node], cands[c].degree,
+                 cands[c].unspillable_neigh,
                  kKinds[graph.node_kind[cands[c].node]].size - 1);
     fmt::print(stderr, "    neighbours:");
     for (auto adj : graph.neighbours[cands[c].node]) {
@@ -910,7 +909,7 @@ namespace foptim::fmir {
 
 void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
   ZoneScopedN("reg alloc func");
-  TMap<VReg, TSet<size_t>> lifetimes;
+  RegColl lifetimes;
   TVec<StackRecord> allocation_stack;
   TVec<CReg> assignments;
   TVec<u64> needs_spilling;
@@ -980,7 +979,6 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
   size_t i = 0;
   while (true) {
     graph.clear();
-    lifetimes.clear();
     model.call_crossings.clear();
     lifetimes = reg_coll(func, &model.block_weights, &model.call_crossings);
     {

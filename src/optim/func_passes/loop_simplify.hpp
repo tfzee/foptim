@@ -377,20 +377,6 @@ class LoopSimplify final : public FunctionPass {
           continue;
         }
         bool ok = true;
-        for (auto b : loop.body_nodes) {
-          for (auto instr : cfg.bbrs[b].bb->instructions) {
-            if (instr == store) {
-              continue;
-            }
-            auto a = classify_access(instr);
-            if (a && touches(aq, instr, *a, store, access->loc, true, span)) {
-              ok = false;
-            }
-          }
-        }
-        if (!ok) {
-          continue;
-        }
         TVec<std::pair<fir::Instr, u16>> exits;
         for (auto b : loop.body_nodes) {
           auto term = cfg.bbrs[b].bb->get_terminator();
@@ -404,6 +390,24 @@ class LoopSimplify final : public FunctionPass {
           }
         }
         if (!ok || exits.empty()) {
+          continue;
+        }
+        for (auto b : loop.body_nodes) {
+          for (auto instr : cfg.bbrs[b].bb->instructions) {
+            if (instr == store) {
+              continue;
+            }
+            auto a = classify_access(instr);
+            if (a && touches(aq, instr, *a, store, access->loc, true, span)) {
+              ok = false;
+              break;
+            }
+          }
+          if (!ok) {
+            break;
+          }
+        }
+        if (!ok) {
           continue;
         }
         auto value = store->args[1];
@@ -507,9 +511,8 @@ class LoopSimplify final : public FunctionPass {
           header->get_instr_id(*store) < header->get_instr_id(load)) {
         continue;
       }
-      if (!std::ranges::all_of(loop.tails, [&](u32 t) {
-            return dom.dominates(store_bb, t);
-          })) {
+      if (!std::ranges::all_of(
+              loop.tails, [&](u32 t) { return dom.dominates(store_bb, t); })) {
         continue;
       }
 

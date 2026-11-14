@@ -27,7 +27,7 @@ struct ankerl::unordered_dense::hash<IndexedValue> {
   [[nodiscard]] auto operator()(const IndexedValue &k) const noexcept
       -> uint64_t {
     return ankerl::unordered_dense::detail::wyhash::mix(
-        hash<foptim::fir::ValueR>()(k.v), k.id);
+        hash<foptim::fir::ValueR>()(k.v) ^ k.id, UINT64_C(0x9E3779B97F4A7C15));
   }
 };
 

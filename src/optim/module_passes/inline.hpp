@@ -315,7 +315,6 @@ class BaseInlineAdvisor {
       return true;
     }
 
-
     bool all_args_are_constant_or_allocas = true;
     for (auto arg : instr->args) {
       if (!arg.is_constant()) {
@@ -474,8 +473,6 @@ class Inline final : public ModulePass {
 
   void apply(fir::Function &func, const CallSCCs &sccs,
              InlineCalleeInfos &callees, AnalysisManager &analyMan) {
-    fmt::println(stderr, "INLINE_ENTER func={} n_instrs={}", func.name,
-                 func.n_instrs());
     Advisor adv;
     TVec<fir::Instr> calls;
     // call sites that were already decided, they are not looked at again
@@ -505,23 +502,12 @@ class Inline final : public ModulePass {
       InlineCallerCtx caller{func};
       adv.begin_round();
 
-      auto t0 = std::chrono::steady_clock::now();
-      size_t dbg_examined = 0;
       for (size_t bb_id = first_bb; bb_id < n_bbs_before; bb_id++) {
         auto bb = func.basic_blocks[bb_id];
         for (auto instr : bb->instructions) {
           if (!instr->is(fir::InstrType::CallInstr) ||
               !seen.insert(instr).second) {
             continue;
-          }
-          dbg_examined++;
-          if (func.n_instrs() > 500 && dbg_examined % 200 == 0) {
-            fmt::println(
-                "INLINE_PROGRESS func={} round={} examined={} elapsed_ms={}",
-                func.name, round, dbg_examined,
-                std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - t0)
-                    .count());
           }
           // inside a recursive SCC callees are not final, only calls of the
           // original body are inlined (one level per pass run)
@@ -539,7 +525,6 @@ class Inline final : public ModulePass {
           }
         }
       }
-      auto t1 = std::chrono::steady_clock::now();
       if (calls.empty()) {
         break;
       }
@@ -552,16 +537,6 @@ class Inline final : public ModulePass {
               1, round == 0 ? "InlinedCalls" : "InlinedCallsRetry",
               utils::StatCollector::StatType::StatFOptim);
         }
-      }
-      auto t2 = std::chrono::steady_clock::now();
-      if (func.n_instrs() > 500) {
-        fmt::println(
-            "INLINE_TIMING func={} round={} n_bbs_before={} n_instrs_before={} "
-            "n_instrs_after={} n_calls={} scan_ms={} splice_ms={}",
-            func.name, round, n_bbs_before, caller.base_n_instrs(),
-            func.n_instrs(), calls.size(),
-            std::chrono::duration<double, std::milli>(t1 - t0).count(),
-            std::chrono::duration<double, std::milli>(t2 - t1).count());
       }
       if (changed) {
         if (in_recursive_scc) {

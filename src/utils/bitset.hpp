@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cstring>
 
@@ -38,13 +40,17 @@ struct IterBitSet {
 
   void skip_empty() {
     while (indx < size) {
-      BitRef<StorageType> ref = {static_cast<u16>(indx % StrgTySizeBit),
-                                 &_data[indx / StrgTySizeBit]};
-      if (ref) {
+      // the bits of the current word from indx on
+      const StorageType rest =
+          _data[indx / StrgTySizeBit] >> (indx % StrgTySizeBit);
+      if (rest != 0) {
+        indx =
+            std::min(indx + static_cast<size_t>(std::countr_zero(rest)), size);
         return;
       }
-      indx++;
+      indx += StrgTySizeBit - (indx % StrgTySizeBit);
     }
+    indx = size;
   }
 
   auto operator++() {
