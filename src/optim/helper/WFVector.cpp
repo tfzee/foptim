@@ -135,6 +135,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
             case fir::IntrinsicSubType::InlineAsm:
             case fir::IntrinsicSubType::InlineAsmPure:
             case fir::IntrinsicSubType::TlsAddress:
+            case fir::IntrinsicSubType::FrameAddress:
               return {};
           }
           break;
@@ -332,6 +333,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::InlineAsm:
             case fir::IntrinsicSubType::InlineAsmPure:
             case fir::IntrinsicSubType::TlsAddress:
+            case fir::IntrinsicSubType::FrameAddress:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::CTLZ:

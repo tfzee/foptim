@@ -73,6 +73,7 @@ class Builder {
   ValueR build_va_end(ValueR a);
   ValueR build_fabs(ValueR a);
   ValueR build_abs(ValueR a);
+  ValueR build_intrinsic(IntrinsicSubType type, TypeR res_type);
   ValueR build_intrinsic(ValueR a, IntrinsicSubType type,
                          TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type,

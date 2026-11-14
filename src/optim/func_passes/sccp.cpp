@@ -1048,6 +1048,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         case fir::IntrinsicSubType::InlineAsm:
         case fir::IntrinsicSubType::InlineAsmPure:
         case fir::IntrinsicSubType::TlsAddress:
+        case fir::IntrinsicSubType::FrameAddress:
           return ConstantValue::Top();
         case fir::IntrinsicSubType::MaskedStore:
         case fir::IntrinsicSubType::Memset:

@@ -1070,6 +1070,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::InlineAsm:
           case fir::IntrinsicSubType::InlineAsmPure:
           case fir::IntrinsicSubType::TlsAddress:
+          case fir::IntrinsicSubType::FrameAddress:
             break;
         }
       case fir::InstrType::VectorInstr:

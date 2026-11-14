@@ -188,6 +188,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/mem/provenance.cpp
                 ./src/optim/analysis/constraint_analysis.cpp
                 ./src/optim/analysis/attributer/KnownBits.cpp
+
                 #cost_model
                 ./src/optim/cost_model/machine.cpp
                 ./src/optim/cost_model/fir_lowering_estimate.cpp

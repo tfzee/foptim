@@ -351,6 +351,10 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
     if (ptr_instr->is(fir::IntrinsicSubType::TlsAddress)) {
       return StackOffsetResult::KnownNonLocal;
     }
+    // points into the frame, at none of its objects in particular
+    if (ptr_instr->is(fir::IntrinsicSubType::FrameAddress)) {
+      return StackOffsetResult::UnknownLocal;
+    }
     if (ptr_instr->is(fir::VectorISubType::Broadcast)) {
       u64 sub_offset = 0;
       auto sub_result = get_stack_offset(sub_offset, ptr_instr->args[0], cache);

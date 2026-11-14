@@ -105,6 +105,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:InlineAsmPure";
         case IntrinsicSubType::TlsAddress:
           return "INTRIN:TlsAddress";
+        case IntrinsicSubType::FrameAddress:
+          return "INTRIN:FrameAddress";
         case IntrinsicSubType::INVALID:
           return "INTRINSIC_INVALID";
         case IntrinsicSubType::CTTZ:
@@ -692,6 +694,7 @@ bool InstrData::is_critical() const {
           return true;
         case IntrinsicSubType::InlineAsmPure:
         case IntrinsicSubType::TlsAddress:
+        case IntrinsicSubType::FrameAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
@@ -789,6 +792,7 @@ bool InstrData::is_commutative() const {
           return false;
         case IntrinsicSubType::InlineAsmPure:
         case IntrinsicSubType::TlsAddress:
+        case IntrinsicSubType::FrameAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
@@ -903,6 +907,7 @@ bool InstrData::pot_modifies_mem() const {
           return true;
         case IntrinsicSubType::InlineAsmPure:
         case IntrinsicSubType::TlsAddress:
+        case IntrinsicSubType::FrameAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
@@ -983,6 +988,7 @@ bool InstrData::pot_reads_mem() const {
           return true;
         case IntrinsicSubType::InlineAsmPure:
         case IntrinsicSubType::TlsAddress:
+        case IntrinsicSubType::FrameAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
@@ -1072,6 +1078,7 @@ bool InstrData::has_pot_sideeffects() const {
           return true;
         case IntrinsicSubType::InlineAsmPure:
         case IntrinsicSubType::TlsAddress:
+        case IntrinsicSubType::FrameAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:

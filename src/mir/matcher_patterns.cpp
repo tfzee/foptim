@@ -773,6 +773,14 @@ void memory_rules(RuleSet &rules) {
     res.result.emplace_back(GArithSubtype::add2, res_reg, off);
     return true;
   });
+  // reading rbp makes the backend emit the full prologue that sets it up
+  rules.add(pm::FrameAddress, [](fir::Instr instr, MatchResult &res,
+                                 ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                            MArgument{VReg::RBP(), Type::Int64});
+    return true;
+  });
   rules.add(pm::Gather, [](fir::Instr gather_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);

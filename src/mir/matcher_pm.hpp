@@ -344,6 +344,7 @@ inline constexpr IntrinOp<Intrin::Gather> Gather;
 inline constexpr IntrinOp<Intrin::InlineAsm> InlineAsm;
 inline constexpr IntrinOp<Intrin::InlineAsmPure> InlineAsmPure;
 inline constexpr IntrinOp<Intrin::TlsAddress> TlsAddress;
+inline constexpr IntrinOp<Intrin::FrameAddress> FrameAddress;
 
 inline constexpr Op<InstrType::ICmp> ICmp;
 inline constexpr Op<InstrType::FCmp> FCmp;

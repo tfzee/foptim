@@ -200,6 +200,15 @@ ValueR Builder::build_abs(ValueR a) {
   return instr.result();
 }
 
+ValueR Builder::build_intrinsic(IntrinsicSubType type, TypeR res_type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_intrinsic(res_type, type));
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr.result();
+}
+
 ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type,
                                 TypeR opt_type) {
   check_bb_set();

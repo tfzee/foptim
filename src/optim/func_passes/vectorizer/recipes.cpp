@@ -844,6 +844,7 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
     case fir::IntrinsicSubType::InlineAsm:
     case fir::IntrinsicSubType::InlineAsmPure:
     case fir::IntrinsicSubType::TlsAddress:
+    case fir::IntrinsicSubType::FrameAddress:
       return false;
     // no vector forms in the backend
     case fir::IntrinsicSubType::PopCnt:

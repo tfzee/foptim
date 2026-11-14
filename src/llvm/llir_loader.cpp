@@ -971,11 +971,24 @@ void convert_call(const llvm::Instruction *any_instr,
     if (c->getName().starts_with("llvm.stackrestore")) {
       return;
     }
-    // null even for level 0, where it should be rbp
-    if (c->getName().starts_with("llvm.stacksave") ||
-        c->getName().starts_with("llvm.frameaddress")) {
+    if (c->getName().starts_with("llvm.stacksave")) {
       valueToValue.insert(
           {any_instr, foptim::fir::ValueR(fctx->get_constant_null())});
+      return;
+    }
+    // the frames of callers are not walked, LangRef allows null for them
+    if (c->getName().starts_with("llvm.frameaddress")) {
+      const auto *level =
+          llvm::dyn_cast<llvm::ConstantInt>(call_instr->getArgOperand(0));
+      if (level != nullptr && level->isZero()) {
+        valueToValue.insert(
+            {any_instr, builder.build_intrinsic(
+                            foptim::fir::IntrinsicSubType::FrameAddress,
+                            fctx->get_ptr_type())});
+      } else {
+        valueToValue.insert(
+            {any_instr, foptim::fir::ValueR(fctx->get_constant_null())});
+      }
       return;
     }
     if (c->getName().starts_with("llvm.sqrt.")) {

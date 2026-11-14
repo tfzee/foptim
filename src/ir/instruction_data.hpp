@@ -310,6 +310,9 @@ enum class IntrinsicSubType : u16 {
   // local global (llvm.threadlocal.address). Touches no memory, same value for
   // the whole life of a thread.
   TlsAddress,
+  // FrameAddress(): frame address of the calling function (rbp, every
+  // function sets it up), llvm.frameaddress of level 0. Touches no memory.
+  FrameAddress,
 };
 
 enum class ConversionSubType : u16 {

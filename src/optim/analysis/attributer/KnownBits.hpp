@@ -328,6 +328,7 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::InlineAsm:
         case fir::IntrinsicSubType::InlineAsmPure:
         case fir::IntrinsicSubType::TlsAddress:
+        case fir::IntrinsicSubType::FrameAddress:
           // an arbitrary int
           break;
         case fir::IntrinsicSubType::Memset:
