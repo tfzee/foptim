@@ -878,8 +878,21 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
     return;
   }
 
-  auto *output_buffer = utils::TempAlloc<u8>{}.allocate(n_instrs * 16);
-  memset(output_buffer, 0xFF, n_instrs * 16);
+  // jump tables are placed behind their function, 4 bytes per entry plus
+  // alignment
+  size_t table_bytes = 0;
+  for (const auto &func : funcs) {
+    if (func.jump_tables.empty()) {
+      continue;
+    }
+    table_bytes += 4;
+    for (const auto &table : func.jump_tables) {
+      table_bytes += 4 * table.targets.size();
+    }
+  }
+  const size_t output_size = n_instrs * 16 + table_bytes;
+  auto *output_buffer = utils::TempAlloc<u8>{}.allocate(output_size);
+  memset(output_buffer, 0xFF, output_size);
   TLabelUsageMap label_usages;
   auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages, conf);
 
