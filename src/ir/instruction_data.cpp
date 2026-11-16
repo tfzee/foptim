@@ -149,6 +149,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:Fma";
         case IntrinsicSubType::Clmul:
           return "INTRIN:Clmul";
+        case IntrinsicSubType::Pext:
+          return "INTRIN:Pext";
         case IntrinsicSubType::PackSS:
           return "INTRIN:PackSS";
         case IntrinsicSubType::PackUS:
@@ -719,6 +721,7 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::Clmul:
         case IntrinsicSubType::PackSS:
         case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::Pext:
         case IntrinsicSubType::PMulHW:
         case IntrinsicSubType::PMaddWD:
         case IntrinsicSubType::PMaddUBSW:
@@ -811,6 +814,7 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::Clmul:
         case IntrinsicSubType::PackSS:
         case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::Pext:
         case IntrinsicSubType::PMulHW:
         case IntrinsicSubType::PMaddWD:
         case IntrinsicSubType::PMaddUBSW:
@@ -933,6 +937,7 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::Clmul:
         case IntrinsicSubType::PackSS:
         case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::Pext:
         case IntrinsicSubType::PMulHW:
         case IntrinsicSubType::PMaddWD:
         case IntrinsicSubType::PMaddUBSW:
@@ -1014,6 +1019,7 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::Clmul:
         case IntrinsicSubType::PackSS:
         case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::Pext:
         case IntrinsicSubType::PMulHW:
         case IntrinsicSubType::PMaddWD:
         case IntrinsicSubType::PMaddUBSW:
@@ -1104,6 +1110,7 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::Clmul:
         case IntrinsicSubType::PackSS:
         case IntrinsicSubType::PackUS:
+        case IntrinsicSubType::Pext:
         case IntrinsicSubType::PMulHW:
         case IntrinsicSubType::PMaddWD:
         case IntrinsicSubType::PMaddUBSW:

@@ -109,6 +109,7 @@ passes = [
   "MergeAlloca", "EarlySheduler", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
   "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
   "SCCP", "LegalizeVecs", "DCE", "IntrinConv", "DCE", "IntrinLowerCalls", "IntrinExpand", "SimplifyCFG", "DCE",
+  "SwitchLower",
 ]
 
 [pipeline.fir.default_release]
@@ -131,6 +132,7 @@ allow_builtins = true
 allow_recursive = true
 allow_builtins = false
 [pass.fir.LegalizeInts]
+[pass.fir.SwitchLower]
 [pass.fir.PartialInlineSplit]
 rest_min = 40
 prefix_max = 16

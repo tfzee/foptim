@@ -19,9 +19,18 @@ struct MAsmBlock {
   bool mem_clobber = false;
 };
 
+// the blocks an indirect jump can reach, emitted after the function as 32 bit
+// offsets from the start of the table
+struct MJumpTable {
+  // symbol of the table for the lea, stable for the lifetime of the function
+  IRStringRef label = nullptr;
+  IRVec<u32> targets;
+};
+
 class MFunc {
  public:
   IRVec<MBB> bbs;
+  IRVec<MJumpTable> jump_tables;
   IRVec<VReg> args;
 
   IRString name;

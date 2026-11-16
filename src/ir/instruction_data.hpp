@@ -235,6 +235,9 @@ enum class IntrinsicSubType : u16 {
   // <2 x i64> operand (pclmulqdq), bit 0 of the constant i8 imm selects the
   // half of a, bit 4 the half of b, the result is the 128 bit product
   Clmul,
+  // Pext(a, mask): the bits of a selected by mask packed into the low bits of
+  // the result (bmi2 pext), i32 and i64
+  Pext,
   // The x86 vector operations below have no generic form. They only exist in
   // the 128 and 256 bit versions of the llvm.x86 intrinsics of the same name.
   // PackSS(a, b) / PackUS(a, b): the lanes of a and b (16 or 32 bit signed)

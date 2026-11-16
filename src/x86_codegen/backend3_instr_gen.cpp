@@ -250,8 +250,11 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
       operand.imm.s = 0;
       return;
     case fmir::MArgument::ArgumentType::MemLabel:
-      reloc_map.insert_label_ref(arg.label, instr_ptr, arg_id,
-                                 RelocSection::Text);
+      // the displacement of a jump table is patched when the table is placed
+      if (!reloc_map.jump_table_ids.contains(arg.label)) {
+        reloc_map.insert_label_ref(arg.label, instr_ptr, arg_id,
+                                   RelocSection::Text);
+      }
       operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
       operand.mem.base = ZYDIS_REGISTER_RIP;
       operand.mem.displacement = 0;
@@ -955,6 +958,11 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                               RelocSection::Text);
       return emit(out_buff, off, &req);
     }
+    case fmir::GJumpSubtype::jmp_indirect:
+      emit_operand(instr.args[0], req.operands[0], reloc_map, out_buff, 0);
+      req.mnemonic = ZYDIS_MNEMONIC_JMP;
+      req.operand_count = 1;
+      return emit(out_buff, 0, &req);
     case fmir::GJumpSubtype::jmp:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2730,7 +2738,17 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       req.mnemonic = ZYDIS_MNEMONIC_LEA;
-      return emit(out_buff, 0, &req);
+      {
+        const u64 len = emit(out_buff, 0, &req);
+        if (instr.args[1].type == fmir::MArgument::ArgumentType::MemLabel) {
+          if (auto it = reloc_map.jump_table_ids.find(instr.args[1].label);
+              it != reloc_map.jump_table_ids.end()) {
+            reloc_map.table_refs.push_back(
+                {out_buff + len - 4, out_buff + len, it->second});
+          }
+        }
+        return len;
+      }
     case fmir::X86Subtype::HAdd:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -3058,6 +3076,14 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ASSERT(bits == 16 || bits == 32);
       req.mnemonic =
           bits == 32 ? ZYDIS_MNEMONIC_VPACKSSDW : ZYDIS_MNEMONIC_VPACKSSWB;
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::pext: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 3);
+      req.mnemonic = ZYDIS_MNEMONIC_PEXT;
       return emit(out_buff, 0, &req);
     }
     case fmir::X86Subtype::vpmulhw:

@@ -20,6 +20,7 @@ class Dominators;
 // + [x] convert conditional branch with the same target into cmove
 // + [x] convert nearly duplicate bbs into single with args
 // + [x] convert if else into cmove
+// + [x] convert branch into lookup table
 // + [ ]
 
 // bb args that reach an instruction with an effect, computed on demand
@@ -114,6 +115,10 @@ class SimplifyCFG final : public FunctionPass {
   // if we have mustprogress + an infinite loop delete it
   Res eliminate_infinite_loop(CFG &cfg, Dominators &dom, CFG::Node &curr,
                               size_t bb_id, fir::Function &func);
+  // a switch whose cases mostly go to one block and only differ in constant
+  // arguments of it becomes a range check and a load from a constant table,
+  // cases to other blocks stay in a smaller switch in front
+  Res select_to_lookup_table(fir::Function &func, CFG::Node &curr, bool bmi2);
   // or merge 2 following conditions and combine them via && or ||
   bool merge_term_cond(CFG &cfg, CFG::Node &curr);
   // if cond(bool1) into another bb with cond(bool1) we can forward the block
@@ -130,8 +135,8 @@ class SimplifyCFG final : public FunctionPass {
   // simplifications on the bbargs which
   Res simplify_bb_args(fir::Context &ctx, CFG &cfg, Dominators &dom,
                        fir::Function &func, size_t bb_id, LiveBBArgs &live);
-  Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
-                   size_t bb_id);
+  Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func, size_t bb_id,
+                   bool bmi2);
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 

@@ -114,6 +114,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
             case fir::IntrinsicSubType::Clmul:
             case fir::IntrinsicSubType::PackSS:
             case fir::IntrinsicSubType::PackUS:
+            case fir::IntrinsicSubType::Pext:
             case fir::IntrinsicSubType::PMulHW:
             case fir::IntrinsicSubType::PMaddWD:
             case fir::IntrinsicSubType::PMaddUBSW:
@@ -350,6 +351,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::Clmul:
             case fir::IntrinsicSubType::PackSS:
             case fir::IntrinsicSubType::PackUS:
+            case fir::IntrinsicSubType::Pext:
             case fir::IntrinsicSubType::PMulHW:
             case fir::IntrinsicSubType::PMaddWD:
             case fir::IntrinsicSubType::PMaddUBSW:

@@ -1,0 +1,5 @@
+config_version = 1
+include = ["Default"]
+
+[target.features]
+bmi2 = false

@@ -87,6 +87,7 @@ class Function : public Attributable, public LockedUsed {
   Attribs attribs;
   // numbers the vector constant globals LegalizeVecs creates for this function
   u32 n_vec_constants = 0;
+  u32 n_lookup_tables = 0;
   // analyses cached by optim::AnalysisManager, see there
   std::unique_ptr<optim::FunctionAnalysisCache, AnalysisCacheDeleter>
       analysis_cache;

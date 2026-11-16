@@ -320,6 +320,7 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::Clmul:
         case fir::IntrinsicSubType::PackSS:
         case fir::IntrinsicSubType::PackUS:
+        case fir::IntrinsicSubType::Pext:
         case fir::IntrinsicSubType::PMulHW:
         case fir::IntrinsicSubType::PMaddWD:
         case fir::IntrinsicSubType::PMaddUBSW:

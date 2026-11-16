@@ -239,6 +239,13 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       curr_loc += emit(curr_loc, 0, &req);
     }
 
+    reloc_map.jump_table_ids.clear();
+    reloc_map.table_refs.clear();
+    for (size_t t = 0; t < func.jump_tables.size(); t++) {
+      reloc_map.jump_table_ids[func.jump_tables[t].label] =
+          static_cast<u32>(t);
+    }
+
     u64 bb_id = 0;
     for (const auto &bb : func.bbs) {
       reloc_map.bb_map[bb_id].def_loc = curr_loc - out_buff;
@@ -262,6 +269,31 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
     }
     u8 *func_end = curr_loc;
     reloc_map.label_map[func.name].size = func_end - func_start;
+
+    // the jump tables follow the function, entries are 32 bit offsets from the
+    // start of their table
+    if (!func.jump_tables.empty()) {
+      while (((curr_loc - out_buff) & 3) != 0) {
+        *curr_loc++ = 0;
+      }
+      TVec<u8 *> starts;
+      for (const auto &table : func.jump_tables) {
+        u8 *start = curr_loc;
+        starts.push_back(start);
+        for (auto target : table.targets) {
+          const i64 off = static_cast<i64>(reloc_map.bb_map[target].def_loc) -
+                          (start - out_buff);
+          const auto off32 = static_cast<i32>(off);
+          memcpy(curr_loc, &off32, 4);
+          curr_loc += 4;
+        }
+      }
+      for (const auto &ref : reloc_map.table_refs) {
+        const i64 rel = starts[ref.table] - ref.end;
+        const auto rel32 = static_cast<i32>(rel);
+        memcpy(ref.disp, &rel32, 4);
+      }
+    }
 
     reloc_bbs(reloc_map, out_buff);
     reloc_map.bb_map.clear();

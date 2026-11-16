@@ -330,6 +330,7 @@ inline constexpr IntrinOp<Intrin::FFloor> FFloor;
 inline constexpr IntrinOp<Intrin::FTrunc> FTrunc;
 inline constexpr IntrinOp<Intrin::Fma> Fma;
 inline constexpr IntrinOp<Intrin::Clmul> Clmul;
+inline constexpr IntrinOp<Intrin::Pext> Pext;
 inline constexpr IntrinOp<Intrin::PackSS> PackSS;
 inline constexpr IntrinOp<Intrin::PackUS> PackUS;
 inline constexpr IntrinOp<Intrin::PMulHW> PMulHW;

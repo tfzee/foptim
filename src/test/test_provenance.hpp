@@ -16,12 +16,16 @@ using T = AliasSetTable;
 
 TEST(AliasSets, RootRelations) {
   const auto &r = AliasSetTable::roots();
-  const SetId disjoint_roots[] = {T::Null, T::Stack, T::Globals, T::Heap};
+  const SetId disjoint_roots[] = {T::Null, T::Stack, T::Globals};
   for (auto a : disjoint_roots) {
     for (auto b : disjoint_roots) {
       EXPECT_EQ(r.disjoint(a, b), a != b) << a << " " << b;
     }
   }
+  // a fresh allocation may be null
+  EXPECT_TRUE(r.disjoint(T::Heap, T::Stack));
+  EXPECT_TRUE(r.disjoint(T::Heap, T::Globals));
+  EXPECT_FALSE(r.disjoint(T::Heap, T::Null));
   for (SetId s = 0; s < T::NumRoots; s++) {
     EXPECT_FALSE(r.disjoint(s, T::Unknown));
     EXPECT_FALSE(r.disjoint(s, s));
@@ -125,7 +129,8 @@ TEST(AliasSets, Unions) {
   // a union of sets of different roots
   auto ah = t.union_of(a, h);
   EXPECT_FALSE(t.subset(ah, T::Stack));
-  EXPECT_TRUE(t.disjoint(ah, T::Null));
+  // the heap part may be null
+  EXPECT_FALSE(t.disjoint(ah, T::Null));
   EXPECT_TRUE(t.disjoint(ah, b));
   EXPECT_FALSE(t.disjoint(ah, a));
   EXPECT_FALSE(t.disjoint(ah, h));

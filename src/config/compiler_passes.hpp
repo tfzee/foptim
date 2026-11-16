@@ -14,6 +14,7 @@
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_conv.hpp"
 #include "optim/func_passes/intrin_expand.hpp"
+#include "optim/func_passes/switch_lower.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
 #include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
@@ -434,6 +435,12 @@ struct IntrinConvConf : public FunctionPassConf<IntrinConvConf> {
 struct IntrinExpandConf : public FunctionPassConf<IntrinExpandConf> {
   static constexpr const char *BaseName = "IntrinExpand";
   using Pass = optim::IntrinExpand;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct SwitchLowerConf : public FunctionPassConf<SwitchLowerConf> {
+  static constexpr const char *BaseName = "SwitchLower";
+  using Pass = optim::SwitchLower;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

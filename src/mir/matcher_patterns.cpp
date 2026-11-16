@@ -1455,6 +1455,25 @@ void arith_rules(RuleSet &rules) {
   rules.add(pm::PMulHW, three_op_rule<X86Subtype::vpmulhw>);
   rules.add(pm::PMaddWD, three_op_rule<X86Subtype::vpmaddwd>);
   rules.add(pm::PMaddUBSW, three_op_rule<X86Subtype::vpmaddubsw>);
+  rules.add(
+      pm::Pext, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+        auto args = std::array{
+            valueToArg(instr->args[0], res.result, data.alloc),
+            valueToArg(instr->args[1], res.result, data.alloc),
+        };
+        // pext has no immediate operand
+        for (auto &arg : args) {
+          if (arg.isImm()) {
+            auto reg =
+                MArgument(data.alloc.get_new_register(res_reg.ty), res_reg.ty);
+            res.result.emplace_back(GBaseSubtype::mov, reg, arg);
+            arg = reg;
+          }
+        }
+        res.result.emplace_back(X86Subtype::pext, res_reg, args[0], args[1]);
+        return true;
+      });
   rules.add(pm::PermD, [](fir::Instr instr, MatchResult &res,
                           ExtraMatchData &data) {
     auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
@@ -2309,6 +2328,72 @@ void base_binary_rules(RuleSet &rules) {
     return true;
   });
 }
+
+namespace {
+// A slot switch (SwitchLower): i64 value, cases 0..n-1, unreachable default and
+// no block arguments on the edges. Becomes an indirect jump through a table of
+// 32 bit offsets that follows the function.
+constexpr size_t MinJumpTableCases = 4;
+bool match_jump_table(fir::Instr sw, MatchResult &res, ExtraMatchData &data) {
+  const size_t n_cases = sw->bbs.size() - 1;
+  if (n_cases < MinJumpTableCases || sw->args.size() != sw->bbs.size()) {
+    return false;
+  }
+  const auto value = sw->args.back();
+  if (!value.get_type()->is_int() || value.get_type()->get_bitwidth() != 64) {
+    return false;
+  }
+  for (size_t i = 0; i < n_cases; i++) {
+    if (!sw->args[i].is_constant() || !sw->args[i].as_constant()->is_int() ||
+        sw->args[i].as_constant()->as_int() != static_cast<i128>(i) ||
+        !sw->bbs[i].args.empty()) {
+      return false;
+    }
+  }
+  const auto &def = sw->bbs.back();
+  if (!def.args.empty() || def.bb->instructions.size() != 1 ||
+      !def.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
+    return false;
+  }
+
+  MJumpTable table;
+  for (size_t i = 0; i < n_cases; i++) {
+    table.targets.push_back(data.bbs[sw->bbs[i].bb]);
+  }
+  const u32 table_id = static_cast<u32>(data.func.jump_tables.size());
+  {
+    const auto name =
+        fmt::format(".Ljt_{}_{}", data.func.name.c_str(), table_id);
+    auto *label = foptim::utils::IRAlloc<char>{}.allocate(name.size() + 1);
+    memcpy(label, name.c_str(), name.size() + 1);
+    table.label = label;
+  }
+  const IRStringRef label = table.label;
+  data.func.jump_tables.push_back(std::move(table));
+
+  auto idx = valueToArg(value, res.result, data.alloc);
+  VReg idx_reg;
+  if (idx.isReg()) {
+    idx_reg = idx.reg;
+  } else {
+    idx_reg = data.alloc.get_new_register(Type::Int64);
+    res.result.emplace_back(GBaseSubtype::mov, MArgument(idx_reg, Type::Int64),
+                            idx);
+  }
+  const VReg base = data.alloc.get_new_register(Type::Int64);
+  const VReg off = data.alloc.get_new_register(Type::Int64);
+  res.result.emplace_back(X86Subtype::lea, MArgument(base, Type::Int64),
+                          MArgument::MemL(label, Type::Int64));
+  res.result.emplace_back(
+      GConvSubtype::mov_sx, MArgument(off, Type::Int64),
+      MArgument::MemBIS(base, idx_reg, 2, Type::Int32));
+  res.result.emplace_back(GArithSubtype::add2, MArgument(base, Type::Int64),
+                          MArgument(off, Type::Int64));
+  res.result.push_back(
+      MInstr::jmpIndirect(MArgument(base, Type::Int64), table_id));
+  return true;
+}
+}  // namespace
 
 void base_rules(RuleSet &rules) {
   base_binary_rules(rules);
@@ -3546,7 +3631,9 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Switch, [](fir::Instr branch_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    // fmt::println("{}", branch_instr);
+    if (match_jump_table(branch_instr, res, data)) {
+      return true;
+    }
     auto value = valueToArg(branch_instr->args.back(), res.result, data.alloc);
     for (size_t instr_id = 0; instr_id < branch_instr->bbs.size() - 1;
          instr_id++) {

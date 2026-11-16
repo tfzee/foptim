@@ -121,6 +121,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new IntrinConvConf{};
     } else if (name == "IntrinExpand") {
       pass = new IntrinExpandConf{};
+    } else if (name == "SwitchLower") {
+      pass = new SwitchLowerConf{};
     } else if (name == "IntrinLowerCalls") {
       pass = new IntrinLowerCallsConf{};
     } else if (name == "ConstraintProp") {

@@ -117,6 +117,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
+        case X86Subtype::pext:
         case X86Subtype::vpmulhw:
         case X86Subtype::vpmaddwd:
         case X86Subtype::vpmaddubsw:

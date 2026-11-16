@@ -210,6 +210,7 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/dse.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
                 ./src/optim/func_passes/intrin_expand.cpp
+                ./src/optim/func_passes/switch_lower.cpp
                 ./src/optim/func_passes/intrin_conv.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/inst_fold.cpp
@@ -231,6 +232,7 @@ add_library (foptim OBJECT
                 ./src/optim/helper/scev_expander.cpp
                 ./src/optim/helper/WFVector.cpp
                 ./src/optim/helper/helper.cpp
+                ./src/optim/helper/switch_slots.cpp
 
                 #mir
                 ./src/mir/instr.cpp

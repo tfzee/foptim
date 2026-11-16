@@ -144,6 +144,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
+        case GJumpSubtype::jmp_indirect:
           return;
       }
     case GOpcode::GConv:
@@ -297,6 +298,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
+        case X86Subtype::pext:
         case X86Subtype::vpmulhw:
         case X86Subtype::vpmaddwd:
         case X86Subtype::vpmaddubsw:
@@ -420,6 +422,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           update_uses(instr.args[1], uses);
           return;
         case GJumpSubtype::cjmp:
+        case GJumpSubtype::jmp_indirect:
           update_uses(instr.args[0], uses);
           return;
         case GJumpSubtype::jmp:
@@ -686,6 +689,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
+        case X86Subtype::pext:
         case X86Subtype::vpmulhw:
         case X86Subtype::vpmaddwd:
         case X86Subtype::vpmaddubsw:
@@ -1305,7 +1309,8 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
           instr.is(GJumpSubtype::cjmp_flt_ult) ||
           instr.is(GJumpSubtype::cjmp_flt_ule) ||
           instr.is(GJumpSubtype::cjmp_flt_une) ||
-          instr.is(GJumpSubtype::cjmp) || instr.is(GJumpSubtype::jmp)) {
+          instr.is(GJumpSubtype::cjmp) || instr.is(GJumpSubtype::jmp) ||
+          instr.is(GJumpSubtype::jmp_indirect)) {
         curr_live.add(aliveOut);
       }
       if (call_crossings != nullptr &&

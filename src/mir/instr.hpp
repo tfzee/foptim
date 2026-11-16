@@ -101,6 +101,9 @@ enum class GJumpSubtype : u32 {
 
   cjmp,
   jmp,
+  // jumps to the address in args[0], bb_ref is the jump table with the blocks
+  // it can reach
+  jmp_indirect,
 };
 
 enum class GArithSubtype : u32 {
@@ -239,6 +242,7 @@ enum class X86Subtype : u32 {
   tzcnt,
   popcnt,
   bswap,
+  pext,
   ffmadd132,
   ffmadd213,
   ffmadd231,
@@ -1048,6 +1052,13 @@ class MInstr {
     auto res = MInstr{GOpcode::GJmp, static_cast<u32>(GJumpSubtype::jmp)};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr jmpIndirect(MArgument addr, u32 jump_table) {
+    auto res = MInstr{GOpcode::GJmp,
+                      static_cast<u32>(GJumpSubtype::jmp_indirect), addr};
+    res.bb_ref = jump_table;
     return res;
   }
 

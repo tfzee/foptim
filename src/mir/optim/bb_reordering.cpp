@@ -152,6 +152,11 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
       }
     }
   }
+  for (auto &table : func.jump_tables) {
+    for (auto &target : table.targets) {
+      target = new_id[target];
+    }
+  }
   invert_branches_to_next(func);
 }
 

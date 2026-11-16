@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+
 #include "mir/func.hpp"
 
 namespace foptim::fmir {
@@ -39,6 +41,16 @@ class CFG {
         if (instr.has_bb_ref) {
           bbrs[from].succ.push_back(instr.bb_ref);
           bbrs[instr.bb_ref].pred.push_back(from);
+        } else if (instr.is(GJumpSubtype::jmp_indirect)) {
+          // a target that appears several times is one edge
+          const auto &targets = func.jump_tables[instr.bb_ref].targets;
+          TVec<u32> seen(targets.begin(), targets.end());
+          std::ranges::sort(seen);
+          seen.erase(std::ranges::unique(seen).begin(), seen.end());
+          for (auto target : seen) {
+            bbrs[from].succ.push_back(target);
+            bbrs[target].pred.push_back(from);
+          }
         }
       }
     }

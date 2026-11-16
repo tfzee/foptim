@@ -12,6 +12,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
@@ -23,6 +24,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/inline.hpp"
+#include "optim/helper/switch_slots.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_ref.hpp"
@@ -538,8 +540,9 @@ bool is_immediate_operand(fir::Instr instr, u32 idx) {
     if (arg1 == arg2) {
       // a value of one of the two blocks is a different execution of the
       // instruction once the blocks are merged
-      if (arg1.is_instr() && (arg1.as_instr()->get_parent() == i1->get_parent() ||
-                              arg1.as_instr()->get_parent() == i2->get_parent())) {
+      if (arg1.is_instr() &&
+          (arg1.as_instr()->get_parent() == i1->get_parent() ||
+           arg1.as_instr()->get_parent() == i2->get_parent())) {
         return false;
       }
       continue;
@@ -671,8 +674,7 @@ u64 bb_signature(fir::BasicBlock bb) {
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
                            size_t &bb_id,
                            TMap<u64, TVec<fir::BasicBlock>> &earlier,
-                           bool &cfg_dirty,
-                           TVec<DiffValues> &difference_values,
+                           bool &cfg_dirty, TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
                            TVec<fir::ValueR> &arg_map, CFG &cfg) {
   constexpr u32 N_INSTRS_UPPERBOUND = 20;
@@ -1054,6 +1056,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::Clmul:
           case fir::IntrinsicSubType::PackSS:
           case fir::IntrinsicSubType::PackUS:
+          case fir::IntrinsicSubType::Pext:
           case fir::IntrinsicSubType::PMulHW:
           case fir::IntrinsicSubType::PMaddWD:
           case fir::IntrinsicSubType::PMaddUBSW:
@@ -1600,6 +1603,183 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   }
   return false;
 }
+namespace {
+// limits of the switch to lookup table conversion
+constexpr size_t LutMinCases = 4;
+constexpr size_t LutMaxOutliers = 4;
+
+// bytes of one table entry, 0 if the type cannot be tabled
+bool lut_constant_ok(fir::ConstantValueR c) {
+  return c->is_int() || c->is_float() || c->is_null() || c->is_global() ||
+         c->is_func() || c->is_poison();
+}
+
+struct LutArg {
+  // false if the argument is the same on every table edge
+  bool table = false;
+  fir::ValueR common;
+  fir::TypeR type;
+  u32 entry_size = 0;
+};
+}  // namespace
+
+SimplifyCFG::Res SimplifyCFG::select_to_lookup_table(fir::Function &func,
+                                                     CFG::Node &curr,
+                                                     bool bmi2) {
+  auto term = curr.bb->get_terminator();
+  auto sw = SwitchCases::parse(term);
+  if (!sw || sw->cases.size() < LutMinCases) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  const auto value = sw->value();
+
+  // the block that most cases go to is the one the table feeds
+  u32 target_count = 0;
+  const fir::BasicBlock target = sw->dominant_target(target_count);
+  if (target_count < LutMinCases || target == curr.bb || target->args.empty()) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  if (sw->cases.size() - target_count > LutMaxOutliers) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  const auto tabled = sw->of_target(target);
+  TVec<i128> values;
+  TVec<u32> edges;
+  for (const auto &c : tabled) {
+    values.push_back(c.value);
+    edges.push_back(c.edge);
+  }
+  SlotLimits limits;
+  limits.bmi2 = bmi2;
+  auto map =
+      plan_slots(values, sw->value_bits, limits, !sw->default_unreachable());
+  if (!map) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  const i128 n_slots = map->n_slots;
+
+  const size_t n_args = target->args.size();
+  TVec<LutArg> plan(n_args);
+  bool any_table = false;
+  for (size_t k = 0; k < n_args; k++) {
+    auto &a = plan[k];
+    const auto first = term->bbs[edges[0]].args[k];
+    a.common = first;
+    a.type = first.get_type();
+    bool same = true;
+    for (auto e : edges) {
+      const auto v = term->bbs[e].args[k];
+      same &= v == first;
+    }
+    if (same) {
+      continue;
+    }
+    a.entry_size = a.type->get_size();
+    if (a.entry_size == 0) {
+      return SimplifyCFG::Res::NoChange;
+    }
+    for (auto e : edges) {
+      const auto v = term->bbs[e].args[k];
+      if (!v.is_constant() || !lut_constant_ok(v.as_constant()) ||
+          v.get_type() != a.type) {
+        return SimplifyCFG::Res::NoChange;
+      }
+    }
+    a.table = true;
+    any_table = true;
+  }
+  if (!any_table) {
+    return SimplifyCFG::Res::NoChange;
+  }
+
+  auto *ctx = func.ctx;
+  auto make_global = [&](size_t bytes, u32 align) {
+    return make_slot_global(func, bytes, align);
+  };
+  // one global per table argument, slots no case hits stay zero
+  TVec<fir::Global> globals(n_args);
+  for (size_t k = 0; k < n_args; k++) {
+    const auto &a = plan[k];
+    if (!a.table) {
+      continue;
+    }
+    auto global =
+        make_global(static_cast<size_t>(n_slots) * a.entry_size, a.entry_size);
+    for (const auto &i : tabled) {
+      auto *out = global->init_value + (map->slot(i.value) * a.entry_size);
+      const auto c = term->bbs[i.edge].args[k].as_constant();
+      if (c->is_int() && a.type->get_bitwidth() == 1) {
+        *out = static_cast<u8>(c->as_int() & 1);
+      } else {
+        fir::convert_constant_init(out, c, global);
+      }
+    }
+    globals[k] = global;
+  }
+  const bool miss_possible = !sw->default_unreachable();
+  fir::Global keys;
+  if (map->needs_keys() && miss_possible) {
+    keys = make_global(static_cast<size_t>(n_slots) * map->key_size(),
+                       map->key_size());
+    map->fill_keys(values, keys->init_value);
+  }
+
+  // the edges are rebuilt from copies, the old terminator goes away first
+  using OutlierCase = std::pair<fir::ConstantValueR, fir::BBRefWithArgs>;
+  TVec<OutlierCase> outliers;
+  for (const auto &c : sw->cases) {
+    if (term->bbs[c.edge].bb != target) {
+      outliers.emplace_back(term->args[c.edge].as_constant(),
+                            term->bbs[c.edge]);
+    }
+  }
+  const fir::BBRefWithArgs default_edge = term->bbs.back();
+  term.destroy();
+
+  fir::Builder b{curr.bb};
+  b.at_end(curr.bb);
+  fir::BasicBlock range_bb = curr.bb;
+  if (!outliers.empty()) {
+    range_bb = b.append_bb();
+    TVec<std::pair<fir::ConstantValueR, fir::BasicBlock>> cases;
+    for (auto &[c, edge] : outliers) {
+      cases.emplace_back(c, edge.bb);
+    }
+    auto out_sw = b.build_switch(value, cases, range_bb);
+    for (size_t i = 0; i < outliers.size(); i++) {
+      for (auto arg : outliers[i].second.args) {
+        out_sw.add_bb_arg(static_cast<u16>(i), arg);
+      }
+    }
+  }
+  const auto [load_bb, slot] =
+      map->emit(ctx, b, value, range_bb, default_edge, miss_possible, keys);
+
+  b.at_end(load_bb);
+  auto br = b.build_branch(target);
+  b.at_penultimate(load_bb);
+  for (size_t k = 0; k < n_args; k++) {
+    const auto &a = plan[k];
+    if (!a.table) {
+      br.add_bb_arg(0, a.common);
+      continue;
+    }
+    fir::ValueR off = slot;
+    if (a.entry_size > 1) {
+      off = b.build_int_mul(
+          slot, fir::ValueR{ctx->get_constant_int(a.entry_size, 64)});
+    }
+    auto addr =
+        b.build_ptr_add(fir::ValueR{ctx->get_constant_value(globals[k])}, off);
+    if (a.type->is_int() && a.type->get_bitwidth() == 1) {
+      auto byte = b.build_load(ctx->get_int_type(8), addr, false, false);
+      br.add_bb_arg(0, b.build_itrunc(byte, a.type));
+    } else {
+      br.add_bb_arg(0, b.build_load(a.type, addr, false, false));
+    }
+  }
+  return SimplifyCFG::Res::NeedUpdate;
+}
 
 SimplifyCFG::Res SimplifyCFG::eliminate_infinite_loop(CFG &cfg, Dominators &dom,
                                                       CFG::Node &curr,
@@ -1632,8 +1812,8 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
   auto &exp_other = bb1->get_terminator()->bbs[1 - next_id];
   auto t2 = bb2->get_terminator();
   needs_rename = false;
-  // TODO: either we are the only one calling the bb then we can do sbustitution
-  // or they are
+  // TODO: either we are the only one calling the bb then we can do
+  // sbustitution or they are
   //  only used within the same bb then we can just substitue our new
   //  instructions
   can_rename = cfg.bbrs[cfg.get_bb_id(bb2)].pred.size() == 1;
@@ -1837,11 +2017,11 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
     if (term1->args[0] != term2->args[0]) {
       continue;
     }
-    // so cant do the backwarding iff the arguments of the target block are used
-    // after the target block. Since then it would be uninitialized
+    // so cant do the backwarding iff the arguments of the target block are
+    // used after the target block. Since then it would be uninitialized
     //
-    // It only matters tho if we actually can reach this code from the branch we
-    // will pull backwards
+    // It only matters tho if we actually can reach this code from the branch
+    // we will pull backwards
     if (!target->args.empty()) {
       bool any_args_used_later = false;
       auto next_bb = cfg.get_bb_id(term2->bbs[ti].bb);
@@ -2026,7 +2206,8 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
 }
 
 SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
-                                           fir::Function &func, size_t bb_id) {
+                                           fir::Function &func, size_t bb_id,
+                                           bool bmi2) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
 
@@ -2125,6 +2306,14 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     return r;
   }
 
+  r = select_to_lookup_table(func, curr, bmi2);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
+      fmt::println("17");
+    }
+    return r;
+  }
+
   if constexpr (debug_print) {
     fmt::println("nuffin");
   }
@@ -2195,7 +2384,8 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
     }
     if (!needs_update) {
       for (size_t bb_id = start_id + 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-        auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1);
+        auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1,
+                               ctx.config->target.features.bmi2);
         modified |= (r2 == Res::Changed || r2 == Res::NeedUpdate);
         if (r2 == Res::NeedUpdate) {
           needs_update = true;

@@ -835,6 +835,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         {"ssse3.pmadd.ub.sw.128", Sub::PMaddUBSW},
         {"avx2.pmadd.ub.sw", Sub::PMaddUBSW},
         {"avx2.permd", Sub::PermD},
+        {"bmi.pext.32", Sub::Pext},
+        {"bmi.pext.64", Sub::Pext},
         {"sse.movmsk.ps", Sub::MoveMask},
         {"sse2.movmsk.pd", Sub::MoveMask},
         {"sse2.pmovmskb.128", Sub::MoveMask},

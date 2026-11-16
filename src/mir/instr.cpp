@@ -64,6 +64,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GJumpSubtype, fcmp_une);
         ReturnString(GJumpSubtype, cjmp_and);
         ReturnString(GJumpSubtype, cjmp_or);
+        ReturnString(GJumpSubtype, jmp_indirect);
         ReturnString(GJumpSubtype, cjmp_int_slt);
         ReturnString(GJumpSubtype, cjmp_int_sge);
         ReturnString(GJumpSubtype, cjmp_int_sle);
@@ -217,6 +218,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vpclmul);
         ReturnString(X86Subtype, vpacks);
         ReturnString(X86Subtype, vpmulhw);
+        ReturnString(X86Subtype, pext);
         ReturnString(X86Subtype, vpmaddwd);
         ReturnString(X86Subtype, vpmaddubsw);
         ReturnString(X86Subtype, vpermd);
@@ -292,6 +294,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
+        case GJumpSubtype::jmp_indirect:
           return;
       }
     case GOpcode::GConv:
@@ -426,6 +429,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
+        case X86Subtype::pext:
         case X86Subtype::vpmulhw:
         case X86Subtype::vpmaddwd:
         case X86Subtype::vpmaddubsw:
@@ -526,6 +530,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GJumpSubtype::jmp:
           return;
         case GJumpSubtype::cjmp:
+        case GJumpSubtype::jmp_indirect:
           out.push_back({0, instr.args[0]});
           return;
         case GJumpSubtype::icmp_slt:
@@ -761,6 +766,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
+        case X86Subtype::pext:
         case X86Subtype::vpmulhw:
         case X86Subtype::vpmaddwd:
         case X86Subtype::vpmaddubsw:
@@ -835,6 +841,7 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
         case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
+        case GJumpSubtype::jmp_indirect:
           return true;
         default:
           return false;
@@ -952,7 +959,8 @@ bool verify(const MInstr &instr) {
 bool verify(const MBB &bb) {
   auto back_instr = bb.instrs.back();
   if (!back_instr.is(GBaseSubtype::unreach) &&
-      !back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp)) {
+      !back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp) &&
+      !back_instr.is(GJumpSubtype::jmp_indirect)) {
     fmt::println("Last instruction should be jmp or ret but is {}",
                  bb.instrs.back());
     return false;
@@ -1141,6 +1149,13 @@ fmt::appender fmt::formatter<foptim::fmir::MFunc>::format(
     }
     app = bb_fmt.format(func.bbs[bb_indx], ctx);
   }
+  for (size_t table_id = 0; table_id < func.jump_tables.size(); table_id++) {
+    app = fmt::format_to(app, "  table {}:", table_id);
+    for (auto target : func.jump_tables[table_id].targets) {
+      app = fmt::format_to(app, " {}", target);
+    }
+    app = fmt::format_to(app, "\n");
+  }
   for (size_t asm_id = 0; asm_id < func.asm_blocks.size(); asm_id++) {
     const auto &block = func.asm_blocks[asm_id];
     app = fmt::format_to(app, "  asm {}: \"{}\"{}{}\n", asm_id,
@@ -1284,6 +1299,9 @@ fmt::appender fmt::formatter<foptim::fmir::MInstr>::format(
     } else {
       app = fmt::format_to(app, " -> {}", v.bb_ref);
     }
+  }
+  if (v.is(foptim::fmir::GJumpSubtype::jmp_indirect)) {
+    app = fmt::format_to(app, " table {}", v.bb_ref);
   }
   return app;
 }

@@ -49,8 +49,11 @@ def add_custom_fir_checks(output_lines, check_indent, run_list, func_dict, func_
     for run in run_list:
         prefixes = run[0]
         for prefix in prefixes:
+            # a prefix that was already printed covers this run, one that has
+            # no entry (outputs of the runs sharing it differ) is skipped, and
+            # only the first usable prefix of a run is printed
             if prefix in printed_prefixes:
-                continue
+                break
             if not func_dict[prefix].get(func_name):
                 continue
 
@@ -72,6 +75,7 @@ def add_custom_fir_checks(output_lines, check_indent, run_list, func_dict, func_
                 output_lines.append(
                     f"{check_indent} {prefix}-NEXT:{escape_filecheck(line)}"
                 )
+            break
 
     return generated_prefixes
 

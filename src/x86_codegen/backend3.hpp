@@ -61,6 +61,15 @@ struct LabelRelocData {
 struct TLabelUsageMap {
   TMap<IRString, LabelRelocData> label_map;
   TMap<u32, LabelRelocData> bb_map;
+  // the jump tables of the function that is emitted, by the label of their lea
+  TMap<IRStringRef, u32> jump_table_ids;
+  // rip relative displacements to patch once the tables are placed
+  struct TableRef {
+    u8 *disp;
+    u8 *end;
+    u32 table;
+  };
+  TVec<TableRef> table_refs;
 
   void insert_label_ref(const IRString &label, u8 *instr_loc, u8 op_num,
                         RelocSection section) {
