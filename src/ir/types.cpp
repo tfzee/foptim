@@ -17,7 +17,8 @@ namespace foptim::fir {
     }
   }
   fori(arg_types) {
-    if (!arg_types[i]->eql(*other.arg_types[i].get_raw_ptr())) {
+    if (!arg_types[i]->eql(*other.arg_types[i].get_raw_ptr()) ||
+        byval(i) != other.byval(i)) {
       return false;
     }
   }
@@ -118,6 +119,13 @@ u64 AnyType::hash() const {
       h = hash_mix(h, func_u.v.return_types.size());
       for (const auto &arg : func_u.v.arg_types) {
         h = hash_mix(h, arg->hash());
+      }
+      for (size_t i = 0; i < func_u.v.arg_types.size(); i++) {
+        const auto bv = func_u.v.byval(i);
+        if (bv.size != 0) {
+          h = hash_mix(h, (static_cast<u64>(bv.size) << 32) | bv.align);
+          h = hash_mix(h, i);
+        }
       }
       return h;
     case AnyTypeType::Vector:
@@ -230,6 +238,7 @@ AnyType::~AnyType() {
       return;
     case AnyTypeType::Function:
       func_u.v.arg_types.~vector();
+      func_u.v.arg_byval.~vector();
       return;
   }
 }
@@ -264,8 +273,12 @@ fmt::appender fmt::formatter<foptim::fir::AnyType>::format(
         app = fmt::format_to(app, col, "]");
       }
       app = fmt::format_to(app, col, "(");
-      for (auto arg : func.arg_types) {
-        app = fmt::format_to(app, col, "{} ", arg);
+      for (size_t i = 0; i < func.arg_types.size(); i++) {
+        if (const auto bv = func.byval(i); bv.size != 0) {
+          app = fmt::format_to(app, col, "byval({},{}) ", bv.size, bv.align);
+        } else {
+          app = fmt::format_to(app, col, "{} ", func.arg_types[i]);
+        }
       }
       return fmt::format_to(app, col, ")");
     }

@@ -150,6 +150,12 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
                                 llvm::Module &module);
 
+foptim::fir::TypeR convert_func_type(const llvm::FunctionType *v,
+                                     const llvm::AttributeList *attrs_a,
+                                     const llvm::AttributeList *attrs_b,
+                                     foptim::fir::Context &ctx,
+                                     llvm::Module &module);
+
 // The scalar leaves of an aggregate in LLVM order, nested structs and arrays
 // are flattened.
 struct Leaf {
@@ -524,6 +530,51 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
   TODO("IDK HOW TO HANDLE THIS ARG");
 }
 
+foptim::fir::TypeR convert_func_type(const llvm::FunctionType *v,
+                                     const llvm::AttributeList *attrs_a,
+                                     const llvm::AttributeList *attrs_b,
+                                     foptim::fir::Context &ctx,
+                                     llvm::Module &module) {
+  auto rets = convert_ret_types(v->getReturnType(), ctx, module);
+
+  foptim::IRVec<foptim::fir::TypeR> args;
+  foptim::IRVec<foptim::fir::FunctionType::ByVal> byval;
+  args.reserve(v->getNumParams());
+  const auto &dl = module.getDataLayout();
+  for (size_t i = 0; i < v->getNumParams(); i++) {
+    auto *param = v->getParamType(i);
+    if (param->isAggregateType()) {
+      foptim::TVec<Leaf> leaves;
+      collect_leaves(param, 0, ctx, module, leaves);
+      for (const auto &leaf : leaves) {
+        args.push_back(leaf.ty);
+        byval.push_back({});
+      }
+      continue;
+    }
+    args.push_back(convert_type(param, ctx, module));
+    foptim::fir::FunctionType::ByVal bv{};
+    for (const auto *attrs : {attrs_a, attrs_b}) {
+      if (attrs == nullptr || bv.size != 0 ||
+          !attrs->hasParamAttr(i, llvm::Attribute::ByVal)) {
+        continue;
+      }
+      auto *bty = attrs->getParamByValType(i);
+      if (bty == nullptr) {
+        continue;
+      }
+      bv.size =
+          static_cast<foptim::u32>(dl.getTypeAllocSize(bty).getFixedValue());
+      const auto given = attrs->getParamAlignment(i);
+      bv.align = std::max<foptim::u32>(
+          8, given ? given->value() : dl.getABITypeAlign(bty).value());
+    }
+    byval.push_back(bv);
+  }
+  return ctx->get_func_ty(std::span<const foptim::fir::TypeR>{rets}, args,
+                          byval);
+}
+
 foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
                                 llvm::Module &module) {
   if (auto *v = llvm::dyn_cast_or_null<llvm::IntegerType>(any_ty)) {
@@ -556,23 +607,7 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
     return ctx->get_void_type();
   }
   if (auto *v = llvm::dyn_cast_or_null<llvm::FunctionType>(any_ty)) {
-    auto rets = convert_ret_types(v->getReturnType(), ctx, module);
-
-    foptim::IRVec<foptim::fir::TypeR> args;
-    args.reserve(v->getNumParams());
-    for (size_t i = 0; i < v->getNumParams(); i++) {
-      auto *param = v->getParamType(i);
-      if (param->isAggregateType()) {
-        foptim::TVec<Leaf> leaves;
-        collect_leaves(param, 0, ctx, module, leaves);
-        for (const auto &leaf : leaves) {
-          args.push_back(leaf.ty);
-        }
-        continue;
-      }
-      args.push_back(convert_type(param, ctx, module));
-    }
-    return ctx->get_func_ty(std::span<const foptim::fir::TypeR>{rets}, args);
+    return convert_func_type(v, nullptr, nullptr, ctx, module);
   }
   if (auto *v = llvm::dyn_cast_or_null<llvm::VectorType>(any_ty)) {
     auto sub_type = convert_type(v->getElementType(), ctx, module);
@@ -669,7 +704,12 @@ foptim::fir::ValueR emit_call(const llvm::CallBase *call,
                               foptim::fir::Builder &builder,
                               llvm::Module &mod) {
   auto *ret_type = call->getFunctionType()->getReturnType();
-  auto func_type_foptim = convert_type(call->getFunctionType(), fctx, mod);
+  const auto call_attrs = call->getAttributes();
+  const llvm::Function *callee_fn = call->getCalledFunction();
+  const auto callee_attrs =
+      callee_fn != nullptr ? callee_fn->getAttributes() : llvm::AttributeList{};
+  auto func_type_foptim = convert_func_type(
+      call->getFunctionType(), &call_attrs, &callee_attrs, fctx, mod);
   if (!ret_type->isAggregateType()) {
     return builder.build_call(function_ptr, func_type_foptim,
                               convert_type(ret_type, fctx, mod), args);
@@ -2037,6 +2077,13 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   std::abort();
 }
 
+static foptim::fir::TypeR convert_decl_type(llvm::Function &func,
+                                            foptim::fir::Context &fctx,
+                                            llvm::Module &mod) {
+  const auto attrs = func.getAttributes();
+  return convert_func_type(func.getFunctionType(), &attrs, nullptr, fctx, mod);
+}
+
 bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
                   V2VMap &valueToValue, llvm::Module &mod) {
   if (func.getName().starts_with("llvm.trap")) {
@@ -2054,9 +2101,9 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   foptim::IRString func_name = fir_function_name(func).c_str();
   if (!fctx->has_function(func_name.c_str())) {
     fctx.data->storage.functions.insert(
-        func_name, std::make_unique<foptim::fir::Function>(
-                       fctx.operator->(), func_name,
-                       convert_type(func.getFunctionType(), fctx, mod)));
+        func_name,
+        std::make_unique<foptim::fir::Function>(
+            fctx.operator->(), func_name, convert_decl_type(func, fctx, mod)));
   }
 
   const auto foff_func = fctx->get_function(func_name.c_str());
@@ -2078,7 +2125,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
       return;
     }
   } else {
-    auto foff_ftype = convert_type(func.getFunctionType(), fctx, mod);
+    auto foff_ftype = convert_decl_type(func, fctx, mod);
     auto foff_func = fctx->create_function(func_name, foff_ftype);
     auto func_ptr = fctx->get_constant_value(foff_func);
     valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
@@ -2092,7 +2139,8 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
           continue;
         }
         auto fa = entry->args[fir_idx++];
-        if (la->hasNoAliasAttr()) {
+        if (la->hasNoAliasAttr() || la->hasByValAttr()) {
+          // a byval argument is a private copy
           fa->noalias = true;
         }
         if (la->getType()->isPointerTy() &&

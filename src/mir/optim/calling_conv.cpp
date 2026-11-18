@@ -48,7 +48,20 @@ void gen_arg_mapping(MFunc &func, const CallingConvDefinition &conv) {
     auto arg_ty = func.args[arg_i].ty;
     MInstr instr{GBaseSubtype::mov};
     bool is_vec_reg = arg_ty >= Type::Float32;
-    if (is_vec_reg && float_arg_id < n_float_arg_regs) {
+    if (arg_i < func.arg_byval.size() && func.arg_byval[arg_i].size != 0) {
+      // the copy lives in the incoming stack area, the argument is its address
+      ASSERT(conv.args.allows_stack_args);
+      const auto bv = func.arg_byval[arg_i];
+      if (bv.align >= 16 && n_stack_args % 2 != 0) {
+        n_stack_args++;
+      }
+      instr = MInstr(GBaseSubtype::stack_arg_load,
+                     MArgument{func.args[arg_i], arg_ty},
+                     MArgument::MemOB(static_cast<u64>(8) * n_stack_args,
+                                      VReg::RSP(), arg_ty));
+      instr.stack_arg_addr = 1;
+      n_stack_args += (bv.size + 7) / 8;
+    } else if (is_vec_reg && float_arg_id < n_float_arg_regs) {
       instr = MInstr(GBaseSubtype::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{conv.args.fvr[float_arg_id], arg_ty}, arg_ty});
       float_arg_id++;
@@ -79,7 +92,10 @@ u32 calculate_arg_locations(const TVec<MInstr> &args,
   for (const auto &arg : args) {
     const auto &arg_ty = arg.args[0].ty;
     bool is_vec_reg = arg_ty >= Type::Float32;
-    if (is_vec_reg && float_arg_id < n_float_arg_regs) {
+    if (arg.force_stack) {
+      pos.push_back({ArgPosition::Type::Stack, stack_arg_id});
+      stack_arg_id++;
+    } else if (is_vec_reg && float_arg_id < n_float_arg_regs) {
       pos.push_back({ArgPosition::Type::FloatReg, float_arg_id});
       float_arg_id++;
     } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
@@ -107,14 +123,14 @@ u32 arg_locations_from_marks(const TVec<MInstr> &args,
       stack_arg_id++;
       continue;
     }
-    const auto &regs = arg.args[0].ty >= Type::Float32 ? conv.args.fvr
-                                                       : conv.args.gpr;
+    const auto &regs =
+        arg.args[0].ty >= Type::Float32 ? conv.args.fvr : conv.args.gpr;
     const bool is_vec = arg.args[0].ty >= Type::Float32;
     const auto it = std::ranges::find(regs, arg.args[1].reg.c_reg());
     ASSERT(it != regs.end());
-    pos.push_back({is_vec ? ArgPosition::Type::FloatReg
-                          : ArgPosition::Type::IntReg,
-                   static_cast<u32>(it - regs.begin())});
+    pos.push_back(
+        {is_vec ? ArgPosition::Type::FloatReg : ArgPosition::Type::IntReg,
+         static_cast<u32>(it - regs.begin())});
   }
   return stack_arg_id;
 }
@@ -263,6 +279,26 @@ void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
           continue;
         }
         mark_arguments_with_regs(bb.instrs, cc, instr_id, instr_call_id);
+        // byval objects with 16 byte alignment need an even slot index
+        {
+          u32 slot = 0;
+          for (size_t k = instr_id; k < instr_call_id; k++) {
+            if (bb.instrs[k].n_args != 1) {
+              continue;
+            }
+            if (bb.instrs[k].stack_align16 && slot % 2 != 0) {
+              MInstr pad{GBaseSubtype::arg_setup,
+                         MArgument{static_cast<u64>(0)}};
+              pad.force_stack = 1;
+              bb.instrs.insert(bb.instrs.begin() + static_cast<i64>(k), pad);
+              k++;
+              instr_call_id++;
+              n_instrs++;
+              slot++;
+            }
+            slot++;
+          }
+        }
         // the stack arguments are pushed before the registers are set up, so
         // register allocation has to see them in that order, otherwise a
         // reload of a stack argument takes a register that still holds the
@@ -272,8 +308,7 @@ void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
             bb.instrs.begin() + static_cast<i64>(instr_id),
             bb.instrs.begin() + static_cast<i64>(instr_call_id),
             [](const MInstr &arg) { return arg.n_args == 1; });
-        std::reverse(bb.instrs.begin() + static_cast<i64>(instr_id),
-                     stack_end);
+        std::reverse(bb.instrs.begin() + static_cast<i64>(instr_id), stack_end);
         size_t instr_ret_id = instr_call_id + 1;
         for (; instr_ret_id < n_instrs; instr_ret_id++) {
           if (bb.instrs[instr_ret_id].is(GBaseSubtype::ret_setup)) {
@@ -925,6 +960,9 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
       instr.sop = static_cast<u32>(GBaseSubtype::mov);
       instr.args[1].reg = VReg::RBP();
       instr.args[1].imm += 16;
+      if (instr.stack_arg_addr) {
+        instr = MInstr(X86Subtype::lea, instr.args[0], instr.args[1]);
+      }
     }
   }
 

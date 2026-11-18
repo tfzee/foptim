@@ -224,9 +224,22 @@ bool inline_call(fir::Instr call) {
 
   // add the args
 
+  const auto &called_ty = called_func->func_ty->as_func();
   for (size_t arg_id = 1; arg_id < call->args.size(); arg_id++) {
     ASSERT(call->args[arg_id].is_valid(true));
-    entry_branch.add_bb_arg(0, call->args[arg_id]);
+    const auto bv = called_ty.byval(arg_id - 1);
+    if (bv.size == 0) {
+      entry_branch.add_bb_arg(0, call->args[arg_id]);
+      continue;
+    }
+    // the callee owns a copy of the object
+    fir::Builder entry_b{call_func->get_entry()};
+    auto copy =
+        entry_b.build_alloca(fir::ValueR{ctx->get_constant_int(bv.size, 32)});
+    bb.build_intrinsic(copy, call->args[arg_id],
+                       fir::ValueR{ctx->get_constant_int(bv.size, 64)},
+                       fir::IntrinsicSubType::Memcpy);
+    entry_branch.add_bb_arg(0, copy);
   }
 
   // replace every return isntruction with a jump to the resulting bb

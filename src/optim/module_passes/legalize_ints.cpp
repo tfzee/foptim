@@ -64,16 +64,21 @@ fir::FunctionTypeR legal_func_type(fir::Context &ctx,
     IMPL("wide integer result that does not fit the return registers");
   }
   IRVec<fir::TypeR> args;
-  for (auto t : ft.arg_types) {
+  IRVec<fir::FunctionType::ByVal> byval;
+  for (size_t ai = 0; ai < ft.arg_types.size(); ai++) {
+    const auto t = ft.arg_types[ai];
     const u32 n = n_limbs(t);
     if (n == 0) {
       args.push_back(t);
+      byval.push_back(ft.byval(ai));
     }
     for (u32 i = 0; i < n; i++) {
       args.push_back(i64);
+      byval.push_back({});
     }
   }
-  return ctx->get_func_ty(std::span<const fir::TypeR>{rets}, std::move(args));
+  return ctx->get_func_ty(std::span<const fir::TypeR>{rets}, std::move(args),
+                          std::move(byval));
 }
 
 class Expander {

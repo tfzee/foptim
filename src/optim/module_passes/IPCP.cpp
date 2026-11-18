@@ -176,7 +176,8 @@ bool kill_dead_results(fir::FunctionR func, fir::Context &ctx,
   if (no_results) {
     new_rets.push_back(ctx->get_void_type());
   }
-  func.func->func_ty = ctx->get_func_ty(new_rets, func_ty.arg_types);
+  func.func->func_ty =
+      ctx->get_func_ty(new_rets, func_ty.arg_types, func_ty.arg_byval);
   func->remap_result_attribs(func_ty.return_types, new_index);
   for (auto use : func->get_uses()) {
     auto call = use.user;
@@ -234,6 +235,9 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
+  if (func_ty.has_byval()) {
+    return false;
+  }
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
     return false;
@@ -326,6 +330,9 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx,
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
+  if (func_ty.has_byval()) {
+    return false;
+  }
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
     return false;

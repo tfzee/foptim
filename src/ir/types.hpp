@@ -32,6 +32,21 @@ class FunctionType {
   // (no other list contains void)
   IRVec<TypeR> return_types;
   IRVec<TypeR> arg_types;
+  // byval pointer arguments (the callee owns a copy in the stack argument
+  // area), empty when there is none, else one entry per argument
+  struct ByVal {
+    u32 size = 0;  // 0 is a plain argument
+    u32 align = 0;
+    bool operator==(const ByVal &) const = default;
+  };
+  IRVec<ByVal> arg_byval;
+  [[nodiscard]] ByVal byval(size_t i) const {
+    return i < arg_byval.size() ? arg_byval[i] : ByVal{};
+  }
+  [[nodiscard]] bool has_byval() const {
+    return std::ranges::any_of(arg_byval,
+                               [](const ByVal &b) { return b.size != 0; });
+  }
   // type of the only result, void if there is none
   [[nodiscard]] TypeR return_type() const {
     ASSERT(return_types.size() == 1);

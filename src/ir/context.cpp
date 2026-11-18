@@ -277,14 +277,25 @@ FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
 
 FunctionTypeR ContextData::get_func_ty(std::span<const TypeR> ret_types,
                                        IRVec<TypeR> args) {
+  return get_func_ty(ret_types, std::move(args), {});
+}
+
+FunctionTypeR ContextData::get_func_ty(std::span<const TypeR> ret_types,
+                                       IRVec<TypeR> args,
+                                       IRVec<FunctionType::ByVal> byval) {
   ASSERT(!ret_types.empty());
+  ASSERT(byval.empty() || byval.size() == args.size());
+  if (std::ranges::none_of(byval, [](const auto &b) { return b.size != 0; })) {
+    byval.clear();
+  }
   ASSERT_M(
       ret_types.size() == 1 ||
           std::ranges::none_of(ret_types, [](TypeR t) { return t->is_void(); }),
       "void can only be the single result type");
   auto func_ty =
       FunctionType{.return_types = {ret_types.begin(), ret_types.end()},
-                   .arg_types = std::move(args)};
+                   .arg_types = std::move(args),
+                   .arg_byval = std::move(byval)};
   return intern_type(func_ty);
 }
 

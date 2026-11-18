@@ -102,13 +102,70 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data) {
   // fmt::println("Instr: {}", call_instr);
-  TVec<MArgument> evaluated_args;
-  for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
-    evaluated_args.push_back(
-        setup_callargPosMem(call_instr->args[arg_id], res, data, call_instr));
+  const fir::FunctionType *callee_ty = nullptr;
+  if (call_instr->args[0].is_constant() &&
+      call_instr->args[0].as_constant()->is_func()) {
+    callee_ty =
+        &call_instr->args[0].as_constant()->as_func().func->func_ty->as_func();
+  } else if (call_instr->extra_type.is_valid() &&
+             call_instr->extra_type->is_func()) {
+    callee_ty = &call_instr->extra_type->as_func();
   }
-  for (auto arg_value : evaluated_args) {
-    res.result.emplace_back(GBaseSubtype::arg_setup, arg_value);
+  struct Arg {
+    MArgument value;
+    u32 byval_size;
+    u32 byval_align;
+    // last bytes of a byval object whose size is no multiple of 8
+    MArgument tail{};
+  };
+  TVec<Arg> evaluated_args;
+  for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
+    const auto bv = callee_ty != nullptr ? callee_ty->byval(arg_id - 1)
+                                         : fir::FunctionType::ByVal{};
+    if (bv.size == 0) {
+      evaluated_args.push_back(
+          {setup_callargPosMem(call_instr->args[arg_id], res, data, call_instr),
+           0, 0});
+      continue;
+    }
+    if (bv.align > 16 || bv.size < 8) {
+      IMPL("byval argument smaller than 8 bytes or aligned above 16");
+    }
+    // the base is read by every push, so it needs a register
+    auto base = valueToArg(call_instr->args[arg_id], res.result, data.alloc);
+    if (!base.isReg()) {
+      auto helper = data.alloc.get_new_register(Type::Int64);
+      res.result.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
+                              base);
+      base = MArgument(helper, Type::Int64);
+    }
+    Arg a{base, bv.size, bv.align};
+    if (const u32 tail = bv.size % 8; tail != 0) {
+      a.tail = MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+      res.result.emplace_back(
+          GBaseSubtype::mov, a.tail,
+          MArgument::MemOB(bv.size - 8, base.reg, Type::Int64));
+      res.result.emplace_back(GArithSubtype::shr2, a.tail,
+                              MArgument(static_cast<u8>(8 * (8 - tail))));
+    }
+    evaluated_args.push_back(a);
+  }
+  for (auto arg : evaluated_args) {
+    if (arg.byval_size == 0) {
+      res.result.emplace_back(GBaseSubtype::arg_setup, arg.value);
+      continue;
+    }
+    const u32 n_qwords = (arg.byval_size + 7) / 8;
+    const u32 tail = arg.byval_size % 8;
+    for (u32 q = 0; q < n_qwords; q++) {
+      MArgument value = MArgument::MemOB(8 * q, arg.value.reg, Type::Int64);
+      if (tail != 0 && q + 1 == n_qwords) {
+        value = arg.tail;
+      }
+      res.result.emplace_back(GBaseSubtype::arg_setup, value);
+      res.result.back().force_stack = 1;
+      res.result.back().stack_align16 = q == 0 && arg.byval_align >= 16 ? 1 : 0;
+    }
   }
 }
 

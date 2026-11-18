@@ -121,7 +121,9 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
   }
 
   {  // type cleanup
-    func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+    func.func->func_ty =
+        ctx->get_func_ty(std::span<const fir::TypeR>{&res_type, 1},
+                         func_ty.arg_types, func_ty.arg_byval);
     func->clear_result_attribs();
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
@@ -153,6 +155,9 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
                                                 fir::Context &ctx,
                                                 AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
+  if (func_ty.has_byval()) {
+    return false;
+  }
   auto n_args_original = func_ty.arg_types.size();
   auto entry_block = func->get_entry();
   // CFG cfg{*func.func};
@@ -310,7 +315,9 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   // }
   // TODO("impl");
   const auto &func_ty = func.func->func_ty->as_func();
-  func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+  func.func->func_ty =
+      ctx->get_func_ty(std::span<const fir::TypeR>{&res_type, 1},
+                       func_ty.arg_types, func_ty.arg_byval);
   func->clear_result_attribs();
   for (auto use : func.func->get_uses()) {
     use.user->extra_type = func.func->func_ty;
@@ -488,6 +495,9 @@ bool is_private_alloca_arg(fir::FunctionR func, fir::Instr call, u32 pos,
 bool ArgPromotion::promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
                                     AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
+  if (func_ty.has_byval()) {
+    return false;
+  }
   const auto n_args = func_ty.arg_types.size();
   auto entry_block = func->get_entry();
   // only if we know all call sites

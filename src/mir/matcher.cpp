@@ -1,5 +1,4 @@
 #include "matcher.hpp"
-#include "ir/helpers.hpp"
 
 #include <algorithm>
 #include <ranges>
@@ -335,6 +334,14 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
       auto arg_reg = alloc.get_register(fir::ValueR{entry_bb->args[i]});
       // auto arg_type = entry_bb->args[i]->get_type();
       res_func.args.push_back(arg_reg);
+      const auto bv = func.func_ty->as_func().byval(i);
+      if (bv.size != 0) {
+        if (bv.align > 16 || bv.size < 8) {
+          IMPL("byval argument smaller than 8 bytes or aligned above 16");
+        }
+        res_func.arg_byval.resize(entry_bb->args.size());
+        res_func.arg_byval[i] = {bv.size, bv.align};
+      }
       // res_func.arg_tys.push_back(convert_type(arg_type));
     }
     for (auto bb : func.basic_blocks) {
@@ -386,10 +393,10 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   }
   if (res_func.has_dynamic_alloca) {
     auto &entry = res_func.bbs[0].instrs;
-    entry.insert(entry.begin(),
-                 MInstr{GBaseSubtype::mov,
-                        MArgument{extra_data.saved_sp, Type::Int64},
-                        MArgument{VReg::RSP(), Type::Int64}});
+    entry.insert(
+        entry.begin(),
+        MInstr{GBaseSubtype::mov, MArgument{extra_data.saved_sp, Type::Int64},
+               MArgument{VReg::RSP(), Type::Int64}});
   }
 
   // res_func.clone_attribs(func);

@@ -75,6 +75,8 @@ struct ContextData {
 
   // single result (void for none)
   FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args);
+  FunctionTypeR get_func_ty(std::span<const TypeR> ret_types, IRVec<TypeR> args,
+                            IRVec<FunctionType::ByVal> byval);
   FunctionTypeR get_func_ty(std::span<const TypeR> ret_types,
                             IRVec<TypeR> args);
   ConstantValueR get_poisson_value(TypeR type);

@@ -347,6 +347,11 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
     return false;
   }
   auto &f1 = group.funcs.back();
+  if (std::ranges::any_of(group.funcs, [](auto *f) {
+        return f->func_ty->as_func().has_byval();
+      })) {
+    return false;
+  }
 
   // TODO prealloc to not have any reallocs
   IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
@@ -570,10 +575,10 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
                 continue;
               }
               const auto *t_meta = target->get_access_meta(t_instr);
-              const auto *o_meta = o_bb->instructions[i]->has_access_meta
-                                       ? other->get_access_meta(
-                                             o_bb->instructions[i])
-                                       : nullptr;
+              const auto *o_meta =
+                  o_bb->instructions[i]->has_access_meta
+                      ? other->get_access_meta(o_bb->instructions[i])
+                      : nullptr;
               if (t_meta != nullptr &&
                   (o_meta == nullptr || o_meta->types != t_meta->types)) {
                 fir::AccessMeta m = *t_meta;

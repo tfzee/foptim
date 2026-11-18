@@ -989,6 +989,13 @@ class MInstr {
   // reload of a spilled register inside the arguments of a call, set by the
   // register allocator, the call lowering moves it along with its argument
   u8 is_arg_reload : 1 = 0U;
+  // arg_setup of one qword of a byval argument, always goes to the stack
+  u8 force_stack : 1 = 0U;
+  // first qword of a byval argument with 16 byte alignment, its stack slot
+  // index has to be even
+  u8 stack_align16 : 1 = 0U;
+  // stack_arg_load that yields the address of the slot (byval parameter)
+  u8 stack_arg_addr : 1 = 0U;
   u8 n_args = 0;
   GOpcode bop;
   u32 sop = 0;

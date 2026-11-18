@@ -32,6 +32,14 @@ class MFunc {
   IRVec<MBB> bbs;
   IRVec<MJumpTable> jump_tables;
   IRVec<VReg> args;
+  // byval pointer parameters, the pointer is the address of the copy in the
+  // incoming stack area. Empty or one entry per argument, size 0 is a plain
+  // one.
+  struct ArgByVal {
+    u32 size = 0;
+    u32 align = 0;
+  };
+  IRVec<ArgByVal> arg_byval;
 
   IRString name;
   fir::Linkage linkage = fir::Linkage::External;
