@@ -12,6 +12,7 @@
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
 #include "mir/optim/stack_optim.hpp"
+#include "mir/optim/stack_slot_coalesce.hpp"
 #include "mir/optim/stack_slot_lowering.hpp"
 #include "third_party/toml.hpp"
 
@@ -149,6 +150,13 @@ struct CallingConfFirstConf : public FunctionPassConf<CallingConfFirstConf> {
 struct CallingConfSecondConf : public FunctionPassConf<CallingConfSecondConf> {
   static constexpr const char *Name = "CallingConv_SecondStage";
   using Pass = ::foptim::fmir::CallingConvSecond;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+
+struct StackSlotCoalesceConf : public FunctionPassConf<StackSlotCoalesceConf> {
+  static constexpr const char *Name = "StackSlotCoalesce";
+  using Pass = ::foptim::fmir::StackSlotCoalesce;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

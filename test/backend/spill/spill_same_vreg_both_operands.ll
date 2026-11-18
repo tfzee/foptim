@@ -1,12 +1,13 @@
 ; Regression test: a spilled vreg that is both operands of one instruction
 ; (x + x) used to be rewritten only in one operand, the other use was spilled
 ; again in a later round into a second slot that nothing ever wrote (and the
-; frame grew by one slot per such use). Every value has exactly one slot.
+; frame grew by one slot per such use). Every value has exactly one slot, the
+; slots of values that are never live together share a location (StackSlotCoalesce).
 ; RUN: %foffcc %s --print-mir --no-reorder-funcs | FileCheck %s
 
 ; CHECK: func f
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 144: i64
+; CHECK-NEXT:    $rsp: i64 -= 128: i64
 
 declare void @use(double)
 

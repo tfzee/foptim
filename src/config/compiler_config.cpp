@@ -216,6 +216,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new fmir::CallingConfFirstConf{};
     } else if (name == "CallingConv_SecondStage") {
       pass = new fmir::CallingConfSecondConf{};
+    } else if (name == "StackSlotCoalesce") {
+      pass = new fmir::StackSlotCoalesceConf{};
     } else if (name == "StackSlotLowering") {
       pass = new fmir::StackSlotLoweringConf{};
     } else {

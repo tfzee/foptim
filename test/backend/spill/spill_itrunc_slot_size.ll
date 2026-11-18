@@ -16,49 +16,49 @@ define void @f(ptr %p, ptr %q, ptr %out) {
 ; CHECK-NEXT:    push($r14: i64, )
 ; CHECK-NEXT:    push($r13: i64, )
 ; CHECK-NEXT:    push($r12: i64, )
-; CHECK-NEXT:    [$rbp + -16]: i64 = $rsi: i64
+; CHECK-NEXT:    [$rbp + -88]: i64 = $rsi: i64
 ; CHECK-NEXT:    $r12: i64 = [$rdi]: i64
-; CHECK-NEXT:    itrunc([$rbp + -84]: i32, $r12: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -68]: i32, $r12: i64, )
 ; CHECK-NEXT:    $rbx: i64 = [$rdi + 16]: i64
-; CHECK-NEXT:    itrunc([$rbp + -80]: i32, $rbx: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -64]: i32, $rbx: i64, )
 ; CHECK-NEXT:    $r13: i64 = [$rdi + 32]: i64
-; CHECK-NEXT:    itrunc([$rbp + -76]: i32, $r13: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -60]: i32, $r13: i64, )
 ; CHECK-NEXT:    $r14: i64 = [$rdi + 48]: i64
-; CHECK-NEXT:    itrunc([$rbp + -72]: i32, $r14: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -56]: i32, $r14: i64, )
 ; CHECK-NEXT:    $r15: i64 = [$rdi + 64]: i64
-; CHECK-NEXT:    itrunc([$rbp + -68]: i32, $r15: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -52]: i32, $r15: i64, )
 ; CHECK-NEXT:    $rcx: i64 = [$rdi + 80]: i64
-; CHECK-NEXT:    itrunc([$rbp + -64]: i32, $rcx: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -48]: i32, $rcx: i64, )
 ; CHECK-NEXT:    $rsi: i64 = [$rdi + 96]: i64
-; CHECK-NEXT:    itrunc([$rbp + -60]: i32, $rsi: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -44]: i32, $rsi: i64, )
 ; CHECK-NEXT:    $r8: i64 = [$rdi + 112]: i64
-; CHECK-NEXT:    itrunc([$rbp + -56]: i32, $r8: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -40]: i32, $r8: i64, )
 ; CHECK-NEXT:    $r9: i64 = [$rdi + 128]: i64
-; CHECK-NEXT:    itrunc([$rbp + -52]: i32, $r9: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -36]: i32, $r9: i64, )
 ; CHECK-NEXT:    $r10: i64 = [$rdi + 144]: i64
-; CHECK-NEXT:    itrunc([$rbp + -48]: i32, $r10: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -32]: i32, $r10: i64, )
 ; CHECK-NEXT:    $r11: i64 = [$rdi + 160]: i64
-; CHECK-NEXT:    itrunc([$rbp + -44]: i32, $r11: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -28]: i32, $r11: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 176]: i64
-; CHECK-NEXT:    [$rbp + -8]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -40]: i32, $rax: i64, )
+; CHECK-NEXT:    [$rbp + -80]: i64 = $rax: i64
+; CHECK-NEXT:    itrunc([$rbp + -24]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 192]: i64
 ; CHECK-NEXT:    [$rbp + -128]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -36]: i32, $rax: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -20]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 208]: i64
 ; CHECK-NEXT:    [$rbp + -120]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -32]: i32, $rax: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -16]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 224]: i64
 ; CHECK-NEXT:    [$rbp + -112]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -28]: i32, $rax: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -12]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 240]: i64
 ; CHECK-NEXT:    [$rbp + -104]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -24]: i32, $rax: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -8]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi + 256]: i64
 ; CHECK-NEXT:    [$rbp + -96]: i64 = $rax: i64
-; CHECK-NEXT:    itrunc([$rbp + -20]: i32, $rax: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -4]: i32, $rax: i64, )
 ; CHECK-NEXT:    $rdi: i64 = [$rdi + 272]: i64
-; CHECK-NEXT:    itrunc([$rbp + -88]: i32, $rdi: i64, )
+; CHECK-NEXT:    itrunc([$rbp + -72]: i32, $rdi: i64, )
 ; CHECK-NEXT:    push($rcx: i64, )
 ; CHECK-NEXT:    push($rdx: i64, )
 ; CHECK-NEXT:    push($rsi: i64, )
@@ -87,50 +87,50 @@ define void @f(ptr %p, ptr %q, ptr %out) {
 ; CHECK-NEXT:    $r12: i64 += $r9: i64
 ; CHECK-NEXT:    $r12: i64 += $r10: i64
 ; CHECK-NEXT:    $r12: i64 += $r11: i64
-; CHECK-NEXT:    $r12: i64 += [$rbp + -8]: i64
+; CHECK-NEXT:    $r12: i64 += [$rbp + -80]: i64
 ; CHECK-NEXT:    $r12: i64 += [$rbp + -128]: i64
 ; CHECK-NEXT:    $r12: i64 += [$rbp + -120]: i64
 ; CHECK-NEXT:    $r12: i64 += [$rbp + -112]: i64
 ; CHECK-NEXT:    $r12: i64 += [$rbp + -104]: i64
 ; CHECK-NEXT:    $r12: i64 += [$rbp + -96]: i64
 ; CHECK-NEXT:    $r12: i64 += $rdi: i64
-; CHECK-NEXT:    $ecx: i32 = [$rbp + -84]: i32
-; CHECK-NEXT:    [$rdx]: i32 = $ecx: i32
-; CHECK-NEXT:    $ecx: i32 = [$rbp + -80]: i32
-; CHECK-NEXT:    [$rdx + 12]: i32 = $ecx: i32
-; CHECK-NEXT:    $ecx: i32 = [$rbp + -76]: i32
-; CHECK-NEXT:    [$rdx + 24]: i32 = $ecx: i32
-; CHECK-NEXT:    $ecx: i32 = [$rbp + -72]: i32
-; CHECK-NEXT:    [$rdx + 36]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -68]: i32
-; CHECK-NEXT:    [$rdx + 48]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -64]: i32
-; CHECK-NEXT:    [$rdx + 60]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 12]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -60]: i32
-; CHECK-NEXT:    [$rdx + 72]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 24]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -56]: i32
-; CHECK-NEXT:    [$rdx + 84]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 36]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -52]: i32
-; CHECK-NEXT:    [$rdx + 96]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 48]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -48]: i32
-; CHECK-NEXT:    [$rdx + 108]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 60]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -44]: i32
-; CHECK-NEXT:    [$rdx + 120]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 72]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -40]: i32
-; CHECK-NEXT:    [$rdx + 132]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 84]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -36]: i32
-; CHECK-NEXT:    [$rdx + 144]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 96]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -32]: i32
-; CHECK-NEXT:    [$rdx + 156]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 108]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -28]: i32
-; CHECK-NEXT:    [$rdx + 168]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 120]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -24]: i32
-; CHECK-NEXT:    [$rdx + 180]: i32 = $ecx: i32
+; CHECK-NEXT:    [$rdx + 132]: i32 = $ecx: i32
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -20]: i32
+; CHECK-NEXT:    [$rdx + 144]: i32 = $ecx: i32
+; CHECK-NEXT:    $ecx: i32 = [$rbp + -16]: i32
+; CHECK-NEXT:    [$rdx + 156]: i32 = $ecx: i32
+; CHECK-NEXT:    $ecx: i32 = [$rbp + -12]: i32
+; CHECK-NEXT:    [$rdx + 168]: i32 = $ecx: i32
+; CHECK-NEXT:    $ecx: i32 = [$rbp + -8]: i32
+; CHECK-NEXT:    [$rdx + 180]: i32 = $ecx: i32
+; CHECK-NEXT:    $ecx: i32 = [$rbp + -4]: i32
 ; CHECK-NEXT:    [$rdx + 192]: i32 = $ecx: i32
-; CHECK-NEXT:    $ecx: i32 = [$rbp + -88]: i32
+; CHECK-NEXT:    $ecx: i32 = [$rbp + -72]: i32
 ; CHECK-NEXT:    [$rdx + 204]: i32 = $ecx: i32
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -16]: i64
+; CHECK-NEXT:    $rcx: i64 = [$rbp + -88]: i64
 ; CHECK-NEXT:    [$rcx]: i64 = $r12: i64
 ; CHECK-NEXT:    pop($r12: i64, )
 ; CHECK-NEXT:    pop($r13: i64, )
@@ -139,6 +139,8 @@ define void @f(ptr %p, ptr %q, ptr %out) {
 ; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    $rsp: i64 += 128: i64
 ; CHECK-NEXT:    ret()
+; CHECK-EMPTY:
+; CHECK-NEXT:sink
   %g0 = getelementptr i64, ptr %p, i64 0
   %v0 = load i64, ptr %g0, align 8
   %t0 = trunc i64 %v0 to i32

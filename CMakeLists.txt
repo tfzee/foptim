@@ -246,6 +246,7 @@ add_library (foptim OBJECT
                 ./src/mir/optim/reg_alloc.cpp
                 ./src/mir/optim/lvn.cpp
                 ./src/mir/optim/dce.cpp
+                ./src/mir/optim/stack_slot_coalesce.cpp
                 ./src/mir/optim/calling_conv.cpp
                 ./src/mir/optim/bb_reordering.cpp
                 ./src/mir/optim/inst_simplify.cpp

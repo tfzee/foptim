@@ -2,6 +2,8 @@
 #pragma once
 #include <fmt/base.h>
 
+#include <algorithm>
+
 #include "config/compiler_config.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
@@ -14,10 +16,19 @@ class StackSlotLowering : public FunctionPass {
  public:
   void apply(MFunc &func, const conf::CompConf & /*config*/) override {
     u64 stack_slots_size = 0;
-    TVec<u64> index_to_mem_off;
-    for (auto &slot : func.extra_stack_slots) {
-      index_to_mem_off.push_back(stack_slots_size);
-      stack_slots_size += slot.size;
+    // biggest slots first, sizes are powers of two so every slot ends up
+    // naturally aligned (the area below rbp is 16 byte aligned)
+    TVec<u64> order(func.extra_stack_slots.size());
+    for (u64 i = 0; i < order.size(); i++) {
+      order[i] = i;
+    }
+    std::ranges::stable_sort(order, [&](u64 a, u64 b) {
+      return func.extra_stack_slots[a].size > func.extra_stack_slots[b].size;
+    });
+    TVec<u64> index_to_mem_off(order.size());
+    for (auto idx : order) {
+      index_to_mem_off[idx] = stack_slots_size;
+      stack_slots_size += func.extra_stack_slots[idx].size;
     }
     if (stack_slots_size == 0) {
       return;
