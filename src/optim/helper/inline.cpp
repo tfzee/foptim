@@ -220,16 +220,15 @@ bool inline_call(fir::Instr call) {
   auto new_entry = subs.at(fir::ValueR{called_func->basic_blocks[0]});
 
   fir::Builder bb = call_bb.builder_at_end();
-  auto entry_branch = bb.build_branch(new_entry.as_bb());
 
-  // add the args
-
+  // the copies of byval args have to come before the branch
   const auto &called_ty = called_func->func_ty->as_func();
+  TVec<fir::ValueR> entry_args;
   for (size_t arg_id = 1; arg_id < call->args.size(); arg_id++) {
     ASSERT(call->args[arg_id].is_valid(true));
     const auto bv = called_ty.byval(arg_id - 1);
     if (bv.size == 0) {
-      entry_branch.add_bb_arg(0, call->args[arg_id]);
+      entry_args.push_back(call->args[arg_id]);
       continue;
     }
     // the callee owns a copy of the object
@@ -239,7 +238,12 @@ bool inline_call(fir::Instr call) {
     bb.build_intrinsic(copy, call->args[arg_id],
                        fir::ValueR{ctx->get_constant_int(bv.size, 64)},
                        fir::IntrinsicSubType::Memcpy);
-    entry_branch.add_bb_arg(0, copy);
+    entry_args.push_back(copy);
+  }
+
+  auto entry_branch = bb.build_branch(new_entry.as_bb());
+  for (auto arg : entry_args) {
+    entry_branch.add_bb_arg(0, arg);
   }
 
   // replace every return isntruction with a jump to the resulting bb

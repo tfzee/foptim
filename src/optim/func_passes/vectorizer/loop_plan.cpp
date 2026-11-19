@@ -873,6 +873,9 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     n_instrs_total += static_cast<u32>(n_instrs) - 1;
     for (size_t idx = 0; idx + 1 < n_instrs; idx++) {
       auto instr = bb->instructions[idx];
+      if (instr->is_multi_result()) {
+        return reject(__LINE__);
+      }
       fir::ValueR iv = instr.result();
       PlanNode n;
       n.value = iv;

@@ -909,11 +909,6 @@ namespace foptim::fmir {
 
 void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
   ZoneScopedN("reg alloc func");
-  RegColl lifetimes;
-  TVec<StackRecord> allocation_stack;
-  TVec<CReg> assignments;
-  TVec<u64> needs_spilling;
-  CostGraph graph;
   // fmt::println("+++++++++++++++++++++++++++++");
   // fmt::println("{:cd}", func);
 
@@ -978,9 +973,16 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
   }
   size_t i = 0;
   while (true) {
-    graph.clear();
-    model.call_crossings.clear();
-    lifetimes = reg_coll(func, &model.block_weights, &model.call_crossings);
+    const auto round_scope = utils::TempAlloc<void *>::scoped();
+    // the old table points into rewound memory, so no clear()
+    std::destroy_at(&model.call_crossings);
+    std::construct_at(&model.call_crossings);
+    RegColl lifetimes =
+        reg_coll(func, &model.block_weights, &model.call_crossings);
+    TVec<StackRecord> allocation_stack;
+    TVec<CReg> assignments;
+    TVec<u64> needs_spilling;
+    CostGraph graph;
     {
       ZoneScopedN("setup costs");
       setup_costs(func, graph, lifetimes, model);
@@ -995,13 +997,11 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
 
     {
       ZoneScopedN("minimize graph");
-      allocation_stack.clear();
       minimize_graph(graph, allocation_stack);
     }
 
     {
       ZoneScopedN("actually allocate");
-      needs_spilling.clear();
       actually_allocate(graph, allocation_stack, assignments, needs_spilling);
     }
 
