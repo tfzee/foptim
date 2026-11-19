@@ -3430,6 +3430,12 @@ void base_rules(RuleSet &rules) {
         res_reg_smoll.ty = Type::Float64;
         res_reg_smoll.reg.ty = Type::Float64;
         break;
+      case Type::Float32x2:
+        // the upper lanes of the xmm are unused
+        can_pshuf = true;
+        res_reg_smoll.ty = Type::Float32;
+        res_reg_smoll.reg.ty = Type::Float32;
+        break;
       case Type::Int32x8:
       case Type::Float32x8:
         // vpshufd only shuffles inside each 128 bit lane

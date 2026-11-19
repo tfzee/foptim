@@ -6,24 +6,29 @@ define float @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){} NUses:1
 ; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){} NUses:1
 ; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){} NUses:1
-; CHECK-NEXT:    %8: 4@f32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %9: f32 = Load(%4){} NUses:1
-; CHECK-NEXT:    %10: f32 = Load(%5){} NUses:1
-; CHECK-NEXT:    %11: f32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %12: f32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %13: f32 = Reduce.Add(%8){} NUses:1
-; CHECK-NEXT:    %14: f32 = FloatAdd(%13, %9){} NUses:1
-; CHECK-NEXT:    %15: f32 = FloatAdd(%14, %10){} NUses:1
-; CHECK-NEXT:    %16: f32 = FloatAdd(%15, %11){} NUses:1
-; CHECK-NEXT:    %17: f32 = FloatAdd(%16, %12){} NUses:1
-; CHECK-NEXT:    %18: f32 = Return(%17){} NUses:0
+; CHECK-NEXT:    %8: f32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %9: f32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %10: f32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %11: f32 = Load(%3){} NUses:1
+; CHECK-NEXT:    %12: f32 = Load(%4){} NUses:1
+; CHECK-NEXT:    %13: f32 = Load(%5){} NUses:1
+; CHECK-NEXT:    %14: f32 = Load(%6){} NUses:1
+; CHECK-NEXT:    %15: f32 = Load(%7){} NUses:1
+; CHECK-NEXT:    %16: f32 = FloatAdd(%8, %9){} NUses:1
+; CHECK-NEXT:    %17: f32 = FloatAdd(%16, %10){} NUses:1
+; CHECK-NEXT:    %18: f32 = FloatAdd(%17, %11){} NUses:1
+; CHECK-NEXT:    %19: f32 = FloatAdd(%18, %12){} NUses:1
+; CHECK-NEXT:    %20: f32 = FloatAdd(%19, %13){} NUses:1
+; CHECK-NEXT:    %21: f32 = FloatAdd(%20, %14){} NUses:1
+; CHECK-NEXT:    %22: f32 = FloatAdd(%21, %15){} NUses:1
+; CHECK-NEXT:    %23: f32 = Return(%22){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr float, ptr %a, i64 0
   %a1 = getelementptr float, ptr %a, i64 1

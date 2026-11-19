@@ -1221,6 +1221,7 @@ std::optional<fir::ReduceInstrSubType> halving_op_for(
 }
 
 std::optional<fir::ReduceInstrSubType> reduce_op_for(fir::Instr root, u32 lanes,
+                                                     bool assoc,
                                                      const Features &features) {
   if (auto op = halving_op_for(root, lanes, features)) {
     return op;
@@ -1230,10 +1231,16 @@ std::optional<fir::ReduceInstrSubType> reduce_op_for(fir::Instr root, u32 lanes,
   }
   switch (static_cast<BinSub>(root->subtype)) {
     case BinSub::IntAdd:
-    case BinSub::FloatAdd:
       return fir::ReduceInstrSubType::Add;
+    case BinSub::FloatAdd:
+      // the horizontal add sums pairs, only two lanes keep the order
+      return assoc || lanes == 2
+                 ? std::optional{fir::ReduceInstrSubType::Add}
+                 : std::nullopt;
     case BinSub::FloatMul:
-      return fir::ReduceInstrSubType::Mul;
+      return assoc || lanes == 2
+                 ? std::optional{fir::ReduceInstrSubType::Mul}
+                 : std::nullopt;
     default:
       return std::nullopt;
   }
@@ -1261,7 +1268,7 @@ i64 node_vec_cost(const PlanNode &n, u32 vf, const Features &features) {
             std::countr_zero(std::min(vf, lanes128)) + (vf > lanes128 ? 1 : 0);
         return 2 * steps + 1;
       }
-      if (reduce_op_for(root, vf, features)) {
+      if (reduce_op_for(root, vf, n.assoc, features)) {
         return std::countr_zero(std::bit_ceil(vf));
       }
       // an extract costs about two operations

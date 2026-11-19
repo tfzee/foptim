@@ -296,6 +296,8 @@ struct PlanNode {
   // Induction / Reduction / Phi: index of the (block) argument
   u32 arg_id = 0;
   RedKind red = RedKind::Add;
+  // horizontal reductions: the lanes may be combined in any order
+  bool assoc = false;
   // loops: index into LoopData::blocks
   u32 block = 0;
 };

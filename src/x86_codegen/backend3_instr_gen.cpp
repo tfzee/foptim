@@ -3031,6 +3031,8 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           reg_with_type(instr.args[3].reg, instr.args[0].ty);
       switch (instr.args[0].ty) {
         case fmir::Type::Float32:
+        case fmir::Type::Float32x2:
+        case fmir::Type::Int32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
         case fmir::Type::Int32x4:
@@ -3184,6 +3186,7 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_VCMPSD;
           break;
+        case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VCMPPS;

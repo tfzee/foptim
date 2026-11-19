@@ -88,7 +88,8 @@ std::optional<Seed> find_reduction(fir::BasicBlock bb, size_t instr_id,
              binsub == fir::BinaryInstrSubType::Xor;
     is_associative = binsub == fir::BinaryInstrSubType::IntAdd || isFold;
     is_associative |= conf.optim.fltOpt.associative_math &&
-                      binsub == fir::BinaryInstrSubType::FloatAdd;
+                      (binsub == fir::BinaryInstrSubType::FloatAdd ||
+                       binsub == fir::BinaryInstrSubType::FloatMul);
   } else if (base_instr->is(fir::InstrType::Intrinsic)) {
     switch (static_cast<fir::IntrinsicSubType>(subtype)) {
       case fir::IntrinsicSubType::SMin:

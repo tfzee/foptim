@@ -75,6 +75,7 @@ fir::ValueR zero_vector(fir::Context &ctx, fir::TypeR elem, u32 lanes);
 // The reduce operation for the chain rooted in root, nullopt if the lanes have
 // to be extracted and combined as scalars.
 std::optional<fir::ReduceInstrSubType> reduce_op_for(fir::Instr root, u32 lanes,
+                                                     bool assoc,
                                                      const Features &features);
 // The operations that are lowered by halving the vector.
 std::optional<fir::ReduceInstrSubType> halving_op_for(fir::Instr root,

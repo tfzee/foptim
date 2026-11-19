@@ -31,7 +31,8 @@ fir::ValueR fold_lanes(fir::Context &ctx, fir::Builder &bb, fir::ValueR vec,
   };
   auto vty = vec.get_type()->as_vec();
   u32 lanes = static_cast<u32>(vty.member_number);
-  if (binary && lanes * elem->get_bitwidth() == 256) {
+  // halving would reassociate a float chain
+  if (binary && !elem->is_float() && lanes * elem->get_bitwidth() == 256) {
     lanes /= 2;
     auto half = ctx->get_vec_type(elem, lanes);
     auto lo = bb.build_vector_op(vec, half, fir::VectorISubType::ExtractLow);
@@ -121,7 +122,7 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
       auto orig_instr = seed.base.as_instr();
       ASSERT(n.children.size() == 1);
       const auto &features = ctx.config->target.features;
-      const auto red_op = reduce_op_for(orig_instr, n.n_lanes, features);
+      const auto red_op = reduce_op_for(orig_instr, n.n_lanes, n.assoc, features);
       auto vec = emit_child(0);
       fir::Builder bb{orig_instr};
       bb.after(orig_instr);
@@ -261,6 +262,7 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
     TVec<fir::ValueR> base{b.base};
     init_back(red, base, InitCtx{.info = info, .parent_loc = {}});
     red.n_lanes = static_cast<u32>(b.data.size());
+    red.assoc = b.assoc;
     red.value = b.base;
     root_parent = add_node(NoNode, std::move(red));
   }

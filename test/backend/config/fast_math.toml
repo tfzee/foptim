@@ -1,0 +1,5 @@
+config_version = 1
+include = ["Default"]
+
+[optimize.float]
+associative_math = true
