@@ -24,13 +24,13 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
-#include "optim/helper/helper.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/func_passes/inst_fold.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/inst_simplify/simplify_binary.hpp"
 #include "optim/func_passes/inst_simplify/simplify_fcmp.hpp"
 #include "optim/func_passes/inst_simplify/simplify_icmp.hpp"
+#include "optim/helper/helper.hpp"
 #include "utils/set.hpp"
 #include "utils/tracy.hpp"
 
@@ -304,7 +304,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
         instr.add_bb_arg(1, arg);
       }
       instr.replace_arg(0, cond->args[0]);
-      worklist.push_back({instr, instr->get_parent()});
+      push_instr(worklist, instr);
       return true;
     }
   }
@@ -502,7 +502,8 @@ bool simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
 }
 
 bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
-                     fir::Context &ctx, WorkList &worklist) {
+                     fir::Context &ctx, WorkList &worklist,
+                     AttributerManager &man) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyExtend");
   }
@@ -557,8 +558,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return true;
   }
-  if ((instr->is(fir::InstrType::SExt) || iszext) &&
-      instr->args[0].is_instr()) {
+  if (instr->is_ext() && instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
     if (argi->is(fir::InstrType::ZExt)) {
       // just to make sure incase that didnt get cleaned up yet
@@ -611,6 +611,21 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr->replace_all_uses(new_result);
     instr.destroy();
     return true;
+  }
+  if (!iszext && instr->result_type()->is_int() &&
+      instr->args[0].get_type()->is_int() && !instr->args[0].is_constant()) {
+    auto *arg_known_bits =
+        man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    man.run(ctx);
+    if (arg_known_bits->is_non_negative()) {
+      fir::Builder b(instr);
+      auto new_result =
+          b.build_zext(instr->args[0], instr->result_type(), /*nneg=*/true);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_result);
+      instr.destroy();
+      return true;
+    }
   }
   return false;
 }
@@ -694,7 +709,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     auto out_type = instr->result_type();
     (void)out_type;
 
-    if ((arg_i->is(fir::InstrType::SExt) || arg_i->is(fir::InstrType::ZExt)) &&
+    if (arg_i->is_ext() &&
         arg_i->args[0].get_type() == instr.result_type()) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(arg_i->args[0]);
@@ -708,9 +723,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       if (v.is_constant()) {
         return true;
       }
-      return v.is_instr() &&
-             (v.as_instr()->is(fir::InstrType::SExt) ||
-              v.as_instr()->is(fir::InstrType::ZExt)) &&
+      return v.is_instr() && v.as_instr()->is_ext() &&
              v.as_instr()->args[0].get_type() == out_type;
     };
     const bool may_duplicate =
@@ -742,10 +755,8 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                     v0, v1,
                     static_cast<fir::BinaryInstrSubType>(arg_i->subtype));
                 push_all_uses(worklist, instr);
-                worklist.push_back(
-                    {v0.as_instr(), v0.as_instr()->get_parent()});
-                worklist.push_back(
-                    {v1.as_instr(), v1.as_instr()->get_parent()});
+                push_instr(worklist, v0);
+                push_instr(worklist, v1);
                 instr->replace_all_uses(r);
                 instr.destroy();
                 return true;
@@ -763,8 +774,8 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             auto v1 = b.build_itrunc(i_arg1, out_type);
             auto r = b.build_binary_op(
                 v0, v1, static_cast<fir::BinaryInstrSubType>(arg_i->subtype));
-            worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
-            worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
+            push_instr(worklist, v0);
+            push_instr(worklist, v1);
             push_all_uses(worklist, r.as_instr());
             instr->replace_all_uses(r);
             instr.destroy();
@@ -782,6 +793,86 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
   auto *arg_known_bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
   man.run(ctx);
+  // dont *need* disjoint however its a good proxy to not waste time since the
+  // man should annotate it mostlikely
+  if (instr->args[0].is_instr(fir::BinaryInstrSubType::Or) &&
+      instr->args[0].as_instr()->Disjoint) {
+    auto or_instr = instr->args[0].as_instr();
+    auto *arg0_known_bits =
+        man.get_or_create_analysis<KnownBits>(or_instr->args[0]);
+    auto *arg1_known_bits =
+        man.get_or_create_analysis<KnownBits>(or_instr->args[1]);
+    man.run(ctx);
+    if (arg0_known_bits->known_zero.trunc(new_bitwidth).is_all_ones()) {
+      push_all_uses(worklist, instr);
+      fir::Builder buh{instr};
+      auto new_trunc =
+          buh.build_itrunc(or_instr->args[1], instr->result_type());
+      instr->replace_all_uses(fir::ValueR{new_trunc});
+      instr.destroy();
+      push_instr(worklist, new_trunc);
+      return true;
+    }
+    if (arg1_known_bits->known_zero.trunc(new_bitwidth).is_all_ones()) {
+      push_all_uses(worklist, instr);
+      fir::Builder buh{instr};
+      auto new_trunc =
+          buh.build_itrunc(or_instr->args[0], instr->result_type());
+      instr->replace_all_uses(fir::ValueR{new_trunc});
+      instr.destroy();
+      push_instr(worklist, new_trunc);
+      return true;
+    }
+  }
+  if (instr->args[0].is_instr(fir::BinaryInstrSubType::Shr) &&
+      instr->args[0].as_instr()->args[0].is_instr(
+          fir::BinaryInstrSubType::Or)) {
+    auto lshr_instr = instr->args[0].as_instr();
+    auto or_instr = lshr_instr->args[0].as_instr();
+    // an amount at or above the bitwidth is poison, only look at real shifts
+    const bool const_shift_in_range =
+        lshr_instr->args[1].is_constant_int() &&
+        lshr_instr->args[1].as_constant()->as_apint().ult(
+            APInt(lshr_instr->args[1].as_constant()->as_apint().bits(),
+                  u64{or_instr->result_type()->get_bitwidth()}));
+    if (or_instr->Disjoint && const_shift_in_range) {
+      auto shift_const = lshr_instr->args[1].as_constant()->as_apint();
+      const auto shift_amt = static_cast<u32>(shift_const.to_u64());
+      auto *arg0_known_bits =
+          man.get_or_create_analysis<KnownBits>(or_instr->args[0]);
+      auto *arg1_known_bits =
+          man.get_or_create_analysis<KnownBits>(or_instr->args[1]);
+      man.run(ctx);
+      if (arg0_known_bits->known_zero.lshr(shift_amt)
+              .trunc(new_bitwidth)
+              .is_all_ones()) {
+        push_all_uses(worklist, instr);
+        fir::Builder buh{instr};
+        auto new_shift = buh.build_lshr(
+            or_instr->args[1], fir::ValueR{ctx->get_constant_int(shift_const)});
+        auto new_trunc = buh.build_itrunc(new_shift, instr->result_type());
+        instr->replace_all_uses(fir::ValueR{new_trunc});
+        instr.destroy();
+        push_instr(worklist, new_shift);
+        push_instr(worklist, new_trunc);
+        return true;
+      }
+      if (arg1_known_bits->known_zero.lshr(shift_amt)
+              .trunc(new_bitwidth)
+              .is_all_ones()) {
+        push_all_uses(worklist, instr);
+        fir::Builder buh{instr};
+        auto new_shift = buh.build_lshr(
+            or_instr->args[0], fir::ValueR{ctx->get_constant_int(shift_const)});
+        auto new_trunc = buh.build_itrunc(new_shift, instr->result_type());
+        instr->replace_all_uses(fir::ValueR{new_trunc});
+        push_instr(worklist, new_shift);
+        push_instr(worklist, new_trunc);
+        instr.destroy();
+        return true;
+      }
+    }
+  }
   if (arg_known_bits->width() > new_bitwidth &&
       (arg_known_bits->known_one | arg_known_bits->known_zero)
           .trunc(new_bitwidth)
@@ -804,8 +895,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->is(fir::UnaryInstrSubType::IntNeg) &&
       instr->result_type()->get_bitwidth() == 1) {
     instr->subtype = static_cast<u32>(fir::UnaryInstrSubType::Not);
-    worklist.push_back(
-        InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
+    push_instr(worklist, instr);
     return true;
   }
   if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr() &&
@@ -1638,7 +1728,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
     auto v = orig_v;
     for (u32 i = 1; i < extend_to; i++) {
       auto ext = bb.build_zext(in_val, out_type);
-      worklist.push_back({ext.as_instr(), ext.as_instr()->get_parent()});
+      push_instr(worklist, ext);
       auto add = bb.build_binary_op(
           ext, fir::ValueR{ctx->get_constant_value(i * 8, out_type)},
           fir::BinaryInstrSubType::Shl);
@@ -1649,7 +1739,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
     }
     auto res = bb.build_conversion_op(v, instr->result_type(),
                                       fir::ConversionSubType::BitCast);
-    worklist.push_back({orig_v.as_instr(), orig_v.as_instr()->get_parent()});
+    push_instr(worklist, orig_v);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(res);
     instr.destroy();
@@ -1885,7 +1975,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return simplify_switch_branch(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::SExt || instr_ty == InstrType::ZExt) {
-    return simplify_extend(instr, bb, ctx, worklist);
+    return simplify_extend(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::ITrunc) {
     return simplify_itrunc(instr, bb, ctx, worklist, man);

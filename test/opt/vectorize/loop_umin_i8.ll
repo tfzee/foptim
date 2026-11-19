@@ -25,7 +25,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %18: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%19{}: i64):
 ; CHECK-NEXT:    %20: i64 = And(%5, -32:i64){} NUses:3
-; CHECK-NEXT:    %21: i64 = IntAdd(%20, %19){NSW; } NUses:1
+; CHECK-NEXT:    %21: i64 = IntAdd(%20, %19){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %22: i1 = IntEQ(%20, 0:i64){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb3(%19), bb4(%19)>(%22){} NUses:0
 ; CHECK-NEXT:  bb4(%24{}: i64):

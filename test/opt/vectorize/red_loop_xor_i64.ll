@@ -20,7 +20,7 @@ define i64 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %15: i64 = Return(%14){} NUses:0
 ; CHECK-NEXT:  bb1(%16{}: i64, %17{}: i64):
 ; CHECK-NEXT:    %18: i64 = And(%3, -4:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: 4@i64 = V.Broadcast(0:i64){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21)>(%20){} NUses:0

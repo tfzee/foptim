@@ -43,7 +43,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %36: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%37{}: i64):
 ; CHECK-NEXT:    %38: i64 = And(%6, -8:i64){} NUses:3
-; CHECK-NEXT:    %39: i64 = IntAdd(%38, %37){NSW; } NUses:1
+; CHECK-NEXT:    %39: i64 = IntAdd(%38, %37){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %40: i1 = IntEQ(%38, 0:i64){} NUses:1
 ; CHECK-NEXT:    %41: 8@i32 = V.Broadcast(1:i32){} NUses:1
 ; CHECK-NEXT:    %42: () = CondBranch<bb3(%37), bb7(%37)>(%40){} NUses:0
@@ -62,7 +62,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %55: () = CondBranch<bb2(), bb3(%53)>(%54){} NUses:0
 ; CHECK-NEXT:  bb4(%56{}: i64):
 ; CHECK-NEXT:    %57: i64 = And(%24, -8:i64){} NUses:3
-; CHECK-NEXT:    %58: i64 = IntAdd(%57, %56){NSW; } NUses:1
+; CHECK-NEXT:    %58: i64 = IntAdd(%57, %56){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %59: i1 = IntEQ(%57, 0:i64){} NUses:1
 ; CHECK-NEXT:    %60: 8@i32 = V.Broadcast(3:i32){} NUses:1
 ; CHECK-NEXT:    %61: () = CondBranch<bb6(%56), bb9(%56)>(%59){} NUses:0

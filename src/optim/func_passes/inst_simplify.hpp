@@ -1,6 +1,4 @@
 #pragma once
-#include <type_traits>
-
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -29,6 +27,14 @@ inline void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
     worklist.emplace_back(use.user, use.user->parent);
   }
+}
+
+// queues a new or changed instruction
+inline void push_instr(WorkList &worklist, fir::Instr instr) {
+  worklist.emplace_back(instr, instr->parent);
+}
+inline void push_instr(WorkList &worklist, fir::ValueR v) {
+  push_instr(worklist, v.as_instr());
 }
 
 }  // namespace InstSimp

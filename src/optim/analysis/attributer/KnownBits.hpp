@@ -82,51 +82,162 @@ class KnownBits final : public AttributeAnalysis,
       return false;
     }
     auto instr = associatedValue.as_instr();
-    if (instr->is(fir::BinaryInstrSubType::IntAdd) ||
-        instr->is(fir::BinaryInstrSubType::PtrAdd)) {
+    if (instr->is(fir::BinaryInstrSubType::Or)) {
       const auto *known_arg0_bits = m.get_analysis<KnownBits>(instr->args[0]);
       const auto *known_arg1_bits = m.get_analysis<KnownBits>(instr->args[1]);
       if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
         return false;
       }
       const u32 bitwidth = instr->result_type()->get_bitwidth();
-      if (known_arg0_bits->width() != bitwidth ||
-          known_arg1_bits->width() != bitwidth) {
-        return false;
+      ASSERT(known_arg0_bits->width() == bitwidth &&
+             known_arg1_bits->width() == bitwidth);
+      if ((~known_arg0_bits->known_zero & ~known_arg1_bits->known_zero)
+              .is_zero() && !instr->Disjoint) {
+        instr->Disjoint = true;
+        modified = true;
       }
-      // the sums are computed one bit wider so they cannot wrap
-      const u32 wide = bitwidth + 1;
-      {
-        const APInt biggest_val =
-            known_arg0_bits->get_signed_max_value().sext(wide) +
-            known_arg1_bits->get_signed_max_value().sext(wide);
-        const APInt smallest_val =
-            known_arg0_bits->get_signed_min_value().sext(wide) +
-            known_arg1_bits->get_signed_min_value().sext(wide);
-        const APInt signed_max = APInt::signed_max(bitwidth).sext(wide);
-        const APInt signed_min = APInt::signed_min(bitwidth).sext(wide);
-        if (biggest_val.slt(signed_max) && smallest_val.sge(signed_min) &&
-            !instr->NSW) {
-          instr->NSW = true;
+    } else if (instr->is_add_like() ||
+               instr->is(fir::BinaryInstrSubType::IntSub) ||
+               instr->is(fir::BinaryInstrSubType::IntMul) ||
+               instr->is(fir::BinaryInstrSubType::Shl)) {
+      if (instr->result_type()->is_int_or_ptr()) {
+        modified |= materialize_wrap_flags(instr, m);
+      }
+    } else if (instr->is(fir::InstrType::ZExt)) {
+      if (!instr->NNeg && instr->result_type()->is_int()) {
+        const auto *a = m.get_analysis<KnownBits>(instr->args[0]);
+        if (a != nullptr && a->is_non_negative()) {
+          instr->NNeg = true;
           modified = true;
         }
       }
-      {
-        const APInt biggest_val =
-            known_arg0_bits->get_unsigned_max_value().zext(wide) +
-            known_arg1_bits->get_unsigned_max_value().zext(wide);
-        const APInt smallest_val =
-            known_arg0_bits->get_unsigned_min_value().zext(wide) +
-            known_arg1_bits->get_unsigned_min_value().zext(wide);
-        const APInt unsigned_max = APInt::all_ones(bitwidth).zext(wide);
-        if (biggest_val.ult(unsigned_max) && !smallest_val.is_zero() &&
-            !instr->NUW) {
-          instr->NUW = true;
-          modified = true;
-        }
+    } else if (instr->is(fir::BinaryInstrSubType::Shr) ||
+               instr->is(fir::BinaryInstrSubType::AShr) ||
+               instr->is(fir::BinaryInstrSubType::IntUDiv) ||
+               instr->is(fir::BinaryInstrSubType::IntSDiv)) {
+      if (instr->result_type()->is_int()) {
+        modified |= materialize_exact(instr, m);
       }
     }
     return modified;
+  }
+
+  // nuw / nsw of add, sub, mul and shl by a constant
+  static bool materialize_wrap_flags(fir::Instr instr,
+                                     const AttributerManager &m) {
+    const auto *a = m.get_analysis<KnownBits>(instr->args[0]);
+    const auto *b = m.get_analysis<KnownBits>(instr->args[1]);
+    if (a == nullptr || b == nullptr) {
+      return false;
+    }
+    const u32 bitwidth = instr->result_type()->get_bitwidth();
+    if (a->width() != bitwidth || b->width() != bitwidth) {
+      return false;
+    }
+    bool nuw = false;
+    bool nsw = false;
+    if (instr->is_add_like()) {
+      // the sums are computed one bit wider so they cannot wrap
+      const u32 wide = bitwidth + 1;
+      const APInt uhi = a->get_unsigned_max_value().zext(wide) +
+                        b->get_unsigned_max_value().zext(wide);
+      nuw = uhi.ule(APInt::all_ones(bitwidth).zext(wide));
+      const APInt shi = a->get_signed_max_value().sext(wide) +
+                        b->get_signed_max_value().sext(wide);
+      const APInt slo = a->get_signed_min_value().sext(wide) +
+                        b->get_signed_min_value().sext(wide);
+      nsw = shi.sle(APInt::signed_max(bitwidth).sext(wide)) &&
+            slo.sge(APInt::signed_min(bitwidth).sext(wide));
+    } else if (instr->is(fir::BinaryInstrSubType::IntSub)) {
+      // a - b does not wrap unsigned if a >= b for all values
+      nuw = a->get_unsigned_min_value().uge(b->get_unsigned_max_value());
+      // one bit wider so the bounds cannot wrap
+      const u32 wide = bitwidth + 1;
+      const APInt hi = a->get_signed_max_value().sext(wide) -
+                       b->get_signed_min_value().sext(wide);
+      const APInt lo = a->get_signed_min_value().sext(wide) -
+                       b->get_signed_max_value().sext(wide);
+      nsw = hi.sle(APInt::signed_max(bitwidth).sext(wide)) &&
+            lo.sge(APInt::signed_min(bitwidth).sext(wide));
+    } else if (instr->is(fir::BinaryInstrSubType::IntMul)) {
+      bool ov = false;
+      (void)a->get_unsigned_max_value().umul_ov(b->get_unsigned_max_value(),
+                                                ov);
+      nuw = !ov;
+      // the product is bilinear so its extremes are at the corners
+      nsw = true;
+      for (const APInt &x :
+           {a->get_signed_min_value(), a->get_signed_max_value()}) {
+        for (const APInt &y :
+             {b->get_signed_min_value(), b->get_signed_max_value()}) {
+          bool corner_ov = false;
+          (void)x.smul_ov(y, corner_ov);
+          nsw &= !corner_ov;
+        }
+      }
+    } else {
+      // shl, only a constant amount below the bitwidth
+      if (!b->is_constant() || !b->known_one.fits_u64() ||
+          b->known_one.to_u64() >= bitwidth) {
+        return false;
+      }
+      const auto amt = static_cast<u32>(b->known_one.to_u64());
+      // no set bit is shifted out
+      nuw = a->get_unsigned_max_value().clz() >= amt;
+      const u32 wide = 2 * bitwidth;
+      const APInt hi = a->get_signed_max_value().sext(wide).shl(amt);
+      const APInt lo = a->get_signed_min_value().sext(wide).shl(amt);
+      nsw = hi.sle(APInt::signed_max(bitwidth).sext(wide)) &&
+            lo.sge(APInt::signed_min(bitwidth).sext(wide));
+    }
+    bool modified = false;
+    if (nuw && !instr->NUW) {
+      instr->NUW = true;
+      modified = true;
+    }
+    if (nsw && !instr->NSW) {
+      instr->NSW = true;
+      modified = true;
+    }
+    return modified;
+  }
+
+  // exact for right shifts and divisions by a constant power of two when the
+  // low bits of the dividend are known zero
+  static bool materialize_exact(fir::Instr instr, const AttributerManager &m) {
+    if (instr->Exact) {
+      return false;
+    }
+    const auto *a = m.get_analysis<KnownBits>(instr->args[0]);
+    const auto *b = m.get_analysis<KnownBits>(instr->args[1]);
+    if (a == nullptr || b == nullptr || !b->is_constant()) {
+      return false;
+    }
+    const u32 bitwidth = instr->result_type()->get_bitwidth();
+    if (a->width() != bitwidth || b->width() != bitwidth) {
+      return false;
+    }
+    u32 low_zero_bits = 0;
+    if (instr->is(fir::BinaryInstrSubType::Shr) ||
+        instr->is(fir::BinaryInstrSubType::AShr)) {
+      if (!b->known_one.fits_u64() || b->known_one.to_u64() >= bitwidth) {
+        return false;
+      }
+      low_zero_bits = static_cast<u32>(b->known_one.to_u64());
+    } else {
+      // positive power of two, the sign bit is not set for signed division
+      if (!b->known_one.is_pow2() ||
+          (instr->is(fir::BinaryInstrSubType::IntSDiv) &&
+           b->known_one.is_neg())) {
+        return false;
+      }
+      low_zero_bits = b->known_one.log2();
+    }
+    if ((~a->known_zero).ctz() >= low_zero_bits) {
+      instr->Exact = true;
+      return true;
+    }
+    return false;
   }
 
   enum BitInfo {
@@ -147,6 +258,12 @@ class KnownBits final : public AttributeAnalysis,
       return BitInfo::KnownZero;
     }
     return BitInfo::Unknown;
+  }
+  [[nodiscard]] bool is_non_negative() const {
+    return msb_info() == BitInfo::KnownZero;
+  }
+  [[nodiscard]] bool is_negative() const {
+    return msb_info() == BitInfo::KnownOne;
   }
 
   // the value is a power of two of a fully known value, returns its log2

@@ -19,7 +19,7 @@ define i32 @sum(ptr %p, i64 %n) {
 ; CHECK-NEXT:    %15: i32 = Return(%14){} NUses:0
 ; CHECK-NEXT:  bb1(%16{}: ptr, %17{}: i32, %18{}: i64):
 ; CHECK-NEXT:    %19: i64 = And(%3, -8:i64){} NUses:3
-; CHECK-NEXT:    %20: i64 = IntAdd(%19, %18){NSW; } NUses:1
+; CHECK-NEXT:    %20: i64 = IntAdd(%19, %18){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %21: i1 = IntEQ(%19, 0:i64){} NUses:1
 ; CHECK-NEXT:    %22: 8@i32 = V.Broadcast(0:i32){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb3(%16, %17, %18), bb4(%16, %22, %18)>(%21){} NUses:0

@@ -23,7 +23,7 @@ define void @f_add5(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %16: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%17{}: i64):
 ; CHECK-NEXT:    %18: i64 = And(%4, -8:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(5:i32){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0
@@ -81,7 +81,7 @@ define void @f_shl2(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %16: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%17{}: i64):
 ; CHECK-NEXT:    %18: i64 = And(%4, -8:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(2:i32){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0
@@ -139,7 +139,7 @@ define void @f_fmul_c(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %16: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%17{}: i64):
 ; CHECK-NEXT:    %18: i64 = And(%4, -8:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: 8@f32 = V.Broadcast(40200000:f32){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0

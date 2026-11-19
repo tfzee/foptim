@@ -30,7 +30,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %24: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%25{}: i64):
 ; CHECK-NEXT:    %26: i64 = And(%6, -8:i64){} NUses:3
-; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; } NUses:1
+; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %28: i1 = IntEQ(%26, 0:i64){} NUses:1
 ; CHECK-NEXT:    %29: 8@i32 = V.Broadcast(1:i32){} NUses:1
 ; CHECK-NEXT:    %30: () = CondBranch<bb3(%25), bb4(%25)>(%28){} NUses:0

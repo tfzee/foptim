@@ -21,7 +21,7 @@ define void @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %14: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%15{}: i64):
 ; CHECK-NEXT:    %16: i64 = And(%3, -8:i64){} NUses:3
-; CHECK-NEXT:    %17: i64 = IntAdd(%16, %15){NSW; } NUses:1
+; CHECK-NEXT:    %17: i64 = IntAdd(%16, %15){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %18: i1 = IntEQ(%16, 0:i64){} NUses:1
 ; CHECK-NEXT:    %19: 8@i32 = V.Broadcast(1:i32){} NUses:1
 ; CHECK-NEXT:    %20: () = CondBranch<bb3(%15), bb4(%15)>(%18){} NUses:0

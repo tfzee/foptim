@@ -155,14 +155,14 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr->args[1] = fir::ValueR{ctx->get_constant_int(
           instr->args[1].as_constant()->as_apint_resized(
               instr->args[0].get_type()->get_bitwidth()))};
-      worklist.push_back({instr, instr->get_parent()});
+      push_instr(worklist, instr);
       return true;
     }
 
     if (instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
       if (arg0->is(fir::BinaryInstrSubType::And) &&
-          arg0->args[1].is_const_int(1)) {
+          arg0->args[1].is_constant_int(1)) {
         // mask everything but lowest bit then when do eq/me on 0/1 then we can
         // also just truncate
         if ((c_val == 1 && sub_type == ICmpInstrSubType::EQ) ||
@@ -292,8 +292,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           auto negated =
               b.build_unary_op(instr->args[0], UnaryInstrSubType::Not);
           push_all_uses(worklist, instr);
-          worklist.push_back(
-              {negated.as_instr(), negated.as_instr()->get_parent()});
+          push_instr(worklist, negated);
           instr->replace_all_uses(negated);
           instr.destroy();
           return true;
@@ -317,7 +316,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
             1, fir::ValueR{ctx->get_constant_int(
                    instr->args[1].as_constant()->as_apint_resized(
                        x.get_type()->get_bitwidth()))});
-        worklist.emplace_back(instr, instr->get_parent());
+        push_instr(worklist, instr);
         return true;
       }
     }
@@ -400,18 +399,14 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           fir::Builder b{instr};
           auto truncated_val =
               b.build_itrunc(a1i->args[0], ctx->get_int_type(amount));
-          worklist.push_back({truncated_val.as_instr(),
-                              truncated_val.as_instr()->get_parent()});
+          push_instr(worklist, truncated_val);
           instr->SameSign = false;
           instr.replace_arg(0, truncated_val);
           auto truncated_o =
               b.build_itrunc(instr->args[1], ctx->get_int_type(amount));
-          worklist.push_back({truncated_val.as_instr(),
-                              truncated_val.as_instr()->get_parent()});
-          worklist.push_back({truncated_val.as_instr(),
-                              truncated_val.as_instr()->get_parent()});
-          worklist.push_back(
-              {truncated_o.as_instr(), truncated_o.as_instr()->get_parent()});
+          push_instr(worklist, truncated_val);
+          push_instr(worklist, truncated_val);
+          push_instr(worklist, truncated_o);
           instr.replace_arg(1, truncated_o);
           return true;
         }

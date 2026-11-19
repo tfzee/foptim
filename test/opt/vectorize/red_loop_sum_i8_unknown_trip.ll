@@ -20,7 +20,7 @@ define i8 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %14: i8 = Return(%13){} NUses:0
 ; CHECK-NEXT:  bb1(%15{}: i64, %16{}: i8):
 ; CHECK-NEXT:    %17: i64 = And(%3, -32:i64){} NUses:3
-; CHECK-NEXT:    %18: i64 = IntAdd(%17, %15){NSW; } NUses:1
+; CHECK-NEXT:    %18: i64 = IntAdd(%17, %15){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %19: i1 = IntEQ(%17, 0:i64){} NUses:1
 ; CHECK-NEXT:    %20: 32@i8 = V.Broadcast(0:i8){} NUses:1
 ; CHECK-NEXT:    %21: () = CondBranch<bb3(%15, %16), bb4(%15, %20)>(%19){} NUses:0

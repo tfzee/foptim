@@ -25,7 +25,7 @@ define void @f_add(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %19: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64):
 ; CHECK-NEXT:    %21: i64 = And(%5, -4:i64){} NUses:3
-; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64):
@@ -88,7 +88,7 @@ define void @f_sub(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %19: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64):
 ; CHECK-NEXT:    %21: i64 = And(%5, -4:i64){} NUses:3
-; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64):
@@ -193,7 +193,7 @@ define void @f_and(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %19: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64):
 ; CHECK-NEXT:    %21: i64 = And(%5, -4:i64){} NUses:3
-; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64):
@@ -256,7 +256,7 @@ define void @f_xor(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %19: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64):
 ; CHECK-NEXT:    %21: i64 = And(%5, -4:i64){} NUses:3
-; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64):
@@ -319,7 +319,7 @@ define void @f_shl(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %19: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64):
 ; CHECK-NEXT:    %21: i64 = And(%5, -4:i64){} NUses:3
-; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64):

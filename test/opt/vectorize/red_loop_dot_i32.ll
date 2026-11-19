@@ -23,7 +23,7 @@ define i32 @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %19: i32 = Return(%18){} NUses:0
 ; CHECK-NEXT:  bb1(%20{}: i64, %21{}: i32):
 ; CHECK-NEXT:    %22: i64 = And(%4, -8:i64){} NUses:3
-; CHECK-NEXT:    %23: i64 = IntAdd(%22, %20){NSW; } NUses:1
+; CHECK-NEXT:    %23: i64 = IntAdd(%22, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %24: i1 = IntEQ(%22, 0:i64){} NUses:1
 ; CHECK-NEXT:    %25: 8@i32 = V.Broadcast(0:i32){} NUses:1
 ; CHECK-NEXT:    %26: () = CondBranch<bb3(%20, %21), bb4(%20, %25)>(%24){} NUses:0

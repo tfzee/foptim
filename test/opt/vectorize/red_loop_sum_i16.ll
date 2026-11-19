@@ -21,7 +21,7 @@ define i16 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %15: i16 = Return(%14){} NUses:0
 ; CHECK-NEXT:  bb1(%16{}: i64, %17{}: i16):
 ; CHECK-NEXT:    %18: i64 = And(%3, -16:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: 16@i16 = V.Broadcast(0:i16){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21)>(%20){} NUses:0

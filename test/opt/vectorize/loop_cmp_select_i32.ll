@@ -28,7 +28,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %22: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%23{}: i64):
 ; CHECK-NEXT:    %24: i64 = And(%5, -8:i64){} NUses:3
-; CHECK-NEXT:    %25: i64 = IntAdd(%24, %23){NSW; } NUses:1
+; CHECK-NEXT:    %25: i64 = IntAdd(%24, %23){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %26: i1 = IntEQ(%24, 0:i64){} NUses:1
 ; CHECK-NEXT:    %27: 8@i32 = V.Broadcast(3:i32){} NUses:1
 ; CHECK-NEXT:    %28: 8@i32 = V.Broadcast(7:i32){} NUses:1

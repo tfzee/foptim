@@ -224,7 +224,7 @@ class Expander {
   // r += v << (64 * pos), the carry ripples up to the top limb
   void add_at(fir::Builder &b, Limbs &r, size_t pos, fir::ValueR v) {
     for (; pos < r.size(); pos++) {
-      if (r[pos].is_const_int(0)) {
+      if (r[pos].is_constant_int(0)) {
         r[pos] = v;
         return;
       }

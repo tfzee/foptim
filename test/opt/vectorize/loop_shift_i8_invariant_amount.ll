@@ -24,7 +24,7 @@ define void @shl_i8(ptr noalias %d, ptr noalias %s, i64 %n, i8 %amt) {
 ; CHECK-NEXT:    %16: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%17{}: i64):
 ; CHECK-NEXT:    %18: i64 = And(%5, -32:i64){} NUses:3
-; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; } NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
 ; CHECK-NEXT:    %21: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%22{}: i64):
@@ -85,7 +85,7 @@ define void @ashr_i16(ptr noalias %d, ptr noalias %s, i64 %n, i16 %amt) {
 ; CHECK-NEXT:    %17: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb1(%18{}: i64):
 ; CHECK-NEXT:    %19: i64 = And(%5, -16:i64){} NUses:3
-; CHECK-NEXT:    %20: i64 = IntAdd(%19, %18){NSW; } NUses:1
+; CHECK-NEXT:    %20: i64 = IntAdd(%19, %18){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %21: i1 = IntEQ(%19, 0:i64){} NUses:1
 ; CHECK-NEXT:    %22: 16@i16 = V.Broadcast(%3){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb3(%18), bb4(%18)>(%21){} NUses:0

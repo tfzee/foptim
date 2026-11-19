@@ -547,6 +547,22 @@ class InstrData : public Used, public InstrAttribs {
     return ty == instr_type;
   }
 
+  [[nodiscard]] constexpr bool is_ext() const {
+    return instr_type == InstrType::SExt || instr_type == InstrType::ZExt;
+  }
+
+  // the value is the sign extension of the operand, a zext of a non negative
+  // value is the same
+  [[nodiscard]] constexpr bool is_sext_like() const {
+    return instr_type == InstrType::SExt ||
+           (instr_type == InstrType::ZExt && NNeg);
+  }
+
+  // int and pointer addition, the operand types still differ
+  [[nodiscard]] constexpr bool is_add_like() const {
+    return is(BinaryInstrSubType::IntAdd) || is(BinaryInstrSubType::PtrAdd);
+  }
+
   [[nodiscard]] constexpr bool is(ICmpInstrSubType ty) const {
     return instr_type == InstrType::ICmp && subtype == static_cast<u32>(ty);
   }

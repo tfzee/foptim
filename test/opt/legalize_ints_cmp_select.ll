@@ -49,9 +49,9 @@ define i1 @slt96(i96 %a, i96 %b) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64, %1{}: i64, %2{}: i64, %3{}: i64):
 ; CHECK-NEXT:    %4: i64 = Shl(%1, 32:i64){} NUses:1
-; CHECK-NEXT:    %5: i64 = AShR(%4, 32:i64){} NUses:2
+; CHECK-NEXT:    %5: i64 = AShR(%4, 32:i64){Exact; } NUses:2
 ; CHECK-NEXT:    %6: i64 = Shl(%3, 32:i64){} NUses:1
-; CHECK-NEXT:    %7: i64 = AShR(%6, 32:i64){} NUses:2
+; CHECK-NEXT:    %7: i64 = AShR(%6, 32:i64){Exact; } NUses:2
 ; CHECK-NEXT:    %8: i1 = IntULT(%0, %2){} NUses:1
 ; CHECK-NEXT:    %9: i1 = IntSLT(%5, %7){} NUses:1
 ; CHECK-NEXT:    %10: i1 = IntEQ(%5, %7){} NUses:1

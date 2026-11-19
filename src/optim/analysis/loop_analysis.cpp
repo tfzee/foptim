@@ -1171,11 +1171,10 @@ SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
             }
           }
         }
-      } else if (instr->is(fir::InstrType::ZExt) ||
-                 instr->is(fir::InstrType::SExt)) {
+      } else if (instr->is_ext()) {
         if (instr->args[0].get_type()->is_int()) {
-          r = mk_ext(expr_of(instr->args[0], depth + 1),
-                     instr->is(fir::InstrType::SExt), bw);
+          r = mk_ext(expr_of(instr->args[0], depth + 1), instr->is_sext_like(),
+                     bw);
         }
       } else if (instr->is(fir::InstrType::ITrunc)) {
         if (instr->args[0].get_type()->is_int()) {

@@ -514,7 +514,7 @@ bool extract_match(const TVec<fir::ValueR> &values, BundleCtx & /*ctx*/) {
     if (i->instr_type != base_v->instr_type || i->subtype != base_v->subtype) {
       return false;
     }
-    if (!i->args[1].is_const_int(exp_off) || i->args[0] != input_val) {
+    if (!i->args[1].is_constant_int(exp_off) || i->args[0] != input_val) {
       return false;
     }
     exp_off++;
@@ -845,7 +845,7 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
     case fir::IntrinsicSubType::InlineAsmPure:
     case fir::IntrinsicSubType::TlsAddress:
     case fir::IntrinsicSubType::FrameAddress:
-      return false;
+      // return false;
     // no vector forms in the backend
     case fir::IntrinsicSubType::PopCnt:
     case fir::IntrinsicSubType::CTLZ:

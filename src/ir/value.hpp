@@ -76,7 +76,7 @@ class ValueR {
   [[nodiscard]] constexpr bool is_constant_global() const {
     return kind == ValueType::ConstantValueR && const_val->is_global();
   }
-  [[nodiscard]] constexpr bool is_const_int(i128 v) const {
+  [[nodiscard]] constexpr bool is_constant_int(i128 v) const {
     return kind == ValueType::ConstantValueR && const_val->is_int() &&
            const_val->as_int_sat() == v;
   }

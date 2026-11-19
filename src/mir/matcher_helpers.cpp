@@ -124,8 +124,10 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                                          : fir::FunctionType::ByVal{};
     if (bv.size == 0) {
       evaluated_args.push_back(
-          {setup_callargPosMem(call_instr->args[arg_id], res, data, call_instr),
-           0, 0});
+          {.value = setup_callargPosMem(call_instr->args[arg_id], res, data,
+                                        call_instr),
+           .byval_size = 0,
+           .byval_align = 0});
       continue;
     }
     if (bv.align > 16 || bv.size < 8) {
@@ -139,7 +141,7 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                               base);
       base = MArgument(helper, Type::Int64);
     }
-    Arg a{base, bv.size, bv.align};
+    Arg a{.value = base, .byval_size = bv.size, .byval_align = bv.align};
     if (const u32 tail = bv.size % 8; tail != 0) {
       a.tail = MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
       res.result.emplace_back(
@@ -158,7 +160,7 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
     const u32 n_qwords = (arg.byval_size + 7) / 8;
     const u32 tail = arg.byval_size % 8;
     for (u32 q = 0; q < n_qwords; q++) {
-      MArgument value = MArgument::MemOB(8 * q, arg.value.reg, Type::Int64);
+      MArgument value = MArgument::MemOB(8UL * q, arg.value.reg, Type::Int64);
       if (tail != 0 && q + 1 == n_qwords) {
         value = arg.tail;
       }
@@ -519,8 +521,8 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
       if (i->args[0].is_instr() &&
           i->args[0].as_instr()->is(fir::BinaryInstrSubType::IntMul)) {
         auto i2 = i->args[0].as_instr();
-        if (i2->args[1].is_const_int(1) || i2->args[1].is_const_int(2) ||
-            i2->args[1].is_const_int(4) || i2->args[1].is_const_int(8)) {
+        if (i2->args[1].is_constant_int(1) || i2->args[1].is_constant_int(2) ||
+            i2->args[1].is_constant_int(4) || i2->args[1].is_constant_int(8)) {
           auto arg1 = valueToArg(i2->args[0], res, alloc);
           auto scale = valueToArg(i2->args[1], res, alloc);
           auto off = valueToArg(i->args[1], res, alloc);
@@ -563,8 +565,8 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
       if (i->args[1].is_instr() &&
           i->args[1].as_instr()->is(fir::BinaryInstrSubType::IntMul)) {
         auto i2 = i->args[1].as_instr();
-        if (i2->args[1].is_const_int(1) || i2->args[1].is_const_int(2) ||
-            i2->args[1].is_const_int(4) || i2->args[1].is_const_int(8)) {
+        if (i2->args[1].is_constant_int(1) || i2->args[1].is_constant_int(2) ||
+            i2->args[1].is_constant_int(4) || i2->args[1].is_constant_int(8)) {
           auto arg1 = valueToArg(i2->args[0], res, alloc);
           auto scale = valueToArg(i2->args[1], res, alloc);
           auto off = valueToArg(i->args[0], res, alloc);
@@ -645,7 +647,7 @@ void setup_va_start(fir::Instr &va_instr, MatchResult &res,
                           MArgument(static_cast<u32>(8) * n_int_args));
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(4, ptr_arg.reg, Type::Int32),
-                          MArgument(static_cast<u32>(48) + 16 * n_vec_args));
+                          MArgument(static_cast<u32>(48) + (16U * n_vec_args)));
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));

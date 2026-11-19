@@ -33,7 +33,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %24: () = Branch<bb5()>(){} NUses:0
 ; CHECK-NEXT:  bb1(%25{}: i64):
 ; CHECK-NEXT:    %26: i64 = And(%5, -8:i64){} NUses:3
-; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; } NUses:1
+; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %28: i1 = IntEQ(%26, 0:i64){} NUses:1
 ; CHECK-NEXT:    %29: () = CondBranch<bb3(%25), bb7(%25)>(%28){} NUses:0
 ; CHECK-NEXT:  bb7(%30{}: i64):

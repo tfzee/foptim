@@ -63,7 +63,7 @@ define i128 @loop(i128 %n) {
 ; CHECK-NEXT:    %7: i1 = IntUGT(1:i64, %6){} NUses:1
 ; CHECK-NEXT:    %8: i64 = ZExt(%7){} NUses:1
 ; CHECK-NEXT:    %9: i64 = IntAdd(%8, %4){} NUses:1
-; CHECK-NEXT:    %10: i64 = IntAdd(%9, 0:i64){} NUses:4
+; CHECK-NEXT:    %10: i64 = IntAdd(%9, 0:i64){NSW; NUW; } NUses:4
 ; CHECK-NEXT:    %11: i1 = IntULT(%5, %0){} NUses:1
 ; CHECK-NEXT:    %12: i1 = IntULT(%10, %1){} NUses:1
 ; CHECK-NEXT:    %13: i1 = IntEQ(%10, %1){} NUses:1

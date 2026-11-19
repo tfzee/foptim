@@ -34,9 +34,7 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     res.Escapes = true;
     return;
   }
-  if (i->is(fir::BinaryInstrSubType::IntAdd) ||
-      i->is(fir::BinaryInstrSubType::PtrAdd) ||
-      i->is(fir::IntrinsicSubType::TlsAddress)) {
+  if (i->is_add_like() || i->is(fir::IntrinsicSubType::TlsAddress)) {
     if (worklist != nullptr) {
       for (auto u : i->get_uses()) {
         worklist->push_back(u);
