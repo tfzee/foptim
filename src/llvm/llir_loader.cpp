@@ -745,6 +745,16 @@ void push_call_arg(const llvm::Value *arg,
 
 // GEP indices are sign extended to pointer width, so narrower indices must be
 // extended before they are multiplied and added to the pointer
+// what an alias finally points at, through alias chains (a D1 destructor alias
+// of a D2 alias of the base class destructor)
+static const llvm::Constant *resolve_alias_chain(const llvm::GlobalAlias *a) {
+  const llvm::Constant *c = a->getAliasee();
+  while (const auto *next = llvm::dyn_cast<llvm::GlobalAlias>(c)) {
+    c = next->getAliasee();
+  }
+  return c;
+}
+
 static foptim::fir::ValueR convert_gep_index(const llvm::Value *index,
                                              foptim::fir::Context &fctx,
                                              foptim::fir::FunctionR ffunc,
@@ -2649,11 +2659,12 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalAlias>(val)) {
     // aliases are set up after the initializers, a plain alias of a global
     // object (the C1 / D1 constructor aliases) points at the object itself
-    if (llvm::isa<llvm::GlobalObject>(d->getAliasee()) &&
-        valueToValue.contains(d->getAliasee())) {
+    const llvm::Constant *target = resolve_alias_chain(d);
+    if (llvm::isa<llvm::GlobalObject>(target) &&
+        valueToValue.contains(target)) {
       size_t reloc_off = output - glob->init_value;
       glob->reloc_info.push_back(
-          {reloc_off, valueToValue.at(d->getAliasee()).as_constant()});
+          {reloc_off, valueToValue.at(target).as_constant()});
       return;
     }
     llvm::errs() << "TODO: handle global init\n";
@@ -2774,7 +2785,7 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     //  and visiblity of the original since the alias might have more general
     //  one
     valueToValue.insert({static_cast<llvm::Value *>(&gval),
-                         valueToValue.at(val->getAliasee())});
+                         valueToValue.at(resolve_alias_chain(val))});
     auto aliased = valueToValue.at(val).as_constant();
     if (aliased->is_global()) {
       aliased->as_global()->min_align =
