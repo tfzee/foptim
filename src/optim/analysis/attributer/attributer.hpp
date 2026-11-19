@@ -1,13 +1,10 @@
 #pragma once
 #include <cstddef>
-#include <deque>
 #include <memory>
-#include <typeindex>
 #include <vector>
 
 #include "ir/context.hpp"
 #include "ir/value.hpp"
-#include "utils/arena.hpp"
 #include "utils/map.hpp"
 #include "utils/vec.hpp"
 
@@ -29,7 +26,7 @@ class Worklist {
  public:
   [[nodiscard]] bool empty() const { return head == items.size(); }
   void push_back(AttributeAnalysis *a) { items.push_back(a); }
-  AttributeAnalysis *front() const { return items[head]; }
+  [[nodiscard]] AttributeAnalysis *front() const { return items[head]; }
   void pop_front() {
     head++;
     if (head == items.size()) {
@@ -136,7 +133,7 @@ class AttributerManager {
       if (_chunk == _chunks.size()) {
         _chunks.push_back(std::make_unique<std::byte[]>(ChunkSize));
       }
-      const size_t base = reinterpret_cast<size_t>(_chunks[_chunk].get());
+      const auto base = reinterpret_cast<size_t>(_chunks[_chunk].get());
       const size_t aligned = (base + _chunk_off + align - 1) & ~(align - 1);
       const size_t off = aligned - base;
       if (off + size <= ChunkSize) {
@@ -148,11 +145,25 @@ class AttributerManager {
     }
   }
 
-  void reset() {
-    // keep the storage of the maps, only the entries are stale
+  // analyses are placement new into the pool, so they need an explicit
+  // destructor call (since now APInts own heap memory)
+  void destroy_analyses() {
     for (auto &[_, per_value] : _attribs) {
+      for (auto &[_, att] : per_value) {
+        att->~AttributeAnalysis();
+      }
       per_value.clear();
     }
+  }
+
+  AttributerManager() = default;
+  AttributerManager(const AttributerManager &) = delete;
+  AttributerManager &operator=(const AttributerManager &) = delete;
+  ~AttributerManager() { destroy_analyses(); }
+
+  void reset() {
+    // keep the storage of the maps, only the entries are stale
+    destroy_analyses();
     _inverse_dependencies.clear();
     _dep_nodes.clear();
     _forced.clear();
@@ -196,7 +207,8 @@ class AttributerManager {
     }
     AAna *analysis = nullptr;
     if (!_attribs.at(aa_typeid).contains(loc)) {
-      analysis = static_cast<AAna *>(pool_allocate(sizeof(AAna), alignof(AAna)));
+      analysis =
+          static_cast<AAna *>(pool_allocate(sizeof(AAna), alignof(AAna)));
       ASSERT(analysis);
       new (analysis) AAna();
       if (worklist) {
