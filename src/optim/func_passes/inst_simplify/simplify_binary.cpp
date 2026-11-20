@@ -633,6 +633,27 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (add_like && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
     auto no_wrap = instr->NUW && inner->NUW && instr->NSW && inner->NSW;
+    // ptradd(ptradd(p, c1), c2) -> ptradd(p, c1 + c2)
+    if (instr->is(fir::BinaryInstrSubType::PtrAdd) &&
+        inner->is(fir::BinaryInstrSubType::PtrAdd) &&
+        inner->args[1].is_constant_int() && instr->args[1].is_constant_int()) {
+      const auto bw = inner->args[1].get_type()->get_bitwidth();
+      const auto sum = inner->args[1].as_constant()->as_apint_resized(bw) +
+                       instr->args[1].as_constant()->as_apint_resized(bw);
+      fir::Builder b(instr);
+      auto res = b.build_binary_op(inner->args[0],
+                                   fir::ValueR{ctx->get_constant_int(sum)},
+                                   fir::BinaryInstrSubType::PtrAdd);
+      auto resi = res.as_instr();
+      resi->NUW = instr->NUW && inner->NUW;
+      resi->NSW = instr->NSW && inner->NSW;
+      resi->InBounds = instr->InBounds && inner->InBounds;
+      push_instr(worklist, res);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
     if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
         inner->args[1].is_constant_int() && instr->args[1].is_constant_int() &&
         inner->args[1].as_constant()->as_apint_resized(

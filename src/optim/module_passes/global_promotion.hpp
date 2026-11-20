@@ -91,9 +91,6 @@ class GlobalPromotion final : public ModulePass {
                 break;
             }
 
-            if (global->n_bytes >= 8) {
-              continue;
-            }
             if (global_global_reffed.contains(global)) {
               continue;
             }
@@ -107,6 +104,9 @@ class GlobalPromotion final : public ModulePass {
               } else {
                 continue;
               }
+            }
+            if (global->n_bytes >= 8) {
+              continue;
             }
             fir::Function *target_f = nullptr;
             TVec<fir::Use> uses{global->get_uses().begin(),
