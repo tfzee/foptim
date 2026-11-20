@@ -95,7 +95,8 @@ class LoopSimplify final : public FunctionPass {
     return false;
   }
 
-  bool propagate_to_after_loop(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
+  bool propagate_to_after_loop(CFG &cfg, Dominators &dom,
+                               LoopInfoAnalysis &loops, u32 loop_i) {
     // propagate side effect free expressions that depend on other expresions
     auto &loop = loops.info[loop_i];
     TSet<fir::BasicBlock> body_nodes_lut;
@@ -137,10 +138,38 @@ class LoopSimplify final : public FunctionPass {
           }
           uses.push_back(use);
         }
+        // a copy serves every use it dominates, so chains of copies do not
+        // expand shared subexpressions into trees
+        std::sort(uses.begin(), uses.end(),
+                  [&](const fir::Use &a, const fir::Use &b) {
+                    auto ba = a.user->get_parent();
+                    auto bb = b.user->get_parent();
+                    if (ba != bb) {
+                      return cfg.get_bb_id(ba) < cfg.get_bb_id(bb);
+                    }
+                    return ba->get_instr_id(a.user) < ba->get_instr_id(b.user);
+                  });
+        TVec<fir::Instr> copies;
         for (auto use : uses) {
-          fir::Builder b{use.user};
-          auto copied = b.insert_copy(instr, fir::MetaCopy::Types);
-          use.replace_use(copied.result());
+          auto use_bb = use.user->get_parent();
+          fir::Instr shared = fir::Instr{};
+          bool found = false;
+          for (auto c : copies) {
+            auto c_bb = c->get_parent();
+            if (c_bb == use_bb
+                    ? c_bb->get_instr_id(c) < c_bb->get_instr_id(use.user)
+                    : dom.strict_dominates(c_bb, use_bb)) {
+              shared = c;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            fir::Builder b{use.user};
+            shared = b.insert_copy(instr, fir::MetaCopy::Types);
+            copies.push_back(shared);
+          }
+          use.replace_use(shared.result());
           modified = true;
           utils::StatCollector::get().addi(1, "PropagateUseAfter",
                                            utils::StatCollector::StatFOptim);
@@ -564,7 +593,7 @@ class LoopSimplify final : public FunctionPass {
                                         loops.info.at(loop_ip1 - 1))) {
         modified = true;
       }
-      if (propagate_to_after_loop(cfg, loops, loop_ip1 - 1) ||
+      if (propagate_to_after_loop(cfg, dom, loops, loop_ip1 - 1) ||
           merge_same_diret_induct_var(cfg, loops, loop_ip1 - 1)) {
         modified = true;
         // loop_ip1 = 0;
