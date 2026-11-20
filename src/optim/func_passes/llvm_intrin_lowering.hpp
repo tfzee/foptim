@@ -572,8 +572,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                              fir::FunctionR callee) {
     auto *ctx = funcy.ctx;
     const auto libm = fir::intrinsic_libm_name(callee.func->name.c_str());
-    instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(
-                             ctx->get_function(libm.c_str()))});
+    instr.replace_arg(
+        0,
+        fir::ValueR{ctx->get_constant_value(ctx->get_function(libm.c_str()))});
   }
 
   void handle_ctlz(fir::Instr instr, fir::Function & /*funcy*/,
@@ -611,9 +612,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     fir::Builder bb{instr};
     // the x86-64 va_list is 24 bytes
     auto size = fir::ValueR{ctx->get_constant_value(24, ctx->get_int_type(64))};
-    auto cpy = bb.build_intrinsic(instr->args[1], instr->args[2], size,
-                                  fir::IntrinsicSubType::Memcpy,
-                                  ctx->get_void_type());
+    auto cpy =
+        bb.build_intrinsic(instr->args[1], instr->args[2], size,
+                           fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
     cpy.as_instr()->extra_type = ctx->get_int_type(8);
     instr.destroy();
   }
@@ -736,15 +737,16 @@ class LLVMInstrinsicLowering final : public FunctionPass {
 
   void handle_x86_pshufb(fir::Instr instr) {
     fir::Builder bb{instr};
-    auto res = bb.build_vector_op(instr->args[1], instr->args[2],
-                                  instr->result_type(),
-                                  fir::VectorISubType::ByteShuffle);
+    auto res =
+        bb.build_vector_op(instr->args[1], instr->args[2], instr->result_type(),
+                           fir::VectorISubType::ByteShuffle);
     instr->replace_all_uses(res);
     instr.destroy();
   }
 
   // vector shift of every lane by one scalar count (psllw, psrld, psrad, ...),
-  // a count above the lane width gives zero, or the sign for an arithmetic shift
+  // a count above the lane width gives zero, or the sign for an arithmetic
+  // shift
   void handle_x86_vec_shift(fir::Instr instr, fir::Function &func,
                             fir::BinaryInstrSubType kind) {
     fir::Builder bb{instr};
@@ -771,7 +773,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                     : fir::ValueR{ctx->get_constant_value(
                           IRVec<fir::ConstantValueR>(
                               vty->as_vec().member_number,
-                              ctx->get_constant_int(0, static_cast<u16>(lane_bits))),
+                              ctx->get_constant_int(
+                                  0, static_cast<u16>(lane_bits))),
                           vty)};
       } else {
         res = shift(instr->args[1], lane_const(c));
@@ -780,8 +783,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
       // the count is an unsigned 32 bit number (up to 64 bit for the q forms)
       auto wide = bb.build_zext(count, ctx->get_int_type(64));
       auto limit = fir::ValueR{ctx->get_constant_int(lane_bits - 1, 64)};
-      auto too_big =
-          bb.build_int_cmp(wide, limit, fir::ICmpInstrSubType::UGT);
+      auto too_big = bb.build_int_cmp(wide, limit, fir::ICmpInstrSubType::UGT);
       auto small = bb.build_select(ctx->get_int_type(64), too_big, limit, wide);
       auto amount = bb.build_itrunc(small, lane_ty);
       res = shift(instr->args[1], amount);
@@ -948,6 +950,35 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  void handle_bitreverse(fir::Instr instr, fir::Function &func) {
+    auto *ctx = func.ctx;
+    fir::Builder bb{instr};
+    u32 width = instr->result_type()->get_bitwidth();
+    auto cst = [&](u64 v) {
+      return fir::ValueR{ctx->get_constant_int(v, width)};
+    };
+    fir::ValueR cur = instr->args[1];
+    if (width > 8) {
+      cur = bb.build_intrinsic(cur, fir::IntrinsicSubType::Bswap);
+    }
+    const u64 masks[3] = {0x0F0F0F0F0F0F0F0FULL, 0x3333333333333333ULL,
+                          0x5555555555555555ULL};
+    const u64 shifts[3] = {4, 2, 1};
+    u64 wmask = width == 64 ? ~0ULL : ((1ULL << width) - 1);
+    for (size_t k = 0; k < 3; k++) {
+      u64 m = masks[k] & wmask;
+      auto lo = bb.build_binary_op(cur, cst(m), fir::BinaryInstrSubType::And);
+      auto hi = bb.build_binary_op(
+          bb.build_binary_op(cur, cst(shifts[k]), fir::BinaryInstrSubType::Shr),
+          cst(m), fir::BinaryInstrSubType::And);
+      auto lo_s =
+          bb.build_binary_op(lo, cst(shifts[k]), fir::BinaryInstrSubType::Shl);
+      cur = bb.build_binary_op(lo_s, hi, fir::BinaryInstrSubType::Or);
+    }
+    instr->replace_all_uses(cur);
+    instr.destroy();
+  }
+
   // a lowered call counts as modified
   bool modified = false;
 
@@ -1011,8 +1042,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         } else if (callee.func->name.starts_with("llvm.va_copy")) {
           handle_va_copy(instr, func, callee);
           modified = true;
-        } else if (callee.func->name.starts_with(
-                       "llvm.threadlocal.address")) {
+        } else if (callee.func->name.starts_with("llvm.threadlocal.address")) {
           handle_thread_local_address(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.get.rounding")) {
@@ -1021,7 +1051,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         } else if (callee.func->name.starts_with("llvm.x86.sse2.pause")) {
           instr.destroy();
           modified = true;
-        } else if (lower_x86_vec(instr, func, std::string_view{callee.func->name})) {
+        } else if (lower_x86_vec(instr, func,
+                                 std::string_view{callee.func->name})) {
           modified = true;
         } else if (callee.func->name == "llvm.x86.pclmulqdq") {
           handle_x86_pclmulqdq(instr);
@@ -1114,6 +1145,14 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                    instr->result_type()->get_bitwidth() >= 16 &&
                    instr->result_type()->get_bitwidth() <= 64) {
           handle_bswap(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.bitreverse.") &&
+                   instr->result_type()->is_int() &&
+                   (instr->result_type()->get_bitwidth() == 8 ||
+                    instr->result_type()->get_bitwidth() == 16 ||
+                    instr->result_type()->get_bitwidth() == 32 ||
+                    instr->result_type()->get_bitwidth() == 64)) {
+          handle_bitreverse(instr, func);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.ceil.")) {
           handle_ceil(instr, func, callee);
