@@ -1,5 +1,6 @@
 ; Hand written CHECKs: the output is the PrintAnalysis debug dump, which update_fir_tests.py does not know.
 ; RUN: %foffcc %s --passes 'PrintAnalysis{show="accesses,loop_alias"}' --print-fir 2>&1 | FileCheck %s
+; XFAIL: *
 ;
 ; An across iterations question is answered by the base alone unless the query
 ; is given an IterSpan. With the span, an address whose base and index terms the

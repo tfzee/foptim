@@ -37,9 +37,7 @@ define i24 @shl_shl_oversized(i24 %x) {
 ; CHECK-LABEL: func shl_shl_oversized<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i24):
-; CHECK-NEXT:    %1: i24 = Shl(%0, 16:i24){} NUses:1
-; CHECK-NEXT:    %2: i24 = Shl(%1, 16:i24){} NUses:1
-; CHECK-NEXT:    %3: i24 = Return(%2){} NUses:0
+; CHECK-NEXT:    %1: i24 = Return(0:i24){} NUses:0
 ; CHECK-NEXT:}
   %a = shl i24 %x, 16
   %b = shl i24 %a, 16
@@ -60,9 +58,7 @@ define i128 @lshr_lshr_wide(i128 %x) {
 ; CHECK-LABEL: func lshr_lshr_wide<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i128):
-; CHECK-NEXT:    %1: i128 = LShR(%0, 100:i128){} NUses:1
-; CHECK-NEXT:    %2: i128 = LShR(%1, 28:i128){} NUses:1
-; CHECK-NEXT:    %3: i128 = Return(%2){} NUses:0
+; CHECK-NEXT:    %1: i128 = Return(0:i128){} NUses:0
 ; CHECK-NEXT:}
   %a = lshr i128 %x, 100
   %b = lshr i128 %a, 28
@@ -108,9 +104,9 @@ define i32 @sdiv_sdiv_wraps(i32 %x) {
 ; CHECK-NEXT:  bb0(%0{}: i32):
 ; CHECK-NEXT:    %1: i32 = AShR(%0, 31:i32){} NUses:1
 ; CHECK-NEXT:    %2: i32 = LShR(%1, 16:i32){} NUses:1
-; CHECK-NEXT:    %3: i32 = IntAdd(%0, %2){} NUses:1
-; CHECK-NEXT:    %4: i32 = AShR(%3, 16:i32){} NUses:2
-; CHECK-NEXT:    %5: i32 = AShR(%4, 31:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = IntAdd(%0, %2){} NUses:2
+; CHECK-NEXT:    %4: i32 = AShR(%3, 16:i32){} NUses:1
+; CHECK-NEXT:    %5: i32 = AShR(%3, 31:i32){} NUses:1
 ; CHECK-NEXT:    %6: i32 = LShR(%5, 16:i32){} NUses:1
 ; CHECK-NEXT:    %7: i32 = IntAdd(%4, %6){} NUses:1
 ; CHECK-NEXT:    %8: i32 = AShR(%7, 16:i32){} NUses:1

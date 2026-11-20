@@ -23,6 +23,90 @@ fir::ValueR int_const_like(fir::Context &ctx, fir::TypeR ty, i128 v) {
   return fir::ValueR{ctx->get_constant_value(std::move(members), ty)};
 }
 
+// and(lo <= x, x <= hi) of two compares of the same value with constants is
+// one unsigned compare (x - lo) u< hi - lo + 1
+bool simplify_range_and(fir::Instr instr, fir::Context &ctx,
+                        WorkList &worklist) {
+  using IC = fir::ICmpInstrSubType;
+  if (!instr->is(fir::BinaryInstrSubType::And) ||
+      !instr->result_type()->is_int() ||
+      instr->result_type()->get_bitwidth() != 1 || !instr->args[0].is_instr() ||
+      !instr->args[1].is_instr()) {
+    return false;
+  }
+  auto c0 = instr->args[0].as_instr();
+  auto c1 = instr->args[1].as_instr();
+  if (!c0->is(fir::InstrType::ICmp) || !c1->is(fir::InstrType::ICmp) ||
+      c0->args[0] != c1->args[0] || c0->args[0].is_constant() ||
+      !c0->args[1].is_constant_int() || !c1->args[1].is_constant_int() ||
+      !c0->args[0].get_type()->is_int()) {
+    return false;
+  }
+  const auto ty = c0->args[0].get_type();
+  const u32 bw = ty->get_bitwidth();
+  if (bw < 2 || bw > 64) {
+    return false;
+  }
+  const u64 mask = bw == 64 ? ~u64{0} : ((u64{1} << bw) - 1);
+  const auto sub = [](fir::Instr c) { return static_cast<IC>(c->subtype); };
+  const auto is_lower = [](IC p) {
+    return p == IC::SGE || p == IC::SGT || p == IC::UGE || p == IC::UGT;
+  };
+  const auto is_upper = [](IC p) {
+    return p == IC::SLE || p == IC::SLT || p == IC::ULE || p == IC::ULT;
+  };
+  const auto is_signed = [](IC p) {
+    return p == IC::SGE || p == IC::SGT || p == IC::SLE || p == IC::SLT;
+  };
+  fir::Instr lower = c0;
+  fir::Instr upper = c1;
+  if (!is_lower(sub(lower))) {
+    std::swap(lower, upper);
+  }
+  if (!is_lower(sub(lower)) || !is_upper(sub(upper)) ||
+      is_signed(sub(lower)) != is_signed(sub(upper))) {
+    return false;
+  }
+  const bool sgn = is_signed(sub(lower));
+  // bounds as inclusive values in the compare domain, i128 holds all of them
+  const auto bound = [&](fir::Instr c) -> i128 {
+    const u64 u = static_cast<u64>(c->args[1].as_constant()->as_int()) & mask;
+    if (!sgn) {
+      return static_cast<i128>(u);
+    }
+    const u64 sign = u64{1} << (bw - 1);
+    return (u & sign) != 0 ? static_cast<i128>(u) - (static_cast<i128>(1) << bw)
+                           : static_cast<i128>(u);
+  };
+  i128 lo = bound(lower);
+  i128 hi = bound(upper);
+  if (sub(lower) == IC::SGT || sub(lower) == IC::UGT) {
+    lo += 1;
+  }
+  if (sub(upper) == IC::SLT || sub(upper) == IC::ULT) {
+    hi -= 1;
+  }
+  const i128 min = sgn ? -(static_cast<i128>(1) << (bw - 1)) : 0;
+  const i128 max = sgn ? (static_cast<i128>(1) << (bw - 1)) - 1
+                       : (static_cast<i128>(1) << bw) - 1;
+  // empty and full ranges are left to the other folds
+  if (lo < min || hi > max || lo > hi || (lo == min && hi == max)) {
+    return false;
+  }
+  fir::Builder b(instr);
+  fir::ValueR x = c0->args[0];
+  if (lo != 0) {
+    x = b.build_int_sub(x, fir::ValueR{ctx->get_constant_int(lo, bw)});
+    push_instr(worklist, x);
+  }
+  auto res = b.build_int_cmp(
+      x, fir::ValueR{ctx->get_constant_int(hi - lo + 1, bw)}, IC::ULT);
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(res);
+  instr.destroy();
+  return true;
+}
+
 bool simplify_bitop_reduction(fir::Instr instr, fir::Context &ctx,
                               WorkList &worklist) {
   if (!instr->is(fir::InstrType::BinaryInstr) ||
@@ -900,8 +984,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
            instr->subtype ==
                static_cast<u32>(fir::BinaryInstrSubType::IntSub)) &&
           instr->args[0].is_instr()) {
-        auto f = [&worklist, &instr](fir::Instr inner_add_sub,
-                                          fir::ValueR v2) {
+        auto f = [&worklist, &instr](fir::Instr inner_add_sub, fir::ValueR v2) {
           if (inner_add_sub->is(fir::InstrType::BinaryInstr) &&
               (inner_add_sub->subtype ==
                    static_cast<u32>(fir::BinaryInstrSubType::IntAdd) ||
@@ -1132,6 +1215,39 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
          instr->is(fir::BinaryInstrSubType::AShr)) &&
         instr->args[0].is_instr()) {
       auto argi = instr->args[0].as_instr();
+      if (argi->is(fir::InstrType::BinaryInstr) &&
+          argi->get_instr_subtype() == instr->get_instr_subtype() &&
+          instr->args[1].is_constant_int() && argi->args[1].is_constant_int()) {
+        // (x op a) op b is x op (a + b), an overshift gives 0 (-1 or 0 for ashr)
+        const u32 bw = instr->result_type()->get_bitwidth();
+        const i128 a = argi->args[1].as_constant()->as_int_sat();
+        const i128 b = instr->args[1].as_constant()->as_int_sat();
+        if (a >= 0 && b >= 0 && a < bw && b < bw) {
+          fir::Builder buh{instr};
+          fir::ValueR res;
+          if (a + b < bw) {
+            res = buh.build_binary_op(
+                argi->args[0],
+                fir::ValueR{ctx->get_constant_value(a + b, instr->result_type())},
+                static_cast<fir::BinaryInstrSubType>(
+                    instr->get_instr_subtype()));
+          } else if (instr->is(fir::BinaryInstrSubType::AShr)) {
+            res = buh.build_binary_op(
+                argi->args[0],
+                fir::ValueR{ctx->get_constant_value(bw - 1, instr->result_type())},
+                fir::BinaryInstrSubType::AShr);
+          } else {
+            res = fir::ValueR{ctx->get_constant_value(0, instr->result_type())};
+          }
+          if (res.is_instr()) {
+            push_instr(worklist, res);
+          }
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+          instr.destroy();
+          return true;
+        }
+      }
       if (instr->is(fir::BinaryInstrSubType::Shr) &&
           argi->is(fir::BinaryInstrSubType::Shl) &&
           instr->args[1].is_constant_int() && argi->args[1].is_constant_int()) {
@@ -1604,7 +1720,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  if (simplify_bitop_reduction(instr, ctx, worklist) ||
+  if (simplify_range_and(instr, ctx, worklist) ||
+      simplify_bitop_reduction(instr, ctx, worklist) ||
       simplify_linear(instr, ctx, worklist)) {
     return true;
   }

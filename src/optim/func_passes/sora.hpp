@@ -62,15 +62,92 @@ class SORA final : public FunctionPass {
     return {UseRes{.offset = 0, .access_size = 0, .user = use}};
   }
 
+  struct Acc {
+    fir::Instr instr;
+    u64 off;
+    u64 size;
+  };
+
+  // A float vector access that overlaps other accesses of the alloca at
+  // offsets that are not its own is split into its lanes (extract and scalar
+  // stores, scalar loads and inserts), the other accesses are split the same
+  // way when they are visited, so the alloca ends up with scalar accesses only.
+  bool split_float_vec(fir::Context &ctx, fir::Instr instr, u64 off, u64 size,
+                       const TVec<Acc> &accs) {
+    auto vty = instr->result_type();
+    const u64 lane_bytes = vty->as_vec().bitwidth / 8;
+    const u64 n_lanes = size / lane_bytes;
+    bool any_cut = false;
+    for (auto &o : accs) {
+      if (o.instr == instr || o.off + o.size <= off || off + size <= o.off) {
+        continue;
+      }
+      if (o.off > off && o.off < off + size) {
+        if ((o.off - off) % lane_bytes != 0) {
+          return false;
+        }
+        any_cut = true;
+      }
+      if (o.off + o.size > off && o.off + o.size < off + size) {
+        if ((o.off + o.size - off) % lane_bytes != 0) {
+          return false;
+        }
+        any_cut = true;
+      }
+      // a partial overlap from the left that ends at the end of this access
+      // or covers it is handled by cutting the other access
+      if (o.off < off && o.off + o.size >= off + size) {
+        any_cut = true;
+      }
+    }
+    if (!any_cut) {
+      return false;
+    }
+    const auto lane_ty = ctx->get_float_type(vty->as_vec().bitwidth);
+    fir::Builder b{instr};
+    auto lane_ptr = [&](u64 i) {
+      if (i == 0) {
+        return instr->args[0];
+      }
+      return b.build_binary_op(
+          instr->args[0],
+          fir::ValueR{ctx->get_constant_int(i * lane_bytes, 64)},
+          fir::BinaryInstrSubType::PtrAdd);
+    };
+    if (instr->is(fir::InstrType::StoreInstr)) {
+      fir::ValueR vec = instr->args[1];
+      for (u64 i = 0; i < n_lanes; i++) {
+        fir::ValueR idx[1] = {
+            fir::ValueR{ctx->get_constant_int(static_cast<i128>(i), 32)}};
+        auto lane = b.build_extract_element(vec, idx, lane_ty);
+        b.build_store(lane_ptr(i), lane, false, false);
+      }
+    } else if (instr->is(fir::InstrType::LoadInstr)) {
+      IRVec<fir::ConstantValueR> zeros;
+      for (u64 i = 0; i < n_lanes; i++) {
+        zeros.push_back(lane_bytes == 4
+                            ? ctx->get_constant_value(0.0F, lane_ty)
+                            : ctx->get_constant_value(0.0, lane_ty));
+      }
+      fir::ValueR vec{ctx->get_constant_value(std::move(zeros), vty)};
+      for (u64 i = 0; i < n_lanes; i++) {
+        fir::ValueR idx[1] = {
+            fir::ValueR{ctx->get_constant_int(static_cast<i128>(i), 32)}};
+        auto lane = b.build_load(lane_ty, lane_ptr(i), false, false);
+        vec = b.build_insert_element(vec, lane, idx, vty);
+      }
+      instr->replace_all_uses(vec);
+    } else {
+      return false;
+    }
+    instr.destroy();
+    return true;
+  }
+
   // Splits wide integer loads/stores of a non escaping alloca into the pieces
   // that other accesses of the alloca use, so the alloca can be split later.
   // Returns whether anything was split.
   bool split_wide_accesses(fir::Context &ctx, fir::Instr alloca) {
-    struct Acc {
-      fir::Instr instr;
-      u64 off;
-      u64 size;
-    };
     TVec<Acc> accs;
     for (auto use : alloca->uses) {
       for (auto v : handle_use(alloca.result(), use)) {
@@ -90,9 +167,20 @@ class SORA final : public FunctionPass {
           wty->is_vec() &&
           wty->as_vec().type == fir::VectorType::SubType::Integer &&
           wty->as_vec().bitwidth % 8 == 0;
-      if ((!wty->is_int() && !int_vec) || w.size < 2 ||
-          w.size > (int_vec ? 32 : 8) || wty->get_bitwidth() % 8 != 0 ||
-          w.instr->Volatile || w.instr->Atomic) {
+      const bool float_vec =
+          wty->is_vec() &&
+          wty->as_vec().type == fir::VectorType::SubType::Floating &&
+          (wty->as_vec().bitwidth == 32 || wty->as_vec().bitwidth == 64);
+      if ((!wty->is_int() && !int_vec && !float_vec) || w.size < 2 ||
+          w.size > ((int_vec || float_vec) ? 32 : 8) ||
+          wty->get_bitwidth() % 8 != 0 || w.instr->Volatile ||
+          w.instr->Atomic) {
+        continue;
+      }
+      if (float_vec) {
+        if (split_float_vec(ctx, w.instr, w.off, w.size, accs)) {
+          return true;
+        }
         continue;
       }
       // cut points inside w, every overlapping access has to be inside

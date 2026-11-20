@@ -87,9 +87,9 @@ define i32 @fields(ptr noundef %0) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i32 = Store(%0, 1:i32){} NUses:0
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:2
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i32 = Store(%2, 2:i32){} NUses:0
-; CHECK-NEXT:    %4: ptr = PtrAdd(%2, 4:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 8:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %5: f32 = Store(%4, 40400000:f32){} NUses:0
 ; CHECK-NEXT:    %6: i32 = Return(1:i32){} NUses:0
 ; CHECK-NEXT:}

@@ -396,6 +396,28 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     return false;
   }
   auto iteration_count = static_cast<u64>(iteration_count_full);
+  // the body runs once, so the back edge is never taken
+  if (iteration_count == 1) {
+    auto latch = cfg.bbrs[loop.tails[0]].bb;
+    auto term = latch->get_terminator();
+    if (!term->is(fir::InstrType::CondBranchInstr)) {
+      return false;
+    }
+    auto head = cfg.bbrs[loop.head].bb;
+    const auto back_id = term.get_bb_id(head);
+    const auto exit_id = 1 - back_id;
+    if (term->bbs[exit_id].bb == head) {
+      return false;
+    }
+    auto b = fir::Builder(latch);
+    b.at_end(latch);
+    auto new_branch = b.build_branch(term->bbs[exit_id].bb);
+    for (auto arg : term->bbs[exit_id].args) {
+      new_branch.add_bb_arg(0, arg);
+    }
+    term.remove_from_parent();
+    return true;
+  }
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
   bool did_peel = false;

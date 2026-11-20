@@ -620,7 +620,8 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
                        u64 stack_slot_id, Type spill_type,
                        u64 &new_virtual_reg_id, size_t &trailing_inserted,
                        const SpillCache *cached = nullptr,
-                       VReg *used_temp = nullptr) {
+                       VReg *used_temp = nullptr,
+                       const MInstr *remat = nullptr) {
   // Worst case just move into a new vreg and we restart register allocating
   // is not allowed to fail since its used as backup
   ASSERT(!spill_vreg.is_concrete());
@@ -686,11 +687,20 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
       insert_loc--;
     }
     MInstr reload{GBaseSubtype::mov, MArgument{new_vreg, spill_type}, home};
+    if (remat != nullptr) {
+      reload = *remat;
+      for (size_t k = 0; k < reload.n_args; k++) {
+        if (reload.args[k].isReg() &&
+            reload.args[k].uses_same_vreg(spill_vreg)) {
+          reload.args[k] = MArgument{new_vreg, reload.args[k].ty};
+        }
+      }
+    }
     reload.is_arg_reload = bbm[instr_id].is(GBaseSubtype::arg_setup) ? 1U : 0U;
     bbm.insert(bbm.begin() + static_cast<i64>(insert_loc) + 0, reload);
     instr_id++;
   }
-  if (written) {
+  if (written && remat == nullptr) {
     bbm.insert(bbm.begin() + static_cast<i64>(instr_id) + 1,
                MInstr{
                    GBaseSubtype::mov,
@@ -747,6 +757,85 @@ TMap<u64, Type> get_spill_types(const MFunc &func,
   return types;
 }
 
+// a vreg with a single definition that needs no register (lea or mov of a
+// symbol address, mov of an integer immediate, a clear) is recomputed in front
+// of every use, a spill slot would cost a store and a reload plus an
+// unspillable temp at the same place. The definition is removed, do_spilling
+// rewrites all uses.
+bool is_remat_def(const MInstr &instr, VReg vreg) {
+  if (instr.n_args < 2 || !instr.args[0].isReg() ||
+      !instr.args[0].uses_same_vreg(vreg)) {
+    return false;
+  }
+  const auto &dst = instr.args[0];
+  const auto &src = instr.args[1];
+  if (instr.is(X86Subtype::lea) && instr.n_args == 2) {
+    return src.type == MArgument::ArgumentType::MemLabel ||
+           src.type == MArgument::ArgumentType::MemImmLabel;
+  }
+  if (instr.is(GBaseSubtype::mov) && instr.n_args == 2) {
+    return src.isLabel() ||
+           (src.isImm() && !dst.reg.is_vec_reg() && dst.ty != Type::Float32 &&
+            dst.ty != Type::Float64);
+  }
+  if (instr.is(GArithSubtype::lxor2) && instr.n_args == 2) {
+    return src == dst;
+  }
+  if (instr.is(GVecSubtype::vXor) && instr.n_args == 3) {
+    return src == dst && instr.args[2] == dst;
+  }
+  return false;
+}
+
+TMap<u64, MInstr> find_rematerializable(MFunc &func,
+                                        const TVec<u64> &needs_spilling) {
+  struct DefLoc {
+    size_t bb;
+    size_t instr;
+  };
+  TMap<u64, MInstr> remat;
+  TMap<u64, u32> n_defs;
+  TMap<u64, DefLoc> locs;
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    const auto &instrs = func.bbs[bb_id].instrs;
+    for (size_t instr_id = 0; instr_id < instrs.size(); instr_id++) {
+      for (auto spill : needs_spilling) {
+        const auto vreg = uid_to_reg(spill);
+        if (!instrs[instr_id].uses_vreg(vreg) ||
+            !writes_vreg(instrs[instr_id], vreg)) {
+          continue;
+        }
+        n_defs[spill]++;
+        if (is_remat_def(instrs[instr_id], vreg)) {
+          remat.insert_or_assign(spill, instrs[instr_id]);
+          locs[spill] = DefLoc{bb_id, instr_id};
+        }
+      }
+    }
+  }
+  TVec<DefLoc> to_drop;
+  TVec<u64> not_single;
+  for (auto &[spill, instr] : remat) {
+    if (n_defs[spill] == 1) {
+      to_drop.push_back(locs[spill]);
+    } else {
+      not_single.push_back(spill);
+    }
+  }
+  for (auto spill : not_single) {
+    remat.erase(spill);
+  }
+  // back to front so the positions stay valid
+  std::ranges::sort(to_drop, [](const DefLoc &a, const DefLoc &b) {
+    return a.bb != b.bb ? a.bb > b.bb : a.instr > b.instr;
+  });
+  for (auto &loc : to_drop) {
+    auto &instrs = func.bbs[loc.bb].instrs;
+    instrs.erase(instrs.begin() + static_cast<i64>(loc.instr));
+  }
+  return remat;
+}
+
 bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
                  u64 &new_virtual_reg_id) {
   if (needs_spilling.empty()) {
@@ -754,8 +843,13 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
   }
   const auto spill_types = get_spill_types(func, needs_spilling);
 
+  const auto remat = find_rematerializable(func, needs_spilling);
+
   TMap<u64, u64> spill_to_stack_slot;
   for (auto spill : needs_spilling) {
+    if (remat.contains(spill)) {
+      continue;
+    }
     auto spill_type = spill_types.at(uid_to_reg(spill).virt_id());
     auto stack_slot_id = func.create_stack_slot(get_size(spill_type));
     spill_to_stack_slot.insert({spill, stack_slot_id});
@@ -782,6 +876,27 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
         // the new vreg must have the type of the spilled vreg, otherwise a
         // vec vreg ends up being allocated as a GPR
         auto spill_type = spill_types.at(spill_vreg.virt_id());
+        if (auto rit = remat.find(spill); rit != remat.end()) {
+          auto &cur = bb.instrs[instr_id];
+          const auto &def = rit->second;
+          const auto &src = def.args[1];
+          // a label is an absolute immediate in the encoder, so only plain
+          // integer constants can be an operand of the argument
+          if (def.is(GBaseSubtype::mov) && src.isImm() &&
+              cur.is(GBaseSubtype::arg_setup) && cur.n_args == 2 &&
+              cur.args[0].isReg() && cur.args[0].uses_same_vreg(spill_vreg) &&
+              get_size(def.args[0].ty) == get_size(cur.args[0].ty)) {
+            cur.args[0] = MArgument::Int(src.imm, cur.args[0].ty);
+            inserted_moves = true;
+            continue;
+          }
+          VReg unused;
+          handle_spill_move(bb.instrs, instr_id, spill_vreg, 0, spill_type,
+                            new_virtual_reg_id, trailing_inserted, nullptr,
+                            &unused, &rit->second);
+          inserted_moves = true;
+          continue;
+        }
         u64 stack_slot_id = spill_to_stack_slot[spill];
 
         const SpillCache *cached = nullptr;

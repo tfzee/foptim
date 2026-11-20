@@ -9,11 +9,10 @@ define ptr @f() {
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rsp: i64 -= 160: i64
 ; CHECK-NEXT:    $rcx: i64 = $rsp: i64
-; CHECK-NEXT:    $rcx: i64 += 128: i64
 ; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    $rax: i64 += 16: i64
+; CHECK-NEXT:    $rax: i64 += 144: i64
 ; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    [$rcx + 16]: i64 = $rdx: i64
+; CHECK-NEXT:    [$rcx + 144]: i64 = $rdx: i64
 ; CHECK-NEXT:    $rsp: i64 += 160: i8
 ; CHECK-NEXT:    ret($rax: i64, )
   %a = alloca [160 x i8], align 8
