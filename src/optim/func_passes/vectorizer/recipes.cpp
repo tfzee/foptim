@@ -714,8 +714,25 @@ bool zext_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
   if (!is_i1(i->args[0].get_type())) {
     return widen_match_loop(c, i, n, false);
   }
-  if (!is_vector_shape(shape_of(c, i->args[0])) ||
-      mask_bits_of(i->args[0]) != ty->get_bitwidth() ||
+  if (!is_vector_shape(shape_of(c, i->args[0]))) {
+    return false;
+  }
+  const u32 mbits = mask_bits_of(i->args[0]);
+  // a mask of narrower lanes is made 0 or 1 in its own lane width first and
+  // then widened like an integer vector (sub 2)
+  if (mbits != 0 && mbits < ty->get_bitwidth() &&
+      (mbits == 8 || mbits == 16 || mbits == 32) &&
+      (ty->get_bitwidth() == 16 || ty->get_bitwidth() == 32 ||
+       ty->get_bitwidth() == 64)) {
+    n.kind = NodeKind::Widen;
+    n.shape = LaneShape::Varying;
+    n.type = ty;
+    n.op_type = c.ctx->get_int_type(mbits);
+    n.sub = 2;
+    loop_children(c, n, std::array{i->args[0]});
+    return true;
+  }
+  if (mbits != ty->get_bitwidth() ||
       (ty->get_bitwidth() != 32 && ty->get_bitwidth() != 64)) {
     return false;
   }

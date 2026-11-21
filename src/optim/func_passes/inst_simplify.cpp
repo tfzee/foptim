@@ -90,7 +90,7 @@ bool is_constant_float_zero(fir::ValueR r) {
 }
 
 bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
-                     fir::Context & /*ctx*/, WorkList &worklist) {
+                     fir::Context &ctx, WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifySelect");
   }
@@ -123,6 +123,91 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->replace_all_uses(new_val);
         instr.destroy();
         return true;
+      }
+    }
+  }
+  // select(c, a + x, a) is a + select(c, x, 0), with x = 1 that is a + zext(c)
+  if (instr->result_type()->is_int() && instr->result_type()->get_bitwidth() > 1) {
+    using BS = fir::BinaryInstrSubType;
+    for (int arm = 1; arm <= 2; arm++) {
+      const auto other = instr->args[3 - arm];
+      if (!instr->args[arm].is_instr() || other.is_constant()) {
+        continue;
+      }
+      auto op = instr->args[arm].as_instr();
+      if (!op->is(fir::InstrType::BinaryInstr) ||
+          op.result().get_n_uses() != 1) {
+        continue;
+      }
+      const auto sub = static_cast<BS>(op->subtype);
+      const bool comm =
+          sub == BS::IntAdd || sub == BS::Or || sub == BS::Xor;
+      int common = -1;
+      if (op->args[0] == other) {
+        common = 0;
+      } else if (comm && op->args[1] == other) {
+        common = 1;
+      }
+      if (common < 0 || !(comm || sub == BS::IntSub)) {
+        continue;
+      }
+      fir::Builder b(instr);
+      const auto zero = fir::ValueR{
+          ctx->get_constant_value(0, instr->result_type())};
+      auto sel = arm == 1 ? b.build_select(instr->result_type(), instr->args[0],
+                                           op->args[1 - common], zero)
+                          : b.build_select(instr->result_type(), instr->args[0],
+                                           zero, op->args[1 - common]);
+      auto res = b.build_binary_op(other, sel, sub);
+      push_instr(worklist, sel.as_instr());
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+  }
+  // select(c, op(a, x), op(a, y)) is op(a, select(c, x, y)), the vectorizer
+  // prefers da select on the constants
+  if (instr->args[1].is_instr() && instr->args[2].is_instr() &&
+      instr->result_type()->is_int()) {
+    auto t = instr->args[1].as_instr();
+    auto f = instr->args[2].as_instr();
+    using BS = fir::BinaryInstrSubType;
+    if (t->is(fir::InstrType::BinaryInstr) &&
+        f->is(fir::InstrType::BinaryInstr) && t->subtype == f->subtype &&
+        t != f && t.result().get_n_uses() == 1 &&
+        f.result().get_n_uses() == 1) {
+      const auto sub = static_cast<BS>(t->subtype);
+      const bool comm =
+          sub == BS::IntAdd || sub == BS::And || sub == BS::Or || sub == BS::Xor;
+      if (comm || sub == BS::IntSub) {
+        // index of the common operand in t and f
+        int ti = -1;
+        int fi = -1;
+        if (t->args[0] == f->args[0]) {
+          ti = 0;
+          fi = 0;
+        } else if (comm && t->args[1] == f->args[1]) {
+          ti = 1;
+          fi = 1;
+        } else if (comm && t->args[0] == f->args[1]) {
+          ti = 0;
+          fi = 1;
+        } else if (comm && t->args[1] == f->args[0]) {
+          ti = 1;
+          fi = 0;
+        }
+        if (ti >= 0) {
+          fir::Builder b(instr);
+          auto sel = b.build_select(instr->result_type(), instr->args[0],
+                                    t->args[1 - ti], f->args[1 - fi]);
+          auto res = ti == 0 ? b.build_binary_op(t->args[0], sel, sub)
+                             : b.build_binary_op(sel, t->args[1], sub);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+          instr.destroy();
+          return true;
+        }
       }
     }
   }

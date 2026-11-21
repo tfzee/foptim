@@ -409,7 +409,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
   }
   const u32 trip_bw = evo.expr(tc.exit_iter).bw;
 
-  LoopCtx mc{plan, evo};
+  LoopCtx mc{plan, evo, ctx};
   const bool assoc_float = ctx.config->optim.fltOpt.associative_math;
 
   auto block_of = [&](fir::BasicBlock bb) -> std::optional<u32> {

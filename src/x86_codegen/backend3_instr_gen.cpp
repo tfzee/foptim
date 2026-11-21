@@ -2296,6 +2296,14 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Int64x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPABSQ;
           break;
+        case fmir::Type::Int8x16:
+        case fmir::Type::Int8x32:
+          req.mnemonic = ZYDIS_MNEMONIC_VPABSB;
+          break;
+        case fmir::Type::Int16x8:
+        case fmir::Type::Int16x16:
+          req.mnemonic = ZYDIS_MNEMONIC_VPABSW;
+          break;
       }
       return emit(out_buff, 0, &req);
     }

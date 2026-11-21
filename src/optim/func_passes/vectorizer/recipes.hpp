@@ -23,6 +23,7 @@ struct BundleCtx {
 struct LoopCtx {
   Plan &plan;
   ScalarEvo &evo;
+  fir::Context &ctx;
 };
 
 // One recipe per widenable instruction type.

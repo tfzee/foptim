@@ -3812,9 +3812,19 @@ void base_rules(RuleSet &rules) {
           res_reg.ty == Type::Int64x2 || res_reg.ty == Type::Int64x4;
       const bool dword =
           res_reg.ty == Type::Int32x4 || res_reg.ty == Type::Int32x8;
-      if (get_size(val.ty) != get_size(res_reg.ty) || !(wide || dword)) {
+      const bool narrow = res_reg.ty == Type::Int8x16 ||
+                          res_reg.ty == Type::Int8x32 ||
+                          res_reg.ty == Type::Int16x8 ||
+                          res_reg.ty == Type::Int16x16;
+      if (get_size(val.ty) != get_size(res_reg.ty) ||
+          !(wide || dword || narrow)) {
         fmt::println("{:cd}", zext_instr);
         TODO("zext of a mask to this vector type");
+      }
+      if (narrow) {
+        // there is no byte shift, the absolute value of all ones is one
+        res.result.emplace_back(X86Subtype::vpabs, res_reg, val);
+        return true;
       }
       res.result.emplace_back(X86Subtype::psrl, res_reg, val,
                               MArgument(static_cast<u8>(wide ? 63 : 31)));

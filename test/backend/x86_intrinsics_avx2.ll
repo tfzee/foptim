@@ -129,11 +129,11 @@ define <16 x i16> @shr_var(<16 x i16> %a, i32 %n) {
 ; CHECK: func shr_var ($2: i16x16, $3: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm1: i16x16 = $ymm0: i16x16
-; CHECK-NEXT:    mov_zx($rdx: i64, $edi: i32, )
-; CHECK-NEXT:    icmp_ugt($cl: i8, $rdx: i64, 15: i64, )
-; CHECK-NEXT:    $rax: i64 = 15: i64
-; CHECK-NEXT:    cmov_ugt($rax: i64, $rdx: i64, $rax: i64, $rdx: i64, )
-; CHECK-NEXT:    itrunc($ax: i16, $rax: i64, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    icmp_ugt($cl: i8, $edi: i32, 15: i32, )
+; CHECK-NEXT:    $rdx: i64 = 15: i64
+; CHECK-NEXT:    cmov_ugt($rdx: i64, $rax: i64, $rdx: i64, $rax: i64, )
+; CHECK-NEXT:    itrunc($ax: i16, $rdx: i64, )
 ; CHECK-NEXT:    mov_zx($eax: i32, $ax: i16, )
 ; CHECK-NEXT:    $mm0: f32 = $eax: i32
 ; CHECK-NEXT:    psrl($ymm0: i16x16, $ymm1: i16x16, $mm0: f32, )

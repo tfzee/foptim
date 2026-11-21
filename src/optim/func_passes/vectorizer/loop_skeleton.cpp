@@ -459,8 +459,14 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
         case NodeKind::Widen: {
           const auto src = instr->args[0];
           const u32 j = l.node_of.at(src);
-          const Parts &sp = vp.at(src);
+          Parts sp = vp.at(src);
           const u32 spl = pl[j];
+          if (n.sub == 2) {
+            // a mask register to the 0 / 1 lanes of its own width
+            for (auto &m : sp) {
+              m = b.build_zext(m, ctx->get_vec_type(n.op_type, spl));
+            }
+          }
           Parts res;
           for (u32 d = 0; d < n_parts; d++) {
             fir::ValueR v = sp[d];
