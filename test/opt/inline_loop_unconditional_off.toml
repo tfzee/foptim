@@ -1,0 +1,5 @@
+config_version = 1
+include = ["Default"]
+
+[pass.fir.Inline]
+loop_callee_max_instrs = 0

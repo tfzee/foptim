@@ -58,7 +58,6 @@ class ConstLoopEval final : public FunctionPass {
           case fir::InstrType::FCmp:
           case fir::InstrType::UnaryInstr:
           case fir::InstrType::Conversion:
-          case fir::InstrType::SelectInstr:
           case fir::InstrType::Intrinsic:
             // TODO: later one these above too
           case fir::InstrType::AllocaInstr:
@@ -68,13 +67,16 @@ class ConstLoopEval final : public FunctionPass {
           case fir::InstrType::ReturnInstr:
           case fir::InstrType::SwitchInstr:
           case fir::InstrType::Unreachable:
-          case fir::InstrType::LoadInstr:
           case fir::InstrType::StoreInstr:
           case fir::InstrType::AtomicRMW:
           case fir::InstrType::Fence:
           case fir::InstrType::VectorInstr:
           case fir::InstrType::ReduceInstr:
             return false;
+          case fir::InstrType::SelectInstr:
+          // only reads of constant globals are evaluated, the interpreter
+          // gives up on every other pointer
+          case fir::InstrType::LoadInstr:
           case fir::InstrType::BinaryInstr:
           case fir::InstrType::ICmp:
           case fir::InstrType::CondBranchInstr:
@@ -106,8 +108,8 @@ class ConstLoopEval final : public FunctionPass {
           }
         }
         for (auto arg : instr->args) {
-          if (arg.is_constant() && (arg.as_constant()->is_func() ||
-                                    arg.as_constant()->is_global())) {
+          // globals are addresses the interpreter follows through PtrAdd
+          if (arg.is_constant() && arg.as_constant()->is_func()) {
             return false;
           }
           if (arg.is_instr() || arg.is_bb_arg()) {
@@ -185,7 +187,6 @@ class ConstLoopEval final : public FunctionPass {
           size_t iter = 0;
           while (true) {
             if (!inter.step_till_end_of_bb()) {
-              TODO("failed?");
               failed = true;
               break;
             }

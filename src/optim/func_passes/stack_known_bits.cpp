@@ -5,6 +5,8 @@
 #include <unistd.h>
 
 #include <deque>
+#include <optional>
+#include <span>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -15,6 +17,141 @@
 
 namespace foptim::optim {
 
+// the bytes of an initialized constant global that is not relocated
+static std::optional<std::span<const u8>> constant_global_bytes(fir::ValueR v) {
+  if (!v.is_constant() || !v.as_constant()->is_global()) {
+    return std::nullopt;
+  }
+  auto g = v.as_constant()->as_global();
+  if (!g->is_constant || g->init_value == nullptr || !g->reloc_info.empty()) {
+    return std::nullopt;
+  }
+  return std::span<const u8>{reinterpret_cast<const u8 *>(g->init_value),
+                             g->n_bytes};
+}
+
+// the bytes a plain load of a constant global with a constant offset reads
+static std::optional<std::span<const u8>> constant_load_bytes(fir::ValueR v) {
+  if (!v.is_instr() || !v.as_instr()->is(fir::InstrType::LoadInstr) ||
+      v.as_instr()->Volatile || v.as_instr()->Ordering != 0) {
+    return std::nullopt;
+  }
+  auto ptr = v.as_instr()->args[0];
+  u64 offset = 0;
+  if (ptr.is_instr() && ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) &&
+      ptr.as_instr()->args[1].is_constant() &&
+      ptr.as_instr()->args[1].as_constant()->is_int()) {
+    const auto off = ptr.as_instr()->args[1].as_constant()->as_int();
+    if (off < 0) {
+      return std::nullopt;
+    }
+    offset = static_cast<u64>(off);
+    ptr = ptr.as_instr()->args[0];
+  }
+  const auto bytes = constant_global_bytes(ptr);
+  const u64 size = v.get_type()->get_size();
+  if (!bytes || offset + size > bytes->size()) {
+    return std::nullopt;
+  }
+  return bytes->subspan(offset, size);
+}
+
+// a memcpy of a constant global into known stack makes those bytes known
+static bool copy_constant_bytes(fir::Instr instr, u64 offset,
+                                utils::BitSet<> &new_in_one,
+                                utils::BitSet<> &new_in_zero) {
+  const auto src = constant_global_bytes(instr->args[1]);
+  if (!src || !instr->args[2].is_constant() || instr->Volatile) {
+    return false;
+  }
+  const u64 elem_size =
+      instr->extra_type.is_valid() ? instr->extra_type->get_size() : 1;
+  const u64 n_bytes = instr->args[2].as_constant()->as_int() * elem_size;
+  if (n_bytes > src->size() || (offset + n_bytes) * 8 > new_in_one.bit_size()) {
+    return false;
+  }
+  for (u64 i = 0; i < n_bytes; i++) {
+    const u8 byte = (*src)[i];
+    new_in_one.set((offset + i) * 8, 8, byte);
+    new_in_zero.set((offset + i) * 8, 8, static_cast<u8>(~byte));
+  }
+  return true;
+}
+
+static bool is_string_call(fir::Instr instr) {
+  if (!instr->is(fir::InstrType::CallInstr) || !instr->args[0].is_constant() ||
+      !instr->args[0].as_constant()->is_func()) {
+    return false;
+  }
+  return fir::is_string_libfunc(
+      instr->args[0].as_constant()->as_func()->attribs.libfunc);
+}
+
+// strlen and strcmp only read, the result is known if both strings are
+void StackKnownBits::update_string_call(
+    fir::Instr instr, utils::BitSet<> &new_in_one, utils::BitSet<> &new_in_zero,
+    StackKnowCache &cache, TMap<fir::Instr, i128> &known_call_values) {
+  known_call_values.erase(instr);
+  const auto read_string = [&](fir::ValueR ptr) -> std::optional<TVec<u8>> {
+    TVec<u8> str;
+    if (const auto g = constant_global_bytes(ptr)) {
+      for (const u8 c : *g) {
+        if (c == 0) {
+          return str;
+        }
+        str.push_back(c);
+      }
+      return std::nullopt;
+    }
+    u64 offset = 0;
+    const auto result = get_stack_offset(offset, ptr, cache);
+    cache.insert({ptr, {.result = result, .offset = offset}});
+    if (result != StackOffsetResult::KnownLocal) {
+      return std::nullopt;
+    }
+    for (u64 i = offset;; i++) {
+      if ((i + 1) * 8 > new_in_one.bit_size()) {
+        return std::nullopt;
+      }
+      const u64 one = new_in_one.get(i * 8, 8);
+      const u64 zero = new_in_zero.get(i * 8, 8);
+      if ((one | zero) != 0xFF) {
+        return std::nullopt;
+      }
+      if (one == 0) {
+        return str;
+      }
+      str.push_back(static_cast<u8>(one));
+    }
+  };
+  const bool is_cmp =
+      instr->args[0].as_constant()->as_func()->attribs.libfunc ==
+      fir::LibFunc::Strcmp;
+  if (instr->args.size() != (is_cmp ? 3U : 2U) || !instr->has_one_result() ||
+      !instr.result_type()->is_int()) {
+    return;
+  }
+  const auto a = read_string(instr->args[1]);
+  const auto b = is_cmp ? read_string(instr->args[2]) : std::nullopt;
+  if (!a || (is_cmp && !b)) {
+    return;
+  }
+  i128 res = static_cast<i128>(a->size());
+  if (is_cmp) {
+    res = 0;
+    const size_t n = std::min(a->size(), b->size());
+    for (size_t i = 0; i <= n; i++) {
+      const int ca = i < a->size() ? (*a)[i] : 0;
+      const int cb = i < b->size() ? (*b)[i] : 0;
+      if (ca != cb) {
+        res = ca - cb;
+        break;
+      }
+    }
+  }
+  known_call_values[instr] = res;
+}
+
 void StackKnownBits::update_mem_intrinsic(fir::Instr instr,
                                           utils::BitSet<> &new_in_one,
                                           utils::BitSet<> &new_in_zero,
@@ -24,6 +161,11 @@ void StackKnownBits::update_mem_intrinsic(fir::Instr instr,
   auto result = get_stack_offset(offset, ptr, cache);
   cache.insert({ptr, {.result = result, .offset = offset}});
   if (result == StackOffsetResult::KnownNonLocal) {
+    return;
+  }
+  if (instr->is(fir::IntrinsicSubType::Memcpy) &&
+      result == StackOffsetResult::KnownLocal &&
+      copy_constant_bytes(instr, offset, new_in_one, new_in_zero)) {
     return;
   }
   // a copy or a wide value we know nothing about
@@ -167,6 +309,18 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
       new_in_zero.reset(false);
     }
     return true;
+  }
+
+  // storing what was loaded from a constant global (an expanded memcpy)
+  if (result == StackOffsetResult::KnownLocal) {
+    const auto bytes = constant_load_bytes(instr->args[1]);
+    if (bytes && (offset + bytes->size()) * 8 <= new_in_one.bit_size()) {
+      for (u64 i = 0; i < bytes->size(); i++) {
+        new_in_one.set((offset + i) * 8, 8, (*bytes)[i]);
+        new_in_zero.set((offset + i) * 8, 8, static_cast<u8>(~(*bytes)[i]));
+      }
+      return true;
+    }
   }
 
   if (instr->args[1].get_type()->is_ptr()) {
@@ -345,6 +499,11 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         }
         return StackOffsetResult::UnknownLocal;
       }
+      if (sub_result == StackOffsetResult::KnownNonLocal &&
+          ptr_instr->is(fir::BinaryInstrSubType::PtrAdd) &&
+          offset_index == 1) {
+        return StackOffsetResult::KnownNonLocal;
+      }
       // just assume the worst
       return StackOffsetResult::UnknownLocal;
     }
@@ -404,6 +563,58 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
   return StackOffsetResult::UnknownLocal;
 }
 
+// Whether a pointer can point into the stack of the function. A loaded pointer
+// or a call result can only if a stack pointer was handed to a call before.
+static bool may_point_to_stack(fir::ValueR ptr, u32 depth = 0) {
+  if (ptr.is_constant()) {
+    return false;
+  }
+  if (ptr.is_bb_arg()) {
+    auto parent = ptr.as_bb_arg()->get_parent();
+    return parent != parent->get_parent()->get_entry();
+  }
+  auto instr = ptr.as_instr();
+  if (instr->is(fir::InstrType::LoadInstr) ||
+      instr->is(fir::InstrType::CallInstr)) {
+    return false;
+  }
+  if (instr->is(fir::InstrType::AllocaInstr) || depth > 8) {
+    return true;
+  }
+  if (!instr->is(fir::InstrType::BinaryInstr) &&
+      !instr->is(fir::InstrType::SelectInstr)) {
+    return true;
+  }
+  for (auto arg : instr->args) {
+    if (arg.get_type()->is_ptr() && may_point_to_stack(arg, depth + 1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// no call or asm gets a pointer into the stack (except the ones that only read)
+static bool stack_pointers_stay_local(fir::Function &func) {
+  for (auto bb : func.basic_blocks) {
+    for (auto instr : bb->instructions) {
+      const bool is_call = instr->is(fir::InstrType::CallInstr);
+      if (!is_call && !instr->is(fir::IntrinsicSubType::InlineAsm) &&
+          !instr->is(fir::IntrinsicSubType::InlineAsmPure)) {
+        continue;
+      }
+      if (is_string_call(instr)) {
+        continue;
+      }
+      for (auto arg : instr->args) {
+        if (arg.get_type()->is_ptr() && may_point_to_stack(arg)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
                                         fir::Function &func) {
   ZoneScopedNC("StackKnownBits", COLOR_OPTIMF);
@@ -422,6 +633,19 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
                     {.result = StackOffsetResult::KnownLocal,
                      .offset = stack_size / 8}});
       stack_size += a1.as_constant()->as_int() * 8;
+    }
+  }
+
+  if (stack_size != 0 && stack_pointers_stay_local(func)) {
+    for (auto bb : func.basic_blocks) {
+      for (auto instr : bb->instructions) {
+        if (instr->is(fir::InstrType::LoadInstr) &&
+            instr.result_type()->is_ptr()) {
+          cache.insert(
+              {instr.result(),
+               {.result = StackOffsetResult::KnownNonLocal, .offset = 0}});
+        }
+      }
     }
   }
 
@@ -451,7 +675,9 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
   auto new_in_zero = utils::BitSet<>::empty(stack_size);
   // auto test = utils::BitSet<>::empty(stack_size);
 
+  TVec<bool> visited(func.n_bbs(), false);
   TMap<fir::ValueR, i128> known_load_values;
+  TMap<fir::Instr, i128> known_call_values;
   TVec<fir::Instr> load_stores;
 
   while (!worklist.empty()) {
@@ -466,11 +692,22 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
     } else {
       new_in_one.reset(true);
       new_in_zero.reset(true);
+      bool any_visited = false;
       for (auto p : cfg.bbrs[curr].pred) {
-        // fmt::println("ONE: {}", exit_known_one[p]);
-        // fmt::println("ZER: {}", exit_known_zero[p]);
+        // a predecessor that was not processed yet knows everything, so a
+        // loop header keeps what the preheader knows until the latch says
+        // otherwise
+        if (!visited[p]) {
+          continue;
+        }
+        any_visited = true;
         new_in_one.mul(exit_known_one[p]);
         new_in_zero.mul(exit_known_zero[p]);
+      }
+      if (!any_visited) {
+        // nothing is known about the block yet, it is pushed again once a
+        // predecessor has been processed
+        continue;
       }
     }
     // test.assign(new_in_one);
@@ -487,9 +724,12 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
         return PreservedAnalysis::all();
       }
       // asm may write through its pointers like a call
-      if (instr->is(fir::InstrType::CallInstr) ||
-          instr->is(fir::IntrinsicSubType::InlineAsm) ||
-          instr->is(fir::IntrinsicSubType::InlineAsmPure)) {
+      if (is_string_call(instr)) {
+        update_string_call(instr, new_in_one, new_in_zero, cache,
+                           known_call_values);
+      } else if (instr->is(fir::InstrType::CallInstr) ||
+                 instr->is(fir::IntrinsicSubType::InlineAsm) ||
+                 instr->is(fir::IntrinsicSubType::InlineAsmPure)) {
         update_call(instr, new_in_one, new_in_zero, cache);
         load_stores.push_back(instr);
         // fmt::println("CALL\n{}\n{}", new_in_zero, new_in_one);
@@ -511,7 +751,8 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
       }
     }
 
-    bool changed = false;
+    bool changed = !visited[curr];
+    visited[curr] = true;
     if (new_in_one != exit_known_one[curr]) {
       exit_known_one[curr].assign(new_in_one);
       changed = true;
@@ -552,6 +793,16 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
       load.replace_all_uses(fir::ValueR(val));
       cache.erase(load);
     }
+  }
+  TVec<fir::Instr> folded_calls;
+  for (auto &[call, v] : known_call_values) {
+    folded_calls.push_back(call);
+  }
+  for (auto call : folded_calls) {
+    call->replace_all_uses(fir::ValueR(
+        ctx->get_constant_value(known_call_values[call], call.result_type())));
+    call.destroy();
+    modified = true;
   }
   // only uses of loads get replaced
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();

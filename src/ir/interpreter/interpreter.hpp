@@ -5,8 +5,15 @@
 
 namespace foptim::fir::intepreter {
 
+// address inside a global, what a PtrAdd chain on a global evaluates to
+struct SymPtr {
+  Global glob;
+  i64 offset;
+};
+
 struct State {
   TMap<ValueR, ConstantValue> vals;
+  TMap<ValueR, SymPtr> syms;
 
   void set_value(ValueR v, ConstantValue cv) { vals.insert_or_assign(v, cv); }
   std::optional<ConstantValue> try_get(ValueR v) {

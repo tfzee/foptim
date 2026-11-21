@@ -126,11 +126,12 @@ passes = [
 #module
 [pass.fir.LateInline]
 extends = "Inline"
-allow_recursive = true
 allow_builtins = true
 [pass.fir.Inline]
 allow_recursive = true
 allow_builtins = false
+loop_callee_max_instrs = 80
+loop_callee_depth_bonus = 20
 [pass.fir.LegalizeInts]
 [pass.fir.SwitchLower]
 [pass.fir.PartialInlineSplit]

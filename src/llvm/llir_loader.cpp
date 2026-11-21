@@ -297,6 +297,8 @@ static bool libfunc_shape_matches(foptim::fir::LibFunc f,
       return sig(ptr, {ptr, ptr, i64, i64});
     case LibFunc::MemsetChk:
       return sig(ptr, {ptr, i32, i64, i64});
+    case LibFunc::StrcpyChk:
+      return sig(ptr, {ptr, ptr, i64});
     case LibFunc::PosixMemalign:
       return sig(i32, {ptr, i64, i64});
     case LibFunc::Malloc:

@@ -502,6 +502,10 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
     allow_builtins = tbl["allow_builtins"].value_or(allow_builtins);
     arg_gain_max_instrs =
         tbl["arg_gain_max_instrs"].value_or(arg_gain_max_instrs);
+    loop_callee_max_instrs =
+        tbl["loop_callee_max_instrs"].value_or(loop_callee_max_instrs);
+    loop_callee_depth_bonus =
+        tbl["loop_callee_depth_bonus"].value_or(loop_callee_depth_bonus);
     return true;
   }
 

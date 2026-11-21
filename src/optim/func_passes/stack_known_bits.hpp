@@ -44,6 +44,9 @@ class StackKnownBits final : public FunctionPass {
                             StackKnowCache &cache);
   void update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
                    utils::BitSet<> &new_in_zero, StackKnowCache &cache);
+  void update_string_call(fir::Instr instr, utils::BitSet<> &new_in_one,
+                          utils::BitSet<> &new_in_zero, StackKnowCache &cache,
+                          TMap<fir::Instr, i128> &known_call_values);
   // returns false if the optimization failed
   bool update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
                     utils::BitSet<> &new_in_zero, StackKnowCache &cache);

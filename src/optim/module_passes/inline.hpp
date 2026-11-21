@@ -2,12 +2,14 @@
 #include <fmt/base.h>
 
 #include <chrono>
+#include <memory>
 
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/callgraph.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/analysis/loop_analysis.hpp"
 #include "optim/helper/arg_gain.hpp"
 #include "optim/helper/inline.hpp"
 #include "optim/module_pass.hpp"
@@ -20,6 +22,11 @@ struct InlineConfig {
   bool allow_builtins = true;
   // biggest callee estimated with its constant arguments propagated, 0 is off
   u32 arg_gain_max_instrs = 400;
+  // biggest callee accepted at a call that runs in every iteration of its
+  // innermost loop, 0 is off
+  u32 loop_callee_max_instrs = 80;
+  // added per extra loop nesting level, the sum is capped at 120
+  u32 loop_callee_depth_bonus = 20;
 };
 
 // Looks through constant offset PtrAdds to find the alloca a pointer points
@@ -117,6 +124,9 @@ class InlineCallerCtx {
   Dominators *dom_ = nullptr;
   // per block: all returns are strictly dominated by it
   TVec<bool> always_executed_;
+  std::unique_ptr<LoopInfoAnalysis> loops_;
+  LoopNesting nesting_;
+  TVec<i32> loop_depth_;
 
   void ensure_analyses() {
     if (cfg_ == nullptr) {
@@ -189,6 +199,37 @@ class InlineCallerCtx {
       compute_always_executed();
     }
     return always_executed_[func_.bb_id(bb)];
+  }
+
+  // nesting depth of the innermost loop the block is in if the block runs in
+  // every iteration of it (dominates all back edge sources), otherwise 0
+  [[nodiscard]] u32 unconditional_loop_depth(fir::BasicBlock bb) {
+    ensure_analyses();
+    if (loops_ == nullptr) {
+      loops_ = std::make_unique<LoopInfoAnalysis>(*dom_);
+      nesting_.update(*cfg_, loops_->info);
+      loop_depth_.assign(nesting_.size(), 0);
+    }
+    const auto bb_id = static_cast<u32>(func_.bb_id(bb));
+    if (bb_id >= nesting_.innermost_of.size() ||
+        nesting_.innermost_of[bb_id] < 0) {
+      return 0;
+    }
+    const auto l = static_cast<u32>(nesting_.innermost_of[bb_id]);
+    for (u32 tail : loops_->info[l].tails) {
+      if (!dom_->dominates(bb_id, tail)) {
+        return 0;
+      }
+    }
+    if (loop_depth_[l] == 0) {
+      i32 d = 0;
+      for (i32 c = static_cast<i32>(l); c >= 0;
+           c = nesting_.parent[static_cast<u32>(c)]) {
+        d++;
+      }
+      loop_depth_[l] = d;
+    }
+    return static_cast<u32>(loop_depth_[l]);
   }
 
   // no predecessor is dominated by the block, i.e. the block is not in a loop
@@ -395,6 +436,25 @@ class BaseInlineAdvisor {
         fmt::println("Y short");
       }
       return true;
+    }
+
+    // runs in every iteration of a loop, so the call overhead and the missed
+    // load / store forwarding are paid every time
+    if (conf.loop_callee_max_instrs != 0 && !v->attribs.cold &&
+        !v->attribs.no_return && self_func != v) {
+      const u32 depth = caller.unconditional_loop_depth(instr->get_parent());
+      if (depth != 0) {
+        const size_t limit = std::min<size_t>(
+            conf.loop_callee_max_instrs +
+                static_cast<size_t>(depth - 1) * conf.loop_callee_depth_bonus,
+            120);
+        if (called_n_instrs <= limit) {
+          if (debug_print) {
+            fmt::println("Y in every iteration of a loop");
+          }
+          return true;
+        }
+      }
     }
 
     // The callee size vs threshold.

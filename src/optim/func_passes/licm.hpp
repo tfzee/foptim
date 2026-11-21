@@ -63,6 +63,17 @@ class LICM final : public FunctionPass {
            offset + size <= glob->n_bytes;
   }
 
+  // a load of a constant global in its bounds never faults and never changes
+  static bool is_constant_memory(fir::ValueR ptr, u64 size) {
+    if (!is_dereferenceable(ptr, size)) {
+      return false;
+    }
+    while (ptr.is_instr()) {
+      ptr = ptr.as_instr()->get_arg(0);
+    }
+    return ptr.as_constant()->as_global()->is_constant;
+  }
+
   // Does the load see the memory the loop was entered with? True if the nearest
   // access that may write what it reads is outside of the loop, nothing in the
   // loop changes the value then.
@@ -298,6 +309,158 @@ class LICM final : public FunctionPass {
     return inside(taken ? 0 : 1);
   }
 
+  // The bytes a store, memset or memcpy with constant size writes, nullopt for
+  // anything else or if an operand changes in the loop.
+  static std::optional<MemLoc> hoistable_write_loc(const CFG &cfg,
+                                                   const LoopInfo &info,
+                                                   fir::Instr instr,
+                                                   std::optional<MemLoc> &src) {
+    using IT = fir::IntrinsicSubType;
+    src = std::nullopt;
+    if (instr->Volatile || instr->Atomic) {
+      return std::nullopt;
+    }
+    for (auto arg : instr->args) {
+      if (!defined_outside(cfg, info, arg)) {
+        return std::nullopt;
+      }
+    }
+    u64 size = 0;
+    if (instr->is(fir::InstrType::StoreInstr)) {
+      size = instr->args[1].get_type()->get_size();
+    } else if (instr->is(IT::Memset) || instr->is(IT::Memcpy)) {
+      if (!instr->args[2].is_constant() ||
+          !instr->args[2].as_constant()->is_int()) {
+        return std::nullopt;
+      }
+      u64 elem = 1;
+      if (instr->is(IT::Memset)) {
+        elem = instr->args[1].get_type()->get_size();
+      } else if (instr->extra_type.is_valid()) {
+        elem = instr->extra_type->get_size();
+      }
+      size = static_cast<u64>(instr->args[2].as_constant()->as_int()) * elem;
+      if (instr->is(IT::Memcpy)) {
+        src = MemLoc{.ptr = decompose_ptr(instr->args[1]),
+                     .size = static_cast<u32>(size)};
+      }
+    } else {
+      return std::nullopt;
+    }
+    if (size == 0 || size > UINT32_MAX) {
+      return std::nullopt;
+    }
+    return MemLoc{.ptr = decompose_ptr(instr->args[0]),
+                  .size = static_cast<u32>(size)};
+  }
+
+  // A write of the same bytes on every iteration leaves the loop when it runs
+  // in the first iteration whatever path is taken (its block dominates every
+  // exit and the loop is entered unconditionally) and nothing else in the loop
+  // touches those bytes except reads that come after it. Writes that overlap
+  // each other leave together in their order when they are in one block.
+  bool hoist_writes(fir::Function &func, const CFG &cfg, const Dominators &dom,
+                    const LoopInfo &info, fir::BasicBlock pre_header) {
+    if (!pre_header->get_terminator()->is(fir::InstrType::BranchInstr) ||
+        info.leaving_nodes.empty()) {
+      return false;
+    }
+    struct Candidate {
+      fir::Instr instr;
+      u32 bb_id;
+      u64 pos;
+      MemLoc loc;
+      std::optional<MemLoc> src;
+      bool alive = true;
+    };
+    TVec<Candidate> cands;
+    for (auto bb_id : info.body_nodes) {
+      bool dominates_exits = true;
+      for (auto leaving : info.leaving_nodes) {
+        dominates_exits &= dom.dominates(bb_id, leaving);
+      }
+      if (!dominates_exits) {
+        continue;
+      }
+      auto bb = cfg.bbrs[bb_id].bb;
+      for (auto instr : bb->instructions) {
+        std::optional<MemLoc> src;
+        const auto loc = hoistable_write_loc(cfg, info, instr, src);
+        if (loc) {
+          cands.push_back({instr, bb_id, bb->get_instr_id(instr), *loc, src});
+        }
+      }
+    }
+    if (cands.empty()) {
+      return false;
+    }
+    AliasQuery aq{AnalysisManager::provenance(func)};
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (auto &c : cands) {
+        if (!c.alive) {
+          continue;
+        }
+        bool ok = true;
+        for (auto other_id : info.body_nodes) {
+          auto other_bb = cfg.bbrs[other_id].bb;
+          for (auto other : other_bb->instructions) {
+            if (other == c.instr ||
+                !(other->pot_modifies_mem() || other->pot_reads_mem())) {
+              continue;
+            }
+            if (c.src && may_write(aq.mod_ref(other, *c.src))) {
+              ok = false;
+              break;
+            }
+            const auto mr = aq.mod_ref(other, c.loc);
+            if (mr == ModRef::NoModRef) {
+              continue;
+            }
+            const auto it = std::ranges::find_if(
+                cands, [&](const Candidate &o) { return o.instr == other; });
+            if (it != cands.end()) {
+              if (it->alive && it->bb_id == c.bb_id) {
+                continue;
+              }
+              ok = false;
+              break;
+            }
+            const bool after = other_id == c.bb_id
+                                   ? other_bb->get_instr_id(other) > c.pos
+                                   : dom.strict_dominates(c.bb_id, other_id);
+            if (may_write(mr) || !after) {
+              ok = false;
+              break;
+            }
+          }
+          if (!ok) {
+            break;
+          }
+        }
+        if (!ok) {
+          c.alive = false;
+          changed = true;
+        }
+      }
+    }
+    fir::Builder b{pre_header};
+    b.at_penultimate(pre_header);
+    bool any = false;
+    for (auto &c : cands) {
+      if (c.alive) {
+        b.insert_copy(c.instr);
+        c.instr.destroy();
+        any = true;
+      }
+    }
+    if (any) {
+      AnalysisManager::drop_memory(func);
+    }
+    return any;
+  }
+
   // returns whether anything was hoisted
   bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
@@ -361,6 +524,8 @@ class LICM final : public FunctionPass {
     }
     split_edges |= split_edge;
 
+    const bool hoisted_writes =
+        hoist_writes(func, cfg, AnalysisManager::dom(func), info, pre_header);
     const bool reassociated = reassociate(cfg, info, pre_header);
     if (reassociated) {
       AnalysisManager::drop_memory(func);
@@ -445,6 +610,10 @@ class LICM final : public FunctionPass {
         return false;
       }
       if (instr->is(fir::InstrType::LoadInstr)) {
+        if (is_constant_memory(instr->get_arg(0),
+                               instr->result_type()->get_size())) {
+          return true;
+        }
         auto [it, fresh] = unchanged_in_loop.try_emplace(instr, false);
         if (fresh) {
           it->second = sees_memory_of_entry(func, info, instr);
@@ -532,7 +701,7 @@ class LICM final : public FunctionPass {
       }
     }
     if (invariant.empty()) {
-      return reassociated || split_edge;
+      return reassociated || split_edge || hoisted_writes;
     }
 
     fir::Builder bb{pre_header};
@@ -549,6 +718,7 @@ class LICM final : public FunctionPass {
     // the hoisted instructions are new ones, and the cached accesses name the
     // values they replace
     AnalysisManager::drop_memory(func);
+    hoist_writes(func, cfg, AnalysisManager::dom(func), info, pre_header);
     return true;
   }
 };

@@ -11,20 +11,88 @@ namespace foptim::fir::intepreter {
 
 namespace {
 
-std::optional<ConstantValue> get_constant_value(ValueR val, State &st) {
-  if (val.is_constant()) {
-    auto c = val.as_constant();
-    return *c.get_raw_ptr();
-  }
-  return st.try_get(val);
-}
-
 // null pointers are the zero integer
 APInt int_of(const ConstantValue &c, u32 bits) {
   if (c.is_null()) {
     return APInt::zero(bits);
   }
   return c.as_apint().zext_or_trunc(bits);
+}
+
+std::optional<ConstantValue> get_constant_value(ValueR val, State &st) {
+  if (val.is_constant()) {
+    auto c = val.as_constant();
+    // addresses are only followed through PtrAdd and Load
+    if (c->is_global() || c->is_func()) {
+      return std::nullopt;
+    }
+    return *c.get_raw_ptr();
+  }
+  return st.try_get(val);
+}
+
+std::optional<SymPtr> get_sym_ptr(ValueR val, State &st) {
+  if (val.is_constant()) {
+    if (val.as_constant()->is_global()) {
+      return SymPtr{.glob = val.as_constant()->as_global(), .offset = 0};
+    }
+    return std::nullopt;
+  }
+  const auto it = st.syms.find(val);
+  if (it == st.syms.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+bool interpret_select(Instr instr, State &st, InstrPointer &ip) {
+  auto cond = get_constant_value(instr->args[0], st);
+  if (!cond) {
+    return false;
+  }
+  auto v =
+      get_constant_value(instr->args[int_of(*cond, 1).is_zero() ? 2 : 1], st);
+  if (!v) {
+    return false;
+  }
+  st.set_value(instr.result(), *v);
+  ip.instr_id++;
+  return true;
+}
+
+// a load from the initializer of a constant global
+bool interpret_load(Instr instr, State &st, InstrPointer &ip) {
+  const auto ptr = get_sym_ptr(instr->args[0], st);
+  const auto ty = instr.result_type();
+  if (!ptr || instr->Volatile || instr->Atomic ||
+      !(ty->is_int() || ty->is_float())) {
+    return false;
+  }
+  const auto &g = ptr->glob;
+  const u64 size = ty->get_size();
+  if (!g->is_constant || g->init_value == nullptr || !g->reloc_info.empty() ||
+      ptr->offset < 0 || static_cast<u64>(ptr->offset) + size > g->n_bytes ||
+      size > 8) {
+    return false;
+  }
+  u64 bits = 0;
+  std::memcpy(&bits, g->init_value + ptr->offset, size);
+  if (ty->is_float()) {
+    if (ty->as_float() == 32) {
+      st.set_value(
+          instr.result(),
+          ConstantValue{std::bit_cast<f32>(static_cast<u32>(bits)), ty});
+    } else if (ty->as_float() == 64) {
+      st.set_value(instr.result(), ConstantValue{std::bit_cast<f64>(bits), ty});
+    } else {
+      return false;
+    }
+  } else {
+    st.set_value(instr.result(),
+                 ConstantValue{APInt(ty->get_bitwidth(), bits), ty});
+  }
+  ip.instr_id++;
+  return true;
 }
 
 ConstantValue bool_value(bool b, TypeR ty) {
@@ -67,6 +135,21 @@ bool interpret_cbranch(Instr instr, State &st, InstrPointer &ip) {
 }
 
 bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
+  if (instr->is(BinaryInstrSubType::PtrAdd)) {
+    if (const auto base = get_sym_ptr(instr->args[0], st)) {
+      auto off = get_constant_value(instr->args[1], st);
+      if (!off) {
+        return false;
+      }
+      const u32 bw = instr->args[1].get_type()->get_bitwidth();
+      st.syms.insert_or_assign(
+          instr.result(),
+          SymPtr{.glob = base->glob,
+                 .offset = base->offset + int_of(*off, bw).to_i64()});
+      ip.instr_id++;
+      return true;
+    }
+  }
   auto v1 = get_constant_value(instr->args[0], st);
   auto v2 = get_constant_value(instr->args[1], st);
   if (!v1 || !v2) {
@@ -287,6 +370,10 @@ bool Interpreter::step_instr() {
     case InstrType::ZExt:
     case InstrType::ITrunc:
       return interpret_int_cast(curr_i, state, ip);
+    case InstrType::SelectInstr:
+      return interpret_select(curr_i, state, ip);
+    case InstrType::LoadInstr:
+      return interpret_load(curr_i, state, ip);
     case InstrType::CallInstr:
       return interpret_call(curr_i);
     case InstrType::ReturnInstr:
@@ -360,7 +447,6 @@ bool Interpreter::step_till_end_of_bb() {
                                curr->is(InstrType::SwitchInstr) ||
                                curr->is(InstrType::ReturnInstr);
     if (!step_instr()) {
-      fmt::println("FAILED {}", curr);
       return false;
     }
     if (last_was_terminator) {

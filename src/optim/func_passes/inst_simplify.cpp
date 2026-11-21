@@ -1430,6 +1430,27 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         return true;
       }
 
+      // char * __strcpy_chk(char * dest, const char * src, size_t destlen);
+      if (funci->attribs.libfunc == fir::LibFunc::StrcpyChk &&
+          instr->args.size() == 4 && instr->get_n_uses() == 0 &&
+          instr->args[3].is_constant()) {
+        const auto src = constant_c_string(instr->args[2]);
+        if (src) {
+          const auto len = ctx->get_constant_value(
+              static_cast<i128>(src->size() + 1), ctx->get_int_type(64));
+          if (chk_len_fits(fir::ValueR{len}, instr->args[3])) {
+            fir::Builder buh{instr};
+            auto memcpy_instr = buh.build_intrinsic(
+                instr->args[1], instr->args[2], fir::ValueR{len},
+                fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+            memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+            memcpy_instr.as_instr()->Volatile = instr->Volatile;
+            instr.destroy();
+            return true;
+          }
+        }
+      }
+
       // NOTE: this current version does not work cause it does not append
       //  printf(lit) -> fputs(lit, stdout)
       //  if (funci->name == "printf" && instr->args.size() == 2 &&
