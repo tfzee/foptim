@@ -115,6 +115,7 @@ MemorySSA::MemorySSA(const CFG &cfg, const Dominators &dom,
     }
     out_state[b] = cur;
   }
+  block_out.assign(out_state.begin(), out_state.end());
   // phi operands, every edge of a reachable block
   for (u32 b = 0; b < n_bbs; b++) {
     if (!dom.is_reachable(b)) {
@@ -133,6 +134,44 @@ MemorySSA::MemorySSA(const CFG &cfg, const Dominators &dom,
     }
   }
   remove_trivial_phis();
+  returns.assign(acc.size(), 0);
+  for (u32 b = 0; b < n_bbs; b++) {
+    if (!dom.is_reachable(b)) {
+      continue;
+    }
+    const auto term = cfg.bbrs[b].bb->get_terminator();
+    if (term.is_valid() && term->is(fir::InstrType::ReturnInstr)) {
+      returns[block_out[b]] = 1;
+    }
+  }
+}
+
+std::span<const u32> MemorySSA::users(u32 state) const {
+  if (user_begin.empty()) {
+    const u32 n = static_cast<u32>(acc.size());
+    user_begin.assign(n + 1, 0);
+    const auto for_each_dep = [&](auto &&f) {
+      for (u32 id = 1; id < n; id++) {
+        const auto &a = acc[id];
+        if (a.kind == Kind::Def || a.kind == Kind::Use) {
+          f(a.defining, id);
+        } else if (a.kind == Kind::Phi) {
+          for (u32 i = 0; i < a.n_ops; i++) {
+            f(operands[a.ops_begin + i], id);
+          }
+        }
+      }
+    };
+    for_each_dep([&](u32 from, u32) { user_begin[from + 1]++; });
+    for (u32 i = 0; i < n; i++) {
+      user_begin[i + 1] += user_begin[i];
+    }
+    user_list.assign(user_begin[n], 0);
+    FVec<u32> cursor(user_begin.begin(), user_begin.end() - 1);
+    for_each_dep([&](u32 from, u32 user) { user_list[cursor[from]++] = user; });
+  }
+  return {user_list.data() + user_begin[state],
+          user_list.data() + user_begin[state + 1]};
 }
 
 void MemorySSA::remove_trivial_phis() {
@@ -181,6 +220,9 @@ void MemorySSA::remove_trivial_phis() {
     if (a.kind == Kind::Def || a.kind == Kind::Use) {
       a.defining = resolve(a.defining);
     }
+  }
+  for (auto &o : block_out) {
+    o = resolve(o);
   }
   for (u32 id = 0; id < acc.size(); id++) {
     if (acc[id].kind == Kind::Phi) {

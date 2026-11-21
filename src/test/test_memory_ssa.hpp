@@ -113,6 +113,27 @@ TEST(MemorySSA, StraightLine) {
   EXPECT_EQ(m.clobber(ld_p2), def_r);
 }
 
+TEST(MemorySSA, UsersAndReturnStates) {
+  MemSSAModule m;
+  auto st_p = m.store(m.p);
+  auto ld_p = m.load_i(m.p);
+  auto st_q = m.store(m.q, 2);
+  m.b.build_return();
+  auto &s = m.ssa();
+  const auto def_p = s.access_of(st_p);
+  const auto def_q = s.access_of(st_q);
+  const auto use_p = s.access_of(ld_p);
+  // the load and the next store are both below the first store
+  const auto below = s.users(def_p);
+  EXPECT_EQ(below.size(), 2U);
+  EXPECT_TRUE(std::ranges::find(below, use_p) != below.end());
+  EXPECT_TRUE(std::ranges::find(below, def_q) != below.end());
+  EXPECT_EQ(s.users(def_q).size(), 0U);
+  EXPECT_FALSE(s.reaches_return(def_p));
+  EXPECT_TRUE(s.reaches_return(def_q));
+  EXPECT_FALSE(s.reaches_return(MemorySSA::LiveOnEntry));
+}
+
 TEST(MemorySSA, NoMemoryNoAccess) {
   MemSSAModule m;
   auto sum = m.b.build_int_add(m.c32(1), m.c32(2)).as_instr();

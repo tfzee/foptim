@@ -5,7 +5,8 @@
 namespace foptim::optim {
 
 // Removes stores, memsets and memcpys whose bytes are overwritten on every path
-// before anything reads them, and the ones into a stack object that never
+// before anything reads them (a free of the object counts as overwriting),
+// and the ones into a stack object that never
 // escapes and is not read again.
 class DSE final : public FunctionPass {
  public:

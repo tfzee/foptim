@@ -32,6 +32,8 @@ enum class LibFunc : u8 {
   MemsetChk,
   // the loader turns calls into calls of PosixMemalignHelper
   PosixMemalign,
+  Malloc,
+  Free,
 };
 
 struct LibFuncInfo {
@@ -83,6 +85,8 @@ inline constexpr LibFuncName LibFuncNames[] = {
     {"__memcpy_chk", LibFunc::MemcpyChk, 4, true},
     {"__memset_chk", LibFunc::MemsetChk, 4, true},
     {"posix_memalign", LibFunc::PosixMemalign, 3, true},
+    {"malloc", LibFunc::Malloc, 1, true},
+    {"free", LibFunc::Free, 1, true},
 };
 
 inline std::optional<LibFuncName> lookup_libfunc(std::string_view name) {

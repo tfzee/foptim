@@ -6,6 +6,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/mem/alias_query.hpp"
 #include "optim/analysis/mem/mem_access.hpp"
+#include "optim/analysis/mem/memory_ssa.hpp"
 
 namespace foptim::optim {
 
@@ -26,18 +27,19 @@ class DeadStores {
         cfg(AnalysisManager::cfg(f)),
         dom(AnalysisManager::dom(f)),
         info(AnalysisManager::mem_accesses(f)),
+        mssa(AnalysisManager::memory_ssa(f)),
         aq(AnalysisManager::provenance(f)) {}
 
   bool run() {
-    index_blocks();
     TVec<fir::Instr> dead;
     for (u32 i = 0; i < info.accesses().size(); i++) {
       const auto &a = info.accesses()[i];
       if (!dom.is_reachable(cfg.get_bb_id(a.instr->get_parent()))) {
         continue;
       }
+      const u32 id = mssa.access_of(a.instr);
       auto cand = candidate_of(a);
-      if (cand && is_dead(i, *cand)) {
+      if (id != MemorySSA::None && cand && is_dead(id, *cand)) {
         dead.push_back(a.instr);
       }
     }
@@ -49,26 +51,6 @@ class DeadStores {
   }
 
  private:
-  enum class Walk : u8 { Continue, Live, Killed };
-
-  // [begin, end) of the accesses of every block (by CFG id)
-  void index_blocks() {
-    range.assign(cfg.bbrs.size(), {0, 0});
-    const auto &accs = info.accesses();
-    block_of.resize(accs.size());
-    for (u32 i = 0; i < accs.size();) {
-      const u32 b = cfg.get_bb_id(accs[i].instr->get_parent());
-      u32 j = i;
-      while (j < accs.size() &&
-             accs[j].instr->get_parent() == accs[i].instr->get_parent()) {
-        block_of[j] = b;
-        j++;
-      }
-      range[b] = {i, j};
-      i = j;
-    }
-  }
-
   static std::optional<u32> intrin_bytes(fir::Instr instr) {
     if (!instr->args[2].is_constant_int()) {
       return std::nullopt;
@@ -150,82 +132,101 @@ class DeadStores {
     return false;
   }
 
-  Walk scan(u32 from, u32 to, const Candidate &c, u32 &budget) {
-    const auto &accs = info.accesses();
-    for (u32 i = from; i < to; i++) {
-      if (budget == 0) {
-        return Walk::Live;
-      }
-      budget--;
-      const auto &x = accs[i];
-      const auto mr = aq.mod_ref(x.instr, c.loc, c.meta);
-      if (may_read(mr)) {
-        return Walk::Live;
-      }
-      if (may_write(mr)) {
-        auto w = write_loc(x);
-        if (w && covers(*w, c.loc)) {
-          return Walk::Killed;
-        }
-      }
+  // free of the start of the object the candidate writes into
+  static bool frees_object(fir::Instr instr, const MemLoc &loc) {
+    if (!instr->is(fir::InstrType::CallInstr) ||
+        !instr->args[0].is_constant() ||
+        !instr->args[0].as_constant()->is_func() ||
+        instr->args[0].as_constant()->as_func()->attribs.libfunc !=
+            fir::LibFunc::Free) {
+      return false;
     }
-    return Walk::Continue;
+    const auto shape = decompose_ptr(instr->args[1]);
+    return shape.offset == 0 && !shape.has_terms() &&
+           shape.same_base(whole_object(loc).ptr) && loc.ptr.offset >= 0;
   }
 
   bool dead_at_exit(const MemLoc &loc) {
-    const auto &tab = aq.provenance().table();
-    const auto set = aq.provenance().set_of(loc.ptr.addr);
-    return tab.subset(set, AliasSetTable::Stack) &&
-           tab.disjoint(set, AliasSetTable::Foreign);
+    auto &prov = aq.provenance();
+    const auto &tab = prov.table();
+    const auto set = prov.set_of(loc.ptr.addr);
+    if (tab.subset(set, AliasSetTable::Stack)) {
+      return tab.disjoint(set, AliasSetTable::Foreign);
+    }
+    // a heap object nothing frees is never read again either, a store through
+    // null is undefined so the null part of a maybe null allocation is ignored
+    if (!prov.is_heap(loc.ptr.addr)) {
+      return false;
+    }
+    if (!tab.is_union(set)) {
+      return tab.disjoint(set, AliasSetTable::Foreign);
+    }
+    return std::ranges::all_of(tab.parts(set), [&](auto p) {
+      return tab.subset(p, AliasSetTable::Null) ||
+             tab.disjoint(p, AliasSetTable::Foreign);
+    });
   }
 
+  // The object a local candidate lives in, used where the address of the
+  // candidate is another one than at the store.
+  static MemLoc whole_object(const MemLoc &loc) {
+    return MemLoc{.ptr = decompose_ptr(loc.ptr.base), .size = 0};
+  }
+
+  // After a phi of a block that defines a value of the address (the next
+  // iteration of a loop) the address is another one, there only reads of the
+  // whole object count and a kill does not.
   bool is_dead(u32 id, const Candidate &c) {
-    const u32 start_block = block_of[id];
-    u32 budget = MaxScan;
-    switch (scan(id + 1, range[start_block].second, c, budget)) {
-      case Walk::Live:
-        return false;
-      case Walk::Killed:
-        return true;
-      case Walk::Continue:
-        break;
-    }
     const bool local = dead_at_exit(c.loc);
-    TVec<u32> work;
-    TSet<u32> visited;
-    work.push_back(start_block);
-    bool first = true;
+    const MemLoc whole = whole_object(c.loc);
+    u32 budget = MaxScan;
+    TSet<u64> visited;
+    TVec<std::pair<u32, bool>> work;
+    work.emplace_back(id, false);
+    visited.insert(static_cast<u64>(id) << 1);
     while (!work.empty()) {
-      const u32 b = work.back();
+      const auto [state, crossed] = work.back();
       work.pop_back();
-      // the rest of the start block was scanned already
-      if (!first) {
-        if (!visited.insert(b).second) {
+      if (!local && mssa.reaches_return(state)) {
+        return false;
+      }
+      for (const u32 u : mssa.users(state)) {
+        const auto &a = mssa[u];
+        bool next = crossed;
+        if (a.kind == MemorySSA::Kind::Phi) {
+          next = crossed || redefines(a.block, c.loc);
+          // another object in the next iteration, nothing to say about it
+          if (next && def_block(c.loc.ptr.base) == cfg.bbrs[a.block].bb) {
+            return false;
+          }
+          if (visited.insert(static_cast<u64>(u) << 1 | next).second) {
+            work.emplace_back(u, next);
+          }
           continue;
         }
-        if (redefines(b, c.loc)) {
+        if (budget-- == 0) {
           return false;
         }
-        switch (scan(range[b].first, range[b].second, c, budget)) {
-          case Walk::Live:
-            return false;
-          case Walk::Killed:
+        if (frees_object(a.instr, c.loc)) {
+          continue;
+        }
+        const auto mr = aq.mod_ref(a.instr, crossed ? whole : c.loc, c.meta);
+        if (may_read(mr)) {
+          return false;
+        }
+        if (a.kind != MemorySSA::Kind::Def) {
+          continue;
+        }
+        if (!crossed && may_write(mr)) {
+          const auto *acc = info.find(a.instr);
+          const auto w = acc != nullptr ? write_loc(*acc) : std::nullopt;
+          if (w && covers(*w, c.loc)) {
             continue;
-          case Walk::Continue:
-            break;
+          }
         }
-      }
-      first = false;
-      const auto &succ = cfg.bbrs[b].succ;
-      if (succ.empty()) {
-        auto term = cfg.bbrs[b].bb->get_terminator();
-        if (term->is(fir::InstrType::ReturnInstr) && !local) {
-          return false;
+        if (visited.insert(static_cast<u64>(u) << 1 | crossed).second) {
+          work.emplace_back(u, crossed);
         }
-        continue;
-      }
-      for (u32 s : succ) {
-        work.push_back(s);
       }
     }
     return true;
@@ -235,9 +236,8 @@ class DeadStores {
   CFG &cfg;
   Dominators &dom;
   MemAccessInfo &info;
+  MemorySSA &mssa;
   AliasQuery aq;
-  TVec<std::pair<u32, u32>> range;
-  TVec<u32> block_of;
 };
 
 }  // namespace

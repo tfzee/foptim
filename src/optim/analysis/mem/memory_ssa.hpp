@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 #include <string>
 
 #include "ir/access_meta.hpp"
@@ -66,6 +67,16 @@ class MemorySSA {
     return operands[acc[phi].ops_begin + i];
   }
 
+  // The accesses that depend on the state directly: the defs and uses whose
+  // defining access it is and the phis with it as an operand. Built on first
+  // use.
+  [[nodiscard]] std::span<const u32> users(u32 state) const;
+  // The state is the memory at the end of a block that returns, so what the
+  // caller can observe.
+  [[nodiscard]] bool reaches_return(u32 state) const {
+    return state < returns.size() && returns[state] != 0;
+  }
+
   // The structure follows the rules (every use is below a def that dominates
   // it, one phi operand per predecessor, no phi that merges one state).
   [[nodiscard]] bool verify(const CFG &cfg, const Dominators &dom) const;
@@ -85,6 +96,12 @@ class MemorySSA {
   // block id -> phi
   FVec<u32> block_phi;
   FDMap<fir::Instr, u32> index;
+  // block id -> state at the end of the block
+  FVec<u32> block_out;
+  // per state, 1 if it is the state at the end of a returning block
+  FVec<u8> returns;
+  mutable FVec<u32> user_begin;
+  mutable FVec<u32> user_list;
 };
 
 /*

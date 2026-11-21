@@ -299,6 +299,10 @@ static bool libfunc_shape_matches(foptim::fir::LibFunc f,
       return sig(ptr, {ptr, i32, i64, i64});
     case LibFunc::PosixMemalign:
       return sig(i32, {ptr, i64, i64});
+    case LibFunc::Malloc:
+      return sig(ptr, {i64});
+    case LibFunc::Free:
+      return sig(llvm::Type::getVoidTy(lctx), {ptr});
     default:
       // floating point functions, all parameters have the result type
       return fty.getReturnType()->isFloatingPointTy() &&
@@ -2251,12 +2255,15 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
 
   if (func.getReturnType()->isPointerTy()) {
     const auto &ret = func.getAttributes().getRetAttrs();
-    foff_func->set_result_attribs(
-        ret.hasAttribute(llvm::Attribute::NoAlias) ? 1 : 0,
-        ret.hasAttribute(llvm::Attribute::NonNull) ||
-                ret.getDereferenceableBytes() > 0
-            ? 1
-            : 0);
+    // a plain declaration of malloc carries no attributes
+    const bool fresh =
+        ret.hasAttribute(llvm::Attribute::NoAlias) ||
+        foff_func->attribs.libfunc == foptim::fir::LibFunc::Malloc;
+    foff_func->set_result_attribs(fresh ? 1 : 0,
+                                  ret.hasAttribute(llvm::Attribute::NonNull) ||
+                                          ret.getDereferenceableBytes() > 0
+                                      ? 1
+                                      : 0);
   }
 
   if (func.doesNotAccessMemory()) {

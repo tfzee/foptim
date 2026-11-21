@@ -1285,6 +1285,67 @@ static bool fold_string_libfunc(fir::Instr instr, fir::LibFunc lf,
   return true;
 }
 
+static bool is_malloc_call(fir::Instr instr) {
+  return instr->is(fir::InstrType::CallInstr) && instr->args[0].is_constant() &&
+         instr->args[0].as_constant()->is_func() &&
+         instr->args[0].as_constant()->as_func()->attribs.libfunc ==
+             fir::LibFunc::Malloc;
+}
+
+// A malloc whose result is only used as the destination of plain stores,
+// memsets and memcpys (also through pointer adds) and by free is dead together
+// with all of those. Any other use, a load included, keeps it.
+static bool remove_write_only_malloc(fir::Instr alloc) {
+  TVec<fir::Instr> accesses;
+  TVec<fir::Instr> derived;
+  TVec<fir::Use> work{alloc->uses.begin(), alloc->uses.end()};
+  while (!work.empty()) {
+    const auto use = work.back();
+    work.pop_back();
+    if (use.type != fir::UseType::NormalArg) {
+      return false;
+    }
+    const auto user = use.user;
+    if (user->is(fir::BinaryInstrSubType::PtrAdd) && use.argId == 0) {
+      derived.push_back(user);
+      work.insert(work.end(), user->uses.begin(), user->uses.end());
+    } else if (user->is(fir::InstrType::StoreInstr) && use.argId == 0 &&
+               !user->Volatile && user->Ordering == 0) {
+      accesses.push_back(user);
+    } else if ((user->is(fir::IntrinsicSubType::Memset) ||
+                user->is(fir::IntrinsicSubType::Memcpy)) &&
+               use.argId == 0 && !user->Volatile) {
+      accesses.push_back(user);
+    } else if (user->is(fir::InstrType::CallInstr) && use.argId == 1 &&
+               user->args[0].is_constant() &&
+               user->args[0].as_constant()->is_func() &&
+               user->args[0].as_constant()->as_func()->attribs.libfunc ==
+                   fir::LibFunc::Free &&
+               user->get_n_uses() == 0) {
+      accesses.push_back(user);
+    } else {
+      return false;
+    }
+  }
+  for (auto a : accesses) {
+    a.destroy();
+  }
+  for (auto d = derived.rbegin(); d != derived.rend(); ++d) {
+    d->destroy();
+  }
+  alloc.destroy();
+  return true;
+}
+
+// the length of a checked mem call is within the object size, an object size
+// of all ones means unknown
+static bool chk_len_fits(fir::ValueR len, fir::ValueR destlen) {
+  const auto dl = destlen.as_constant()->as_int();
+  return dl == -1 || (len.is_constant() &&
+                      std::bit_cast<u128>(len.as_constant()->as_int()) <=
+                          std::bit_cast<u128>(dl));
+}
+
 bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
@@ -1318,6 +1379,18 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
 
+    // an allocation that is only written to and freed
+    if (funci->attribs.libfunc == fir::LibFunc::Malloc) {
+      if (remove_write_only_malloc(instr)) {
+        return true;
+      }
+    } else if (funci->attribs.libfunc == fir::LibFunc::Free &&
+               instr->args.size() == 2 && instr->args[1].is_instr() &&
+               is_malloc_call(instr->args[1].as_instr()) &&
+               remove_write_only_malloc(instr->args[1].as_instr())) {
+      return true;
+    }
+
     if (fir::is_string_libfunc(funci->attribs.libfunc)) {
       if (fold_string_libfunc(instr, funci->attribs.libfunc, ctx, worklist)) {
         return true;
@@ -1331,42 +1404,30 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     if (ctx.config->optim.assume_cstdlib_beheaviour) {
       // void * __memset_chk(void * dest, int c, size_t len, size_t destlen);
       if (funci->attribs.libfunc == fir::LibFunc::MemsetChk &&
-          instr->args[3].is_constant() && instr->args[4].is_constant() &&
-          instr->get_n_uses() == 0) {
-        auto len = std::bit_cast<u128>(instr->args[3].as_constant()->as_int());
-        auto destlen =
-            std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
-        if (len <= destlen) {
-          fir::Builder buh{instr};
-          auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
-          auto memset_instr = buh.build_intrinsic(
-              instr->args[1], new_c, instr->args[3],
-              fir::IntrinsicSubType::Memset, ctx->get_void_type());
-          memset_instr.as_instr()->Volatile = instr->Volatile;
-          instr.destroy();
-          return true;
-        }
-        TODO("emit unreach");
+          instr->args[4].is_constant() && instr->get_n_uses() == 0 &&
+          chk_len_fits(instr->args[3], instr->args[4])) {
+        fir::Builder buh{instr};
+        auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
+        auto memset_instr = buh.build_intrinsic(
+            instr->args[1], new_c, instr->args[3],
+            fir::IntrinsicSubType::Memset, ctx->get_void_type());
+        memset_instr.as_instr()->Volatile = instr->Volatile;
+        instr.destroy();
+        return true;
       }
       // void * __memcpy_chk(void * dest, const void * src, size_t len, size_t
       // destlen);
       if (funci->attribs.libfunc == fir::LibFunc::MemcpyChk &&
-          instr->args[3].is_constant() && instr->args[4].is_constant() &&
-          instr->get_n_uses() == 0) {
-        auto len = std::bit_cast<u128>(instr->args[3].as_constant()->as_int());
-        auto destlen =
-            std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
-        if (len <= destlen) {
-          fir::Builder buh{instr};
-          auto memcpy_instr = buh.build_intrinsic(
-              instr->args[1], instr->args[2], instr->args[3],
-              fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
-          memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
-          memcpy_instr.as_instr()->Volatile = instr->Volatile;
-          instr.destroy();
-          return true;
-        }
-        TODO("emit unreach");
+          instr->args[4].is_constant() && instr->get_n_uses() == 0 &&
+          chk_len_fits(instr->args[3], instr->args[4])) {
+        fir::Builder buh{instr};
+        auto memcpy_instr = buh.build_intrinsic(
+            instr->args[1], instr->args[2], instr->args[3],
+            fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+        memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+        memcpy_instr.as_instr()->Volatile = instr->Volatile;
+        instr.destroy();
+        return true;
       }
 
       // NOTE: this current version does not work cause it does not append
