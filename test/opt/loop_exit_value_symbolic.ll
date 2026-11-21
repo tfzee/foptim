@@ -217,21 +217,21 @@ define i32 @nested3_guarded(i32 %n, i32 %m, i32 %l) {
 ; CHECK-NEXT:  bb0(%0{}: i32, %1{}: i32, %2{}: i32):
 ; CHECK-NEXT:    %3: i1 = IntSGT(%0, 0:i32){} NUses:1
 ; CHECK-NEXT:    %4: i1 = IntSGT(%1, 0:i32){} NUses:2
-; CHECK-NEXT:    %5: i1 = IntSGT(%2, 0:i32){} NUses:1
+; CHECK-NEXT:    %5: i1 = IntSGT(%2, 0:i32){} NUses:2
 ; CHECK-NEXT:    %6: i32 = INTRIN:SMax(%2, 1:i32){} NUses:1
-; CHECK-NEXT:    %7: i32 = IntMul(%6, 2:i32){} NUses:1
-; CHECK-NEXT:    %8: i32 = INTRIN:SMax(%0, 1:i32){} NUses:1
-; CHECK-NEXT:    %9: i32 = IntAdd(%8, -1:i32){} NUses:1
-; CHECK-NEXT:    %10: i32 = Select(%5, %7, 0:i32){} NUses:3
-; CHECK-NEXT:    %11: i32 = IntAdd(%1, -1:i32){} NUses:1
-; CHECK-NEXT:    %12: i32 = INTRIN:SMax(%11, 0:i32){} NUses:1
-; CHECK-NEXT:    %13: i32 = IntMul(%12, %10){} NUses:2
-; CHECK-NEXT:    %14: i32 = IntAdd(%10, %13){} NUses:1
-; CHECK-NEXT:    %15: i32 = Select(%4, %14, 0:i32){} NUses:1
-; CHECK-NEXT:    %16: i32 = IntMul(%9, %15){} NUses:2
-; CHECK-NEXT:    %17: i32 = IntAdd(%16, %10){} NUses:1
-; CHECK-NEXT:    %18: i32 = IntAdd(%17, %13){} NUses:1
-; CHECK-NEXT:    %19: i32 = Select(%4, %18, %16){} NUses:1
+; CHECK-NEXT:    %7: i32 = IntMul(%6, 2:i32){} NUses:2
+; CHECK-NEXT:    %8: i32 = IntAdd(%1, -1:i32){} NUses:1
+; CHECK-NEXT:    %9: i32 = INTRIN:SMax(%8, 0:i32){} NUses:1
+; CHECK-NEXT:    %10: i32 = Select(%5, %7, 0:i32){} NUses:1
+; CHECK-NEXT:    %11: i32 = IntMul(%9, %10){} NUses:1
+; CHECK-NEXT:    %12: i32 = Select(%5, %7, 0:i32){} NUses:1
+; CHECK-NEXT:    %13: i32 = IntAdd(%11, %12){} NUses:2
+; CHECK-NEXT:    %14: i32 = INTRIN:SMax(%0, 1:i32){} NUses:1
+; CHECK-NEXT:    %15: i32 = IntAdd(%14, -1:i32){} NUses:1
+; CHECK-NEXT:    %16: i32 = Select(%4, %13, 0:i32){} NUses:1
+; CHECK-NEXT:    %17: i32 = IntMul(%15, %16){} NUses:1
+; CHECK-NEXT:    %18: i32 = Select(%4, %13, 0:i32){} NUses:1
+; CHECK-NEXT:    %19: i32 = IntAdd(%17, %18){} NUses:1
 ; CHECK-NEXT:    %20: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %21: i32 = Return(%19){} NUses:0
