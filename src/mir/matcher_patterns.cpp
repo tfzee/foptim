@@ -1186,11 +1186,26 @@ void cjmp_rules(RuleSet &rules) {
       return false;
     }
 
+    // cjmp_or is emitted as `or a, b; jnz`, which overwrites a. a must not be
+    // needed after the branch (a compare that is also used by a later or / by
+    // another block would be clobbered): swap the operands when only b dies
+    auto or_a = or_instr->args[0];
+    auto or_b = or_instr->args[1];
+    auto dies_here = [](const auto &v) {
+      return v.is_constant() || v.get_n_uses() <= 1;
+    };
+    if (!dies_here(or_a)) {
+      if (!dies_here(or_b)) {
+        return false;
+      }
+      std::swap(or_a, or_b);
+    }
+
     auto &bb_with_args = branch_instr->bbs[0];
     auto target_bb = branch_instr->bbs[0].bb;
     {
-      auto v1 = valueToArg(or_instr->args[0], res.result, data.alloc);
-      auto v2 = valueToArg(or_instr->args[1], res.result, data.alloc);
+      auto v1 = valueToArg(or_a, res.result, data.alloc);
+      auto v2 = valueToArg(or_b, res.result, data.alloc);
       ASSERT(bb_with_args.args.size() == target_bb->args.size());
       generate_bb_args(bb_with_args, res, data);
       res.result.push_back(MInstr::cJmp_or(v1, v2, data.bbs[bb_with_args.bb]));
@@ -3281,6 +3296,28 @@ void base_rules(RuleSet &rules) {
     auto a1 = valueToArg(shuf_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArg(shuf_instr->args[1], res.result, data.alloc);
     const u32 bytes = get_size(res_reg.ty);
+    const u32 in_bytes = get_size(a1.ty);
+    if (in_bytes != bytes) {
+      ASSERT_M(in_bytes == 32 && bytes == 16, "unsupported shuffle width");
+      bool low = true;
+      bool high = true;
+      for (u32 i = 0; i < n; i++) {
+        const i128 v = members[i]->as_int();
+        if (v < 0) {
+          continue;  // undef lane
+        }
+        low = low && v == static_cast<i128>(i);
+        high = high && v == static_cast<i128>(n) + i;
+      }
+      ASSERT_M(low || high, "unsupported narrowing shuffle");
+      if (low) {
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+      } else {
+        res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
+                                MArgument(static_cast<u8>(1)));
+      }
+      return true;
+    }
     const u32 elem_bytes = bytes / n;
     ASSERT(elem_bytes == 4 || elem_bytes == 8);
     ASSERT(bytes == 16 || bytes == 32);
