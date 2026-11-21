@@ -1420,7 +1420,7 @@ std::pair<uint32_t, uint32_t> restore_locals(FVec<MInstr> &instrs,
     }
     auto push_ty = save_types.of(cinfo.bb_id, reg_ty);
     n_locals_restored += 1;
-    n_local_bytes_restored += get_size(push_ty);
+    n_local_bytes_restored += std::max<uint32_t>(get_size(push_ty), 8);
     auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
     instrs.insert(instrs.begin() + static_cast<i64>(cinfo.start_id),
                   MInstr{GBaseSubtype::pop, arg});
