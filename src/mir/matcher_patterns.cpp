@@ -535,6 +535,14 @@ void move_rules(RuleSet &rules) {
 
     res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
                             MArgument(vcmp_condition));
+    if (res_arg.ty == Type::Float64 && c1.ty == Type::Float32) {
+      // the mask of the f32 compare only fills the low dword, blendvpd reads
+      // the top bit of the qword
+      auto wide = MArgument(data.alloc.get_new_register(Type::Float32x4),
+                            Type::Float32x4);
+      res.result.emplace_back(X86Subtype::vbroadcast, wide, condition);
+      condition = wide;
+    }
     // vblendv picks the second source where the mask is set, so the
     // false value goes first
     res.result.emplace_back(X86Subtype::vblendv, res_arg, arg2, arg1,

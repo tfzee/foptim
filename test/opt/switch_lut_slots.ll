@@ -63,10 +63,9 @@ define i32 @unreachable_default(i32 %v) {
 ; CHECK-NEXT:    %10: i64 = IntSub(%1, 7:i64){} NUses:2
 ; CHECK-NEXT:    %11: i64 = IntAdd(%10, 2:i64){} NUses:1
 ; CHECK-NEXT:    %12: i1 = IntULT(%10, 3:i64){} NUses:1
-; CHECK-NEXT:    %13: () = CondBranch<bb1(%11), bb3()>(%12){} NUses:0
-; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %14: i64 = IntSub(%1, 1000:i64){} NUses:1
-; CHECK-NEXT:    %15: i64 = IntAdd(%14, 5:i64){} NUses:1
+; CHECK-NEXT:    %13: i64 = IntSub(%1, 1000:i64){} NUses:1
+; CHECK-NEXT:    %14: i64 = IntAdd(%13, 5:i64){} NUses:1
+; CHECK-NEXT:    %15: i64 = Select(%12, %11, %14){} NUses:1
 ; CHECK-NEXT:    %16: () = Branch<bb1(%15)>(){} NUses:0
 ; CHECK-NEXT:}
 entry:

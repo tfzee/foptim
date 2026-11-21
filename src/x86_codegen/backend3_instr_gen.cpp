@@ -368,6 +368,24 @@ static void three_operand_form(ZydisEncoderRequest &req) {
   req.operand_count = 3;
 }
 
+static size_t emit_dep_broken(ZydisEncoderRequest &req, u8 *const out_buff) {
+  three_operand_form(req);
+  const auto dst = req.operands[0];
+  const auto src = req.operands[2];
+  size_t off = 0;
+  if (src.type != ZYDIS_OPERAND_TYPE_REGISTER ||
+      src.reg.value != dst.reg.value) {
+    const auto mnemonic = req.mnemonic;
+    req.mnemonic = ZYDIS_MNEMONIC_VXORPS;
+    req.operands[1] = dst;
+    req.operands[2] = dst;
+    off = emit(out_buff, off, &req);
+    req.mnemonic = mnemonic;
+    req.operands[2] = src;
+  }
+  return emit(out_buff, off, &req);
+}
+
 size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
                  u8 *const out_buff) {
   bool input_is_fp_reg =
@@ -1339,24 +1357,21 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                          ? ZYDIS_MNEMONIC_VCVTSI2SS
                          : ZYDIS_MNEMONIC_VCVTSI2SD;
-      three_operand_form(req);
-      return emit(out_buff, 0, &req);
+      return emit_dep_broken(req, out_buff);
     case fmir::GConvSubtype::F64_ext:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       ASSERT(instr.args[1].ty == fmir::Type::Float32);
       req.mnemonic = ZYDIS_MNEMONIC_VCVTSS2SD;
-      three_operand_form(req);
-      return emit(out_buff, 0, &req);
+      return emit_dep_broken(req, out_buff);
     case fmir::GConvSubtype::F32_trunc:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       ASSERT(instr.args[1].ty == fmir::Type::Float64);
       req.mnemonic = ZYDIS_MNEMONIC_VCVTSD2SS;
-      three_operand_form(req);
-      return emit(out_buff, 0, &req);
+      return emit_dep_broken(req, out_buff);
     case fmir::GConvSubtype::FL2UI:
     case fmir::GConvSubtype::FL2SI: {
       for (auto i = 0; i < req.operand_count; i++) {
@@ -2302,12 +2317,10 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           break;
         case fmir::Type::Float32:
           req.mnemonic = ZYDIS_MNEMONIC_VSQRTSS;
-          three_operand_form(req);
-          break;
+          return emit_dep_broken(req, out_buff);
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_VSQRTSD;
-          three_operand_form(req);
-          break;
+          return emit_dep_broken(req, out_buff);
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;

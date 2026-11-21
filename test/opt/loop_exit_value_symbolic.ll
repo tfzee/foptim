@@ -216,7 +216,7 @@ define i32 @nested3_guarded(i32 %n, i32 %m, i32 %l) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32, %1{}: i32, %2{}: i32):
 ; CHECK-NEXT:    %3: i1 = IntSGT(%0, 0:i32){} NUses:1
-; CHECK-NEXT:    %4: i1 = IntSGT(%1, 0:i32){} NUses:3
+; CHECK-NEXT:    %4: i1 = IntSGT(%1, 0:i32){} NUses:2
 ; CHECK-NEXT:    %5: i1 = IntSGT(%2, 0:i32){} NUses:3
 ; CHECK-NEXT:    %6: i32 = INTRIN:SMax(%2, 1:i32){} NUses:1
 ; CHECK-NEXT:    %7: i32 = IntMul(%6, 2:i32){} NUses:2
@@ -236,13 +236,9 @@ define i32 @nested3_guarded(i32 %n, i32 %m, i32 %l) {
 ; CHECK-NEXT:    %21: i32 = Select(%4, %20, %17){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %23: () = CondBranch<bb3(), bb4()>(%4){} NUses:0
+; CHECK-NEXT:    %23: i32 = Return(%21){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %24: i32 = Return(0:i32){} NUses:0
-; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %25: () = Branch<bb4()>(){} NUses:0
-; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %26: i32 = Return(%21){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g0 = icmp sgt i32 %n, 0

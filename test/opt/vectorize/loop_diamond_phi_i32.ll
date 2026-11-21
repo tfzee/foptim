@@ -14,44 +14,39 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:3
 ; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
-; CHECK-NEXT:    %11: () = CondBranch<bb4(), bb5()>(%10){} NUses:0
+; CHECK-NEXT:    %11: i32 = IntMul(%9, 2:i32){} NUses:1
+; CHECK-NEXT:    %12: i32 = IntSub(0:i32, %9){} NUses:1
+; CHECK-NEXT:    %13: i32 = Select(%10, %11, %12){} NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%0, %7){} NUses:1
+; CHECK-NEXT:    %15: i32 = Store(%14, %13){} NUses:0
+; CHECK-NEXT:    %16: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %17: i1 = IntSLT(%16, %2){} NUses:1
+; CHECK-NEXT:    %18: () = CondBranch<bb3(%16), bb2()>(%17){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %12: () = Return(){} NUses:0
-; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %13: i32 = IntMul(%9, 2:i32){} NUses:1
-; CHECK-NEXT:    %14: () = Branch<bb6(%13)>(){} NUses:0
-; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %15: i32 = IntSub(0:i32, %9){} NUses:1
-; CHECK-NEXT:    %16: () = Branch<bb6(%15)>(){} NUses:0
-; CHECK-NEXT:  bb6(%17{}: i32):
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %7){} NUses:1
-; CHECK-NEXT:    %19: i32 = Store(%18, %17){} NUses:0
-; CHECK-NEXT:    %20: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %21: i1 = IntSLT(%20, %2){} NUses:1
-; CHECK-NEXT:    %22: () = CondBranch<bb3(%20), bb2()>(%21){} NUses:0
-; CHECK-NEXT:  bb1(%23{}: i64):
-; CHECK-NEXT:    %24: i64 = And(%4, -8:i64){} NUses:3
-; CHECK-NEXT:    %25: i64 = IntAdd(%24, %23){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %26: i1 = IntEQ(%24, 0:i64){} NUses:1
-; CHECK-NEXT:    %27: 8@i32 = V.Broadcast(2:i32){} NUses:1
-; CHECK-NEXT:    %28: () = CondBranch<bb3(%23), bb7(%23)>(%26){} NUses:0
-; CHECK-NEXT:  bb7(%29{}: i64):
-; CHECK-NEXT:    %30: i64 = IntMul(%29, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %31: ptr = PtrAdd(%1, %30){} NUses:1
-; CHECK-NEXT:    %32: 8@i32 = Load(%31){} NUses:3
-; CHECK-NEXT:    %33: 8@i32 = V.Broadcast(0:i32){} NUses:2
-; CHECK-NEXT:    %34: 8@i1 = IntSLE(%32, %33){} NUses:1
-; CHECK-NEXT:    %35: 8@i32 = IntSub(%33, %32){} NUses:1
-; CHECK-NEXT:    %36: 8@i32 = IntMul(%32, %27){} NUses:1
-; CHECK-NEXT:    %37: 8@i32 = Select(%34, %35, %36){} NUses:1
-; CHECK-NEXT:    %38: ptr = PtrAdd(%0, %30){} NUses:1
-; CHECK-NEXT:    %39: 8@i32 = Store(%38, %37){} NUses:0
-; CHECK-NEXT:    %40: i64 = IntAdd(%29, 8:i64){} NUses:3
-; CHECK-NEXT:    %41: i1 = IntNE(%40, %25){} NUses:1
-; CHECK-NEXT:    %42: () = CondBranch<bb7(%40), bb8(%40)>(%41){} NUses:0
-; CHECK-NEXT:  bb8(%43{}: i64):
-; CHECK-NEXT:    %44: i1 = IntEQ(%24, %4){} NUses:1
-; CHECK-NEXT:    %45: () = CondBranch<bb2(), bb3(%43)>(%44){} NUses:0
+; CHECK-NEXT:    %19: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%20{}: i64):
+; CHECK-NEXT:    %21: i64 = And(%4, -8:i64){} NUses:3
+; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
+; CHECK-NEXT:    %24: 8@i32 = V.Broadcast(2:i32){} NUses:1
+; CHECK-NEXT:    %25: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
+; CHECK-NEXT:  bb4(%26{}: i64):
+; CHECK-NEXT:    %27: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %28: ptr = PtrAdd(%1, %27){} NUses:1
+; CHECK-NEXT:    %29: 8@i32 = Load(%28){} NUses:3
+; CHECK-NEXT:    %30: 8@i32 = V.Broadcast(0:i32){} NUses:2
+; CHECK-NEXT:    %31: 8@i1 = IntSGT(%29, %30){} NUses:1
+; CHECK-NEXT:    %32: 8@i32 = IntMul(%29, %24){} NUses:1
+; CHECK-NEXT:    %33: 8@i32 = IntSub(%30, %29){} NUses:1
+; CHECK-NEXT:    %34: 8@i32 = Select(%31, %32, %33){} NUses:1
+; CHECK-NEXT:    %35: ptr = PtrAdd(%0, %27){} NUses:1
+; CHECK-NEXT:    %36: 8@i32 = Store(%35, %34){} NUses:0
+; CHECK-NEXT:    %37: i64 = IntAdd(%26, 8:i64){} NUses:3
+; CHECK-NEXT:    %38: i1 = IntNE(%37, %22){} NUses:1
+; CHECK-NEXT:    %39: () = CondBranch<bb4(%37), bb5(%37)>(%38){} NUses:0
+; CHECK-NEXT:  bb5(%40{}: i64):
+; CHECK-NEXT:    %41: i1 = IntEQ(%21, %4){} NUses:1
+; CHECK-NEXT:    %42: () = CondBranch<bb2(), bb3(%40)>(%41){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g = icmp sgt i64 %n, 0

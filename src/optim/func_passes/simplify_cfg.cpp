@@ -245,9 +245,9 @@ SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
 
     {
       buh.at_end(true_bb);
-      auto call_res =
-          buh.build_call(func_arg->args[1], ptr1->as_func()->func_ty,
-                         i->result_type(), {i->args.begin() + 1, i->args.end()});
+      auto call_res = buh.build_call(func_arg->args[1],
+                                     ptr1->as_func()->func_ty, i->result_type(),
+                                     {i->args.begin() + 1, i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);
@@ -256,9 +256,9 @@ SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
 
     {
       buh.at_end(false_bb);
-      auto call_res =
-          buh.build_call(func_arg->args[2], ptr1->as_func()->func_ty,
-                         i->result_type(), {i->args.begin() + 1, i->args.end()});
+      auto call_res = buh.build_call(func_arg->args[2],
+                                     ptr1->as_func()->func_ty, i->result_type(),
+                                     {i->args.begin() + 1, i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);
@@ -1601,8 +1601,127 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     terminator.remove_from_parent();
     return true;
   }
+  if (curr.succ.size() == 2 &&
+      terminator->is(fir::InstrType::CondBranchInstr)) {
+    return if_convert_arms(curr);
+  }
   return false;
 }
+
+namespace {
+// most instructions that get executed on both paths by an if conversion
+constexpr size_t IfConvMaxInstrs = 4;
+
+// a block only entered from the branch that jumps on to the join block after a
+// few instructions that are fine to run unconditionally
+bool is_speculatable_arm(fir::BasicBlock arm, fir::BasicBlock branch_bb,
+                         u8 &n_instrs) {
+  if (arm == branch_bb || arm->uses.size() != 1 || arm->n_args() != 0 ||
+      !arm->get_terminator()->is(fir::InstrType::BranchInstr) ||
+      arm->get_terminator()->bbs[0].bb == arm) {
+    return false;
+  }
+  n_instrs = 0;
+  for (auto instr : arm->get_instrs()) {
+    if (instr->is(fir::InstrType::BranchInstr)) {
+      continue;
+    }
+    if (instr->is(fir::InstrType::AllocaInstr) || !safe_to_speculate(instr) ||
+        ++n_instrs > IfConvMaxInstrs) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace
+
+// triangle and diamond: the arms are hoisted into the branching block and the
+// values they pass to the join block are selected
+bool SimplifyCFG::if_convert_arms(CFG::Node &curr) {
+  ZoneScopedN("cond to cmove3");
+  auto terminator = curr.bb->get_terminator();
+  auto &edge0 = terminator->bbs[0];
+  auto &edge1 = terminator->bbs[1];
+  const auto t0 = edge0.bb;
+  const auto t1 = edge1.bb;
+  u8 n0 = 0;
+  u8 n1 = 0;
+  const bool arm0 = edge0.args.empty() && is_speculatable_arm(t0, curr.bb, n0);
+  const bool arm1 = edge1.args.empty() && is_speculatable_arm(t1, curr.bb, n1);
+
+  bool use_arm0 = false;
+  bool use_arm1 = false;
+  auto join = t1;
+  if (arm0 && arm1 &&
+      t0->get_terminator()->bbs[0].bb == t1->get_terminator()->bbs[0].bb) {
+    join = t0->get_terminator()->bbs[0].bb;
+    use_arm0 = use_arm1 = true;
+  } else if (arm0 && t0->get_terminator()->bbs[0].bb == t1) {
+    use_arm0 = true;
+  } else if (arm1 && t1->get_terminator()->bbs[0].bb == t0) {
+    join = t0;
+    use_arm1 = true;
+  } else {
+    return false;
+  }
+  if (join == curr.bb || n0 + n1 > IfConvMaxInstrs) {
+    return false;
+  }
+  // the values the join block gets from each side
+  auto incoming = [&](bool is_arm, fir::BasicBlock arm,
+                      const auto &edge) -> std::span<const fir::ValueR> {
+    if (is_arm) {
+      return arm->get_terminator()->bbs[0].args;
+    }
+    return edge.args;
+  };
+  const size_t n_args = join->n_args();
+  if (n_args == 0 || incoming(use_arm0, t0, edge0).size() != n_args ||
+      incoming(use_arm1, t1, edge1).size() != n_args) {
+    return false;
+  }
+
+  fir::Builder bb{terminator};
+  fir::ContextData::V2VMap subs;
+  TVec<fir::Instr> copies;
+  TVec<fir::BasicBlock> arms;
+  if (use_arm0) {
+    arms.push_back(t0);
+  }
+  if (use_arm1) {
+    arms.push_back(t1);
+  }
+  for (auto arm : arms) {
+    for (auto instr : arm->get_instrs()) {
+      if (instr->is(fir::InstrType::BranchInstr)) {
+        continue;
+      }
+      auto copy = bb.insert_copy(instr);
+      copies.push_back(copy);
+      fir::map_results(instr, copy, subs);
+    }
+  }
+  for (auto copy : copies) {
+    copy.substitute(subs);
+  }
+  auto mapped = [&](fir::ValueR v) {
+    return subs.contains(v) ? subs.at(v) : v;
+  };
+  const auto condition = terminator->get_arg(0);
+  TVec<fir::ValueR> selected;
+  for (size_t k = 0; k < n_args; k++) {
+    auto v0 = mapped(incoming(use_arm0, t0, edge0)[k]);
+    auto v1 = mapped(incoming(use_arm1, t1, edge1)[k]);
+    selected.push_back(bb.build_select(v0.get_type(), condition, v0, v1));
+  }
+  auto branch = bb.build_branch(join);
+  for (auto v : selected) {
+    branch.add_bb_arg(0, v);
+  }
+  terminator.destroy();
+  return true;
+}
+
 namespace {
 // limits of the switch to lookup table conversion
 constexpr size_t LutMinCases = 4;

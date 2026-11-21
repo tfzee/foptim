@@ -108,6 +108,7 @@ class SimplifyCFG final : public FunctionPass {
   // If we got a conditionalbrach with both taking the same target
   // then we can cmove the bbargs and then do a simple branch
   bool conditional_to_cmove(CFG::Node &curr);
+  bool if_convert_arms(CFG::Node &curr);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
   // NOTE: moved to function handling it all for perofmance reasons

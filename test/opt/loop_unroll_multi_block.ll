@@ -2,46 +2,51 @@
 ; RUN: %foffcc %s --print-fir --passes "LoopUnroll,SimplifyCFG,InstSimplify,SCCP,DCE" | FileCheck %s
 
 @arr = global [8 x i32] zeroinitializer
+@out = global i32 0
 
 ; the body has an if, the loop is left from the latch only and runs 4 times
 define i32 @full_with_if() {
 ; CHECK-LABEL: func full_with_if<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0():
-; CHECK-NEXT:    %0: i32 = Load(G(arr)){} NUses:2
+; CHECK-NEXT:    %0: i32 = Load(G(arr)){} NUses:3
 ; CHECK-NEXT:    %1: i1 = IntSGT(%0, 3:i32){} NUses:1
 ; CHECK-NEXT:    %2: () = CondBranch<bb1(), bb2(0:i32)>(%1){} NUses:0
 ; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %3: i32 = IntAdd(%4, %5){} NUses:1
-; CHECK-NEXT:    %6: () = Branch<bb4(%3)>(){} NUses:0
-; CHECK-NEXT:  bb4(%7{}: i32):
-; CHECK-NEXT:    %8: i32 = Return(%7){} NUses:0
-; CHECK-NEXT:  bb2(%9{}: i32):
-; CHECK-NEXT:    %10: ptr = PtrAdd(G(arr), 4:i64){} NUses:1
-; CHECK-NEXT:    %11: i32 = Load(%10){} NUses:2
-; CHECK-NEXT:    %12: i1 = IntSGT(%11, 3:i32){} NUses:1
-; CHECK-NEXT:    %13: () = CondBranch<bb5(), bb6(%9)>(%12){} NUses:0
+; CHECK-NEXT:    %3: i32 = IntAdd(%4, %5){} NUses:2
+; CHECK-NEXT:    %6: i32 = Store(G(out), %3){VOLATILE; } NUses:0
+; CHECK-NEXT:    %7: () = Branch<bb4(%3)>(){} NUses:0
+; CHECK-NEXT:  bb4(%8{}: i32):
+; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
+; CHECK-NEXT:  bb2(%10{}: i32):
+; CHECK-NEXT:    %11: ptr = PtrAdd(G(arr), 4:i64){} NUses:1
+; CHECK-NEXT:    %12: i32 = Load(%11){} NUses:2
+; CHECK-NEXT:    %13: i1 = IntSGT(%12, 3:i32){} NUses:1
+; CHECK-NEXT:    %14: () = CondBranch<bb5(), bb6(%10)>(%13){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %14: () = Branch<bb2(%0)>(){} NUses:0
-; CHECK-NEXT:  bb6(%15{}: i32):
-; CHECK-NEXT:    %16: i64 = ZExt(0:i32){} NUses:1
-; CHECK-NEXT:    %17: i64 = IntAdd(%16, 2:i64){} NUses:1
-; CHECK-NEXT:    %18: i64 = IntMul(%17, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %19: ptr = PtrAdd(G(arr), %18){} NUses:1
-; CHECK-NEXT:    %20: i32 = Load(%19){} NUses:2
-; CHECK-NEXT:    %21: i1 = IntSGT(%20, 3:i32){} NUses:1
-; CHECK-NEXT:    %22: () = CondBranch<bb7(), bb8(%15)>(%21){} NUses:0
+; CHECK-NEXT:    %15: i32 = Store(G(out), %0){VOLATILE; } NUses:0
+; CHECK-NEXT:    %16: () = Branch<bb2(%0)>(){} NUses:0
+; CHECK-NEXT:  bb6(%17{}: i32):
+; CHECK-NEXT:    %18: i64 = ZExt(0:i32){} NUses:1
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, 2:i64){} NUses:1
+; CHECK-NEXT:    %20: i64 = IntMul(%19, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %21: ptr = PtrAdd(G(arr), %20){} NUses:1
+; CHECK-NEXT:    %22: i32 = Load(%21){} NUses:2
+; CHECK-NEXT:    %23: i1 = IntSGT(%22, 3:i32){} NUses:1
+; CHECK-NEXT:    %24: () = CondBranch<bb7(), bb8(%17)>(%23){} NUses:0
 ; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %23: i32 = IntAdd(%11, %9){} NUses:1
-; CHECK-NEXT:    %24: () = Branch<bb6(%23)>(){} NUses:0
+; CHECK-NEXT:    %25: i32 = IntAdd(%12, %10){} NUses:2
+; CHECK-NEXT:    %26: i32 = Store(G(out), %25){VOLATILE; } NUses:0
+; CHECK-NEXT:    %27: () = Branch<bb6(%25)>(){} NUses:0
 ; CHECK-NEXT:  bb8(%5{}: i32):
-; CHECK-NEXT:    %25: ptr = PtrAdd(G(arr), 12:i64){} NUses:1
-; CHECK-NEXT:    %4: i32 = Load(%25){} NUses:2
-; CHECK-NEXT:    %26: i1 = IntSGT(%4, 3:i32){} NUses:1
-; CHECK-NEXT:    %27: () = CondBranch<bb3(), bb4(%5)>(%26){} NUses:0
+; CHECK-NEXT:    %28: ptr = PtrAdd(G(arr), 12:i64){} NUses:1
+; CHECK-NEXT:    %4: i32 = Load(%28){} NUses:2
+; CHECK-NEXT:    %29: i1 = IntSGT(%4, 3:i32){} NUses:1
+; CHECK-NEXT:    %30: () = CondBranch<bb3(), bb4(%5)>(%29){} NUses:0
 ; CHECK-NEXT:  bb7():
-; CHECK-NEXT:    %28: i32 = IntAdd(%20, %15){} NUses:1
-; CHECK-NEXT:    %29: () = Branch<bb8(%28)>(){} NUses:0
+; CHECK-NEXT:    %31: i32 = IntAdd(%22, %17){} NUses:2
+; CHECK-NEXT:    %32: i32 = Store(G(out), %31){VOLATILE; } NUses:0
+; CHECK-NEXT:    %33: () = Branch<bb8(%31)>(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %head
@@ -55,6 +60,7 @@ head:
   br i1 %c, label %then, label %latch
 then:
   %t = add i32 %s, %v
+  store volatile i32 %t, ptr @out
   br label %latch
 latch:
   %s.n = phi i32 [ %s, %head ], [ %t, %then ]
@@ -72,32 +78,34 @@ define i32 @partial_with_if() {
 ; CHECK-NEXT:  bb0():
 ; CHECK-NEXT:    %0: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %1: i32 = IntAdd(%2, %3){} NUses:1
-; CHECK-NEXT:    %4: () = Branch<bb3(%1)>(){} NUses:0
-; CHECK-NEXT:  bb3(%5{}: i32):
-; CHECK-NEXT:    %6: i32 = IntAdd(%7, 2:i32){} NUses:2
-; CHECK-NEXT:    %8: i1 = IntSLT(%6, 400:i32){} NUses:1
-; CHECK-NEXT:    %9: () = CondBranch<bb1(%6, %5), bb4()>(%8){} NUses:0
+; CHECK-NEXT:    %1: i32 = IntAdd(%2, %3){} NUses:2
+; CHECK-NEXT:    %4: i32 = Store(G(out), %1){VOLATILE; } NUses:0
+; CHECK-NEXT:    %5: () = Branch<bb3(%1)>(){} NUses:0
+; CHECK-NEXT:  bb3(%6{}: i32):
+; CHECK-NEXT:    %7: i32 = IntAdd(%8, 2:i32){} NUses:2
+; CHECK-NEXT:    %9: i1 = IntSLT(%7, 400:i32){} NUses:1
+; CHECK-NEXT:    %10: () = CondBranch<bb1(%7, %6), bb4()>(%9){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %10: i32 = Return(%5){} NUses:0
+; CHECK-NEXT:    %11: i32 = Return(%6){} NUses:0
 ; CHECK-NEXT:  bb5(%3{}: i32):
-; CHECK-NEXT:    %11: i32 = IntAdd(%7, 1:i32){} NUses:1
-; CHECK-NEXT:    %12: i64 = ZExt(%11){} NUses:1
-; CHECK-NEXT:    %13: i64 = IntMul(%12, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %14: ptr = PtrAdd(G(arr), %13){} NUses:1
-; CHECK-NEXT:    %2: i32 = Load(%14){} NUses:2
-; CHECK-NEXT:    %15: i1 = IntSGT(%2, 3:i32){} NUses:1
-; CHECK-NEXT:    %16: () = CondBranch<bb2(), bb3(%3)>(%15){} NUses:0
-; CHECK-NEXT:  bb1(%7{}: i32, %17{}: i32):
-; CHECK-NEXT:    %18: i64 = ZExt(%7){} NUses:1
-; CHECK-NEXT:    %19: i64 = IntMul(%18, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %20: ptr = PtrAdd(G(arr), %19){} NUses:1
-; CHECK-NEXT:    %21: i32 = Load(%20){} NUses:2
-; CHECK-NEXT:    %22: i1 = IntSGT(%21, 3:i32){} NUses:1
-; CHECK-NEXT:    %23: () = CondBranch<bb6(), bb5(%17)>(%22){} NUses:0
+; CHECK-NEXT:    %12: i32 = IntAdd(%8, 1:i32){} NUses:1
+; CHECK-NEXT:    %13: i64 = ZExt(%12){} NUses:1
+; CHECK-NEXT:    %14: i64 = IntMul(%13, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(G(arr), %14){} NUses:1
+; CHECK-NEXT:    %2: i32 = Load(%15){} NUses:2
+; CHECK-NEXT:    %16: i1 = IntSGT(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %17: () = CondBranch<bb2(), bb3(%3)>(%16){} NUses:0
+; CHECK-NEXT:  bb1(%8{}: i32, %18{}: i32):
+; CHECK-NEXT:    %19: i64 = ZExt(%8){} NUses:1
+; CHECK-NEXT:    %20: i64 = IntMul(%19, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %21: ptr = PtrAdd(G(arr), %20){} NUses:1
+; CHECK-NEXT:    %22: i32 = Load(%21){} NUses:2
+; CHECK-NEXT:    %23: i1 = IntSGT(%22, 3:i32){} NUses:1
+; CHECK-NEXT:    %24: () = CondBranch<bb6(), bb5(%18)>(%23){} NUses:0
 ; CHECK-NEXT:  bb6():
-; CHECK-NEXT:    %24: i32 = IntAdd(%21, %17){} NUses:1
-; CHECK-NEXT:    %25: () = Branch<bb5(%24)>(){} NUses:0
+; CHECK-NEXT:    %25: i32 = IntAdd(%22, %18){} NUses:2
+; CHECK-NEXT:    %26: i32 = Store(G(out), %25){VOLATILE; } NUses:0
+; CHECK-NEXT:    %27: () = Branch<bb5(%25)>(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %head
@@ -111,6 +119,7 @@ head:
   br i1 %c, label %then, label %latch
 then:
   %t = add i32 %s, %v
+  store volatile i32 %t, ptr @out
   br label %latch
 latch:
   %s.n = phi i32 [ %s, %head ], [ %t, %then ]
