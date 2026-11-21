@@ -7,6 +7,7 @@
 
 #include "config/compiler_config.hpp"
 #include "config/compiler_mir_passes.hpp"
+#include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/register_joining.hpp"
@@ -15,15 +16,13 @@
 
 namespace foptim::fmir::pipeline {
 
-void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
-                  foptim::TVec<foptim::fir::Function *> &reordered_funcs,
-                  foptim::FVec<foptim::fmir::Global> & /*unused*/,
-                  foptim::JobSheduler *shed, const conf::CompConf &config) {
+void match_functions(foptim::FVec<foptim::fmir::MFunc> &funcs,
+                     foptim::TVec<foptim::fir::Function *> &reordered_funcs,
+                     foptim::JobSheduler *shed, const conf::CompConf &config) {
   size_t i = 0;
-  bool enable_bisect = config.debug.bisect >= 0;
   // do matching first since it usese TVec we must before touching da tempalloc
   // reset
-  if (enable_bisect) {
+  if (config.debug.bisect >= 0) {
     fmt::println("X 0: MATCHING");
   }
   for (auto *reord_func : reordered_funcs) {
@@ -32,16 +31,25 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
     }
     shed->push(nullptr, [i, &funcs, reord_func, &config]() {
       auto &func = funcs.at(i);
+      // the matcher only keeps IR lifetime data in the result
+      const auto temp_mark = foptim::utils::TempAlloc<void *>::save();
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func, config);
+      foptim::utils::TempAlloc<void *>::restore(temp_mark);
 #ifdef ASSERT_ENABLED
       ASSERT(foptim::fmir::verify(func));
 #endif
+      // matching other functions only reads the signature of this one
+      reord_func->ctx->storage.free_function_body(*reord_func);
     });
     i++;
   }
   shed->wait_till_done();
+}
 
+void run_mir_passes(foptim::FVec<foptim::fmir::MFunc> &funcs,
+                    foptim::JobSheduler *shed, const conf::CompConf &config) {
+  bool enable_bisect = config.debug.bisect >= 0;
   // TODO: use my types
   std::vector<conf::PassConfig *> passes_worklist;
   std::deque<conf::PipelineElem> pipeline_worklist;
@@ -100,6 +108,14 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
     }
     shed->wait_till_done();
   }
+}
+
+void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
+                  foptim::TVec<foptim::fir::Function *> &reordered_funcs,
+                  foptim::FVec<foptim::fmir::Global> & /*unused*/,
+                  foptim::JobSheduler *shed, const conf::CompConf &config) {
+  match_functions(funcs, reordered_funcs, shed, config);
+  run_mir_passes(funcs, shed, config);
 }
 
 }  // namespace foptim::fmir::pipeline

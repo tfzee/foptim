@@ -215,7 +215,7 @@ void drop_attribute_analyses(fir::Function &f) {
     f.analysis_cache->provenance.reset();
   }
 }
-void drop_bits_of_users(const IRVec<fir::Use> &uses) {
+void drop_bits_of_users(const FVec<fir::Use> &uses) {
   for (const auto &use : uses) {
     if (use.user.is_valid() && use.user->get_parent().is_valid()) {
       auto &user = *use.user->get_parent()->get_parent().func;

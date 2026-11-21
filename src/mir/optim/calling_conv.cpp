@@ -162,7 +162,7 @@ u32 arg_locations_from_marks(const TVec<MInstr> &args,
 //   return stack_arg_id;
 // }
 
-void mark_arguments_with_regs(IRVec<MInstr> &instrs,
+void mark_arguments_with_regs(FVec<MInstr> &instrs,
                               const CallingConvDefinition &conv,
                               size_t instr_start_id, size_t instr_end_id) {
   TVec<ArgPosition> pos;
@@ -197,7 +197,7 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs,
   }
 }
 
-void mark_returns_with_regs(IRVec<MInstr> &instrs,
+void mark_returns_with_regs(FVec<MInstr> &instrs,
                             const CallingConvDefinition &conv,
                             size_t instr_call_id, size_t instr_ret_id) {
   TVec<ArgPosition> pos;
@@ -1278,7 +1278,7 @@ void place_vzeroupper(MFunc &func, const CFG &cfg) {
 
   for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
     auto &instrs = func.bbs[bb_id].instrs;
-    IRVec<MInstr> out_instrs;
+    FVec<MInstr> out_instrs;
     out_instrs.reserve(instrs.size());
     bool dirty = dirty_in[bb_id];
     for (const auto &instr : instrs) {
@@ -1327,7 +1327,7 @@ struct CallInfo {
   const CallingConvDefinition &cc;
 };
 
-void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
+void save_locals(FVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
                  const SaveTypes &save_types) {
   (void)call;
   for (auto reg_ty : cinfo.cc.caller_saved | std::views::reverse) {
@@ -1372,7 +1372,7 @@ void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
   // }
 }
 
-std::pair<uint32_t, uint32_t> restore_locals(IRVec<MInstr> &instrs,
+std::pair<uint32_t, uint32_t> restore_locals(FVec<MInstr> &instrs,
                                              CallInfo &cinfo,
                                              const SaveTypes &save_types) {
   uint32_t n_locals_restored = 0;
@@ -1469,7 +1469,7 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
   }
 }
 
-void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
+void setup_call_returns(FVec<MInstr> &out_instrs, CallInfo &cinfo) {
   for (auto ret : cinfo.rets | std::ranges::views::reverse) {
     const auto &ret_ty = ret.args[0].ty;
     switch (ret_ty) {
@@ -1520,7 +1520,7 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     }
   }
 }
-void setup_call_arguments(IRVec<MInstr> &out_instrs,
+void setup_call_arguments(FVec<MInstr> &out_instrs,
                           const TVec<ArgPosition> &arg_pos, CallInfo &cinfo) {
   TVec<MInstr> output_vec;
   TVec<u32> worklist;
@@ -1615,7 +1615,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
                     output_vec.begin(), output_vec.end());
 }
 
-void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
+void transform_call(FVec<MInstr> &instrs, const CallingConvDefinition &cc,
                     size_t start_id, size_t call_id, size_t end_id,
                     size_t bb_id, TMap<VReg, LinearRangeSet> &lives,
                     const SaveTypes &save_types, bool wide_vecs) {

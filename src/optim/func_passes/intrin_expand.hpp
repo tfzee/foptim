@@ -8,7 +8,7 @@ might get better optimized combined with sorounding code
 namespace foptim::optim {
 
 class IntrinExpand final : public FunctionPass {
-  using iter = IRVec<fir::Instr>::iterator;
+  using iter = FVec<fir::Instr>::iterator;
 
   std::optional<fir::BasicBlock> expand_memset(fir::Function &func,
                                                fir::BasicBlock bb,

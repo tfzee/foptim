@@ -811,7 +811,7 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
   return _live.at(bb_id)[id];
 }
 
-NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
+NextUseResult find_next_use(const FVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_instr, TVec<ArgData> &args_temp,
                             size_t max_search_index) {
   NextUseResult res{.is_write = false, .is_read = false, .index = 0};

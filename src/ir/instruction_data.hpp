@@ -51,14 +51,16 @@ enum class InstrType : u8 {
 
 struct BBRefWithArgs {
   BasicBlock bb;
-  IRVec<ValueR> args;
+  FVec<ValueR> args;
 
   bool operator==(const BBRefWithArgs &other) const;
 };
 
 // The branch targets of a terminator, allocated on first use since almost no
-// instruction has any. The same pointer slot holds the result types of a call
-// with several results (tagged in the lowest bit), a call never has targets.
+// instruction has any. The same pointer slot holds the result types of a
+// instruction with several results (tagged in the lowest bit).
+// Terminators dont have any return values and normal
+// insructions dont reference bbs like this.
 class BBList {
   using Vec = IRVec<BBRefWithArgs>;
   static constexpr uintptr_t TypesTag = 1;
@@ -96,11 +98,26 @@ class BBList {
           new (utils::IRAlloc<Vec>().allocate(1)) Vec(*other.vec()));
     }
   }
+  BBList(BBList &&other) noexcept : bits_(std::exchange(other.bits_, 0)) {}
   BBList &operator=(const BBList &other) {
     if (this != &other) {
-      bits_ = BBList(other).bits_;
+      BBList copy(other);
+      std::swap(bits_, copy.bits_);
     }
     return *this;
+  }
+  BBList &operator=(BBList &&other) noexcept {
+    if (this != &other) {
+      std::swap(bits_, other.bits_);
+    }
+    return *this;
+  }
+  // the vector itself lives in the IR arena, the buffers of the branch
+  // arguments are malloced
+  ~BBList() {
+    if (const Vec *v = vec(); v != nullptr) {
+      std::destroy_at(const_cast<Vec *>(v));
+    }
   }
 
   // result types of a call, immutable array of n entries
@@ -452,7 +469,7 @@ class InstrData : public Used, public InstrAttribs {
   TypeR value_type_;
 
  public:
-  IRVec<ValueR> args;
+  FVec<ValueR> args;
   // also holds the result types of calls with several results, which are the
   // types of all results (result 0 is also in value_type_ and what gets
   // read), immutable once set and in the IR arena

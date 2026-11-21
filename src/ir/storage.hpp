@@ -77,6 +77,32 @@ class IRStorage {
   utils::StableVec<ConstantValue> storage_constant;
   utils::StableVec<AnyType> storage_type;
 
+  // destroys the instructions, blocks and block arguments of f right away.
+  // f keeps its block list (is_decl), every ref into it dangles afterwards.
+  // Nothing may read the body anymore, other functions only look at its
+  // signature and attributes.
+  void free_function_body(Function& f) {
+    for (auto bb : f.basic_blocks) {
+      for (auto instr : bb->instructions) {
+        storage_instr.erase_now(instr);
+      }
+      for (auto arg : bb->args) {
+        bb_args.erase_now(arg);
+      }
+    }
+    for (auto bb : f.basic_blocks) {
+      basic_blocks.erase_now(bb);
+    }
+  }
+
+  // drops all instructions, blocks and block arguments. Functions keep their
+  // block list (is_decl), but every ref into it dangles afterwards.
+  void free_bodies() {
+    storage_instr.clear();
+    basic_blocks.clear();
+    bb_args.clear();
+  }
+
   BBArgument insert_bb_arg(BasicBlock bb, TypeR t) {
     return BBArgument(this->bb_args.push_back({bb, t}));
   }

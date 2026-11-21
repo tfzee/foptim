@@ -725,7 +725,7 @@ void memory_rules(RuleSet &rules) {
 
     MAsmBlock block;
     block.tmpl = info.tmpl;
-    block.operands = info.operands;
+    block.operands.assign(info.operands.begin(), info.operands.end());
     block.sideeffect = info.sideeffect;
     block.mem_clobber = info.mem_clobber;
     const auto block_id = static_cast<u64>(data.func.asm_blocks.size());

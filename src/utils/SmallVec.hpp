@@ -235,6 +235,33 @@ class SmallVec {
     }
   }
 
+  constexpr T& at(size_t i) {
+    ASSERT(i < _size);
+    return data[i];
+  }
+  constexpr const T& at(size_t i) const {
+    ASSERT(i < _size);
+    return data[i];
+  }
+  constexpr T& front() {
+    ASSERT(_size > 0);
+    return data[0];
+  }
+  constexpr const T& front() const {
+    ASSERT(_size > 0);
+    return data[0];
+  }
+  constexpr T& back() {
+    ASSERT(_size > 0);
+    return data[_size - 1];
+  }
+  constexpr const T& back() const {
+    ASSERT(_size > 0);
+    return data[_size - 1];
+  }
+  constexpr T* get_data() noexcept { return data; }
+  constexpr const T* get_data() const noexcept { return data; }
+
   constexpr const T* begin() const noexcept { return data; }
   constexpr T* end() const noexcept { return data + _size; }
   constexpr T* begin() noexcept { return data; }

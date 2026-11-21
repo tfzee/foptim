@@ -97,7 +97,7 @@ void ValueR::add_usage(Use u) {
   }
 }
 
-IRVec<Use> *ValueR::get_uses() {
+FVec<Use> *ValueR::get_uses() {
   switch (kind) {
     case ValueType::Instr:
       return &instr->uses;
@@ -112,7 +112,7 @@ IRVec<Use> *ValueR::get_uses() {
   }
 }
 
-const IRVec<Use> *ValueR::get_uses() const {
+const FVec<Use> *ValueR::get_uses() const {
   switch (kind) {
     case ValueType::Instr:
       return &instr->uses;

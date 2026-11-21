@@ -8,13 +8,13 @@ namespace foptim::fmir {
 
 class MBB {
  public:
-  IRVec<MInstr> instrs;
+  FVec<MInstr> instrs;
 };
 
 // one inline asm statement of a function, copied from the module table
 struct MAsmBlock {
   IRString tmpl;
-  IRVec<fir::AsmOperand> operands;
+  FVec<fir::AsmOperand> operands;
   bool sideeffect = false;
   bool mem_clobber = false;
 };
@@ -24,14 +24,14 @@ struct MAsmBlock {
 struct MJumpTable {
   // symbol of the table for the lea, stable for the lifetime of the function
   IRStringRef label = nullptr;
-  IRVec<u32> targets;
+  FVec<u32> targets;
 };
 
 class MFunc {
  public:
-  IRVec<MBB> bbs;
-  IRVec<MJumpTable> jump_tables;
-  IRVec<VReg> args;
+  FVec<MBB> bbs;
+  FVec<MJumpTable> jump_tables;
+  FVec<VReg> args;
   // byval pointer parameters, the pointer is the address of the copy in the
   // incoming stack area. Empty or one entry per argument, size 0 is a plain
   // one.
@@ -39,7 +39,7 @@ class MFunc {
     u32 size = 0;
     u32 align = 0;
   };
-  IRVec<ArgByVal> arg_byval;
+  FVec<ArgByVal> arg_byval;
 
   IRString name;
   fir::Linkage linkage = fir::Linkage::External;
@@ -51,10 +51,10 @@ class MFunc {
   u32 static_alloca_size = 0;
   // returns restore rsp from a copy taken at the start of the entry block
   bool has_dynamic_alloca = false;
-  // IRVec<Type> arg_tys;
+  // FVec<Type> arg_tys;
 
-  IRVec<StackSlot> extra_stack_slots;
-  IRVec<MAsmBlock> asm_blocks;
+  FVec<StackSlot> extra_stack_slots;
+  FVec<MAsmBlock> asm_blocks;
 
   bool void_ret = true;
   u16 align = 0x10;

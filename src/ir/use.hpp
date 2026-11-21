@@ -40,7 +40,7 @@ class Use {
   }
 
   TypeR get_type();
-  ValueR get_value() const;
+  [[nodiscard]] ValueR get_value() const;
   void replace_use(ValueR new_value);
 
   [[nodiscard]] bool operator==(const Use &other) const;
@@ -48,11 +48,11 @@ class Use {
 
 class Used {
  public:
-  IRVec<Use> uses;
+  FVec<Use> uses;
 
   void add_usage(Use u) { uses.push_back(u); }
   [[nodiscard]] size_t get_n_uses() const { return uses.size(); }
-  [[nodiscard]] const IRVec<Use> &get_uses() const { return uses; }
+  [[nodiscard]] const FVec<Use> &get_uses() const { return uses; }
 
   void replace_all_uses(ValueR new_value);
   void replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value);
@@ -77,7 +77,7 @@ class LockedUsed {
     auto us = _uses.scoped_lock();
     return us->uses.size();
   }
-  [[nodiscard]] const IRVec<Use> &get_uses() const {
+  [[nodiscard]] const FVec<Use> &get_uses() const {
     auto us = _uses.scoped_lock();
     return us->uses;
   }

@@ -229,7 +229,7 @@ fir::Instr extract_region(fir::Function &f, const Region &r, IRString name,
       }
     }
   }
-  IRVec<fir::ValueR> call_args;
+  FVec<fir::ValueR> call_args;
   for (auto arg : r.entry->args) {
     call_args.push_back(fir::ValueR{arg});
   }
@@ -259,7 +259,7 @@ fir::Instr extract_region(fir::Function &f, const Region &r, IRString name,
   } else if (call->n_results() == 1) {
     b.build_return(call.result());
   } else {
-    IRVec<fir::ValueR> rets;
+    FVec<fir::ValueR> rets;
     for (u32 i = 0; i < call->n_results(); i++) {
       rets.push_back(call.result(i));
     }

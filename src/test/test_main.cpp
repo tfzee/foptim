@@ -8,6 +8,7 @@
 #include "test_cost_model.hpp"
 #include "test_general.hpp"
 #include "test_inline_asm.hpp"
+#include "test_inst_simplify.hpp"
 #include "test_int128.hpp"
 #include "test_intern.hpp"
 #include "test_ir_liveness.hpp"

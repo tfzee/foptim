@@ -139,7 +139,7 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
     return;
   }
 
-  IRVec<MBB> new_bbs;
+  FVec<MBB> new_bbs;
   new_bbs.reserve(n);
   for (u32 old_id : order) {
     new_bbs.push_back(MBB{std::move(func.bbs[old_id].instrs)});

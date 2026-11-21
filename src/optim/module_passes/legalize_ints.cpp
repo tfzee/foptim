@@ -888,8 +888,8 @@ class Expander {
       }
       const auto all = bb->args;
       const size_t n_old = all.size() - n_limbs_total;
-      IRVec<fir::BBArgument> args;
-      IRVec<fir::BBArgument> tail;
+      FVec<fir::BBArgument> args;
+      FVec<fir::BBArgument> tail;
       size_t next_new = n_old;
       for (size_t i = 0; i < n_old; i++) {
         const WideArg *w = nullptr;

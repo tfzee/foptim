@@ -82,7 +82,7 @@ class Function : public Attributable, public LockedUsed {
   ContextData *ctx;
   IRString name;
   FunctionTypeR func_ty;
-  IRVec<BasicBlock> basic_blocks;
+  FVec<BasicBlock> basic_blocks;
   // metadata
   Attribs attribs;
   // numbers the vector constant globals LegalizeVecs creates for this function

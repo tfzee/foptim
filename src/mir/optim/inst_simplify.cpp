@@ -11,7 +11,7 @@ namespace foptim::fmir {
 
 namespace {
 //@returns true if the instruction was deleted
-bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
+bool simplify(MInstr &instr, FVec<MInstr> &instrs, size_t instr_id) {
   if ((instr.is(GConvSubtype::mov_zx) || instr.is(GConvSubtype::mov_sx)) &&
       instr.args[0].ty == instr.args[1].ty) {
     instr.bop = GOpcode::GBase;
@@ -63,7 +63,7 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 //@returns true if the instruction was deleted
-bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
+bool early_simplify(MInstr &instr, FVec<MInstr> &instrs, size_t instr_id) {
   if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1] && instr.args[0].isReg() &&
         !instr.args[0].reg.is_concrete()) {
@@ -86,7 +86,7 @@ bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 
-bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+bool early_multi_simplify(FVec<MInstr> &instrs, size_t instr_id) {
   if (instr_id + 2 < instrs.size() &&
       instrs[instr_id + 0].is(GBaseSubtype::mov) &&
       (instrs[instr_id + 1].is(GArithSubtype::add2) ||
@@ -128,7 +128,7 @@ bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 
-bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+bool multi_simplify(FVec<MInstr> &instrs, size_t instr_id) {
   if (instr_id + 1 < instrs.size() &&
       ((instrs[instr_id + 0].is(GArithSubtype::add2) &&
         instrs[instr_id + 1].is(GArithSubtype::sub2)) ||

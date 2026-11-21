@@ -476,7 +476,7 @@ class VReg {
     struct {
       RegType rty;
       Type ty;
-      u64 id;
+      u32 id;
     } virt;
     struct {
       RegType rty;
@@ -486,8 +486,18 @@ class VReg {
   };
 
   consteval VReg() : virt(RegType::Virtual, Type::INVALID, 0) {}
-  constexpr VReg(u64 id) : virt(RegType::Virtual, Type::INVALID, id) {}
-  constexpr VReg(u64 id, Type ty) : virt(RegType::Virtual, ty, id) {}
+  constexpr VReg(u64 id)
+      : virt(RegType::Virtual, Type::INVALID, static_cast<u32>(id)) {
+    if constexpr (!std::is_constant_evaluated()) {
+      ASSERT(id <= UINT32_MAX);
+    }
+  }
+  constexpr VReg(u64 id, Type ty)
+      : virt(RegType::Virtual, ty, static_cast<u32>(id)) {
+    if constexpr (!std::is_constant_evaluated()) {
+      ASSERT(id <= UINT32_MAX);
+    }
+  }
   constexpr VReg(CReg reg_ty, Type ty = Type::Int64)
       : conc(RegType::Concrete, ty, reg_ty) {
     if constexpr (!std::is_constant_evaluated()) {
@@ -587,12 +597,12 @@ class MArgument {
 
   ArgumentType type;
   Type ty = Type::INVALID;
+  u32 scale = 0;
 
   union {
     u64 imm;
     f64 immf;
   };
-  u64 scale = 0;
   VReg reg;
   VReg indx;
   IRStringRef label = nullptr;
@@ -1187,6 +1197,11 @@ class MInstr {
   }
 };
 #undef COND_JUMP_GEN
+
+// every function is held as MIR at the same time, keep these small
+static_assert(sizeof(VReg) == 8);
+static_assert(sizeof(MArgument) == 40);
+static_assert(sizeof(MInstr) == 176);
 
 struct ArgData {
   u8 indx;

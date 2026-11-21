@@ -11,8 +11,8 @@ namespace foptim::fir {
 class BasicBlockData : public Used {
  public:
   FunctionR func;
-  IRVec<Instr> instructions;
-  IRVec<BBArgument> args;
+  FVec<Instr> instructions;
+  FVec<BBArgument> args;
 
   BasicBlockData(FunctionR func) : func(func) {}
 

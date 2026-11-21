@@ -147,6 +147,10 @@ bool inline_call(fir::Instr call) {
     return false;
   }
 
+  // the maps and vectors below only live for this call, without the rewind
+  // every inlined call stays in the temp arena until the pass is done
+  const auto temp_scope = utils::TempAlloc<void *>::scoped();
+
   const u32 n_results = call->n_results();
   bool has_ret_value = n_results > 0;
 

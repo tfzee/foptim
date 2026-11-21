@@ -224,8 +224,11 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     n_reordered_def_funcs += 1;
   }
   funcs.resize(n_reordered_def_funcs);
-  foptim::fmir::pipeline::optimize_mir(funcs, reordered_funcs, globals, shed,
-                                       *ctx.config);
+  foptim::fmir::pipeline::match_functions(funcs, reordered_funcs, shed,
+                                          *ctx.config);
+  // MIR only needs the function list, signatures and globals from here on
+  ctx->storage.free_bodies();
+  foptim::fmir::pipeline::run_mir_passes(funcs, shed, *ctx.config);
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

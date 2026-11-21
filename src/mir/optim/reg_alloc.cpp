@@ -23,7 +23,7 @@
 #include "utils/verbosity.hpp"
 
 namespace foptim::fmir {
-void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
+void replace_vargs(FVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
   for (auto &bb : bbs) {
     for (auto &instr : bb.instrs) {
       replace_vargs(instr, reg_mapping);
@@ -344,7 +344,7 @@ void coalesce_copies(const MFunc &func, const CostModelInput &model,
   }
 }
 
-bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
+bool handle_spill_addr_mode(FVec<MInstr> &bbm, size_t &instr_id,
                             VReg spill_vreg, u64 stack_slot_id) {
   // try to spill by replacing th register usage in the instruction if posssible
   // with a memory address to the spill register
@@ -616,7 +616,7 @@ bool writes_vreg(const MInstr &instr, VReg vreg) {
   return false;
 }
 
-void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
+void handle_spill_move(FVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
                        u64 stack_slot_id, Type spill_type,
                        u64 &new_virtual_reg_id, size_t &trailing_inserted,
                        const SpillCache *cached = nullptr,

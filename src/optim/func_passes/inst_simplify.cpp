@@ -709,8 +709,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     auto out_type = instr->result_type();
     (void)out_type;
 
-    if (arg_i->is_ext() &&
-        arg_i->args[0].get_type() == instr.result_type()) {
+    if (arg_i->is_ext() && arg_i->args[0].get_type() == instr.result_type()) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(arg_i->args[0]);
       instr.destroy();
@@ -1747,6 +1746,16 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
   }
   return false;
 }
+// the extract of a concat may have a different element type than the half
+static fir::ValueR same_type_or_bitcast(fir::Instr at, fir::ValueR v,
+                                        fir::TypeR ty) {
+  if (v.get_type() == ty) {
+    return v;
+  }
+  fir::Builder buh{at};
+  return buh.build_conversion_op(v, ty, fir::ConversionSubType::BitCast);
+}
+
 // returns whether the instruction was changed
 bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
@@ -1843,7 +1852,8 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
         a2->is(fir::VectorISubType::ExtractHigh) &&
         a1->args[0] == a2->args[0]) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(a1->args[0]);
+      instr->replace_all_uses(
+          same_type_or_bitcast(instr, a1->args[0], instr.result_type()));
       instr.destroy();
       return true;
     }
@@ -1853,7 +1863,8 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(a1->args[1]);
+      instr->replace_all_uses(
+          same_type_or_bitcast(instr, a1->args[1], instr.result_type()));
       instr.destroy();
       if (a1->get_n_uses() == 0) {
         a1.destroy();
@@ -1866,7 +1877,8 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(a1->args[0]);
+      instr->replace_all_uses(
+          same_type_or_bitcast(instr, a1->args[0], instr.result_type()));
       instr.destroy();
       if (a1->get_n_uses() == 0) {
         a1.destroy();
@@ -1900,25 +1912,13 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
       auto *ctx = instr->get_parent()->get_parent()->ctx;
       auto a1 = instr->args[0].as_instr();
       auto index = instr->args[1].as_constant()->as_int();
-      if (a1->is(fir::VectorISubType::Concat) && (index == 0 || index == 1)) {
+      if (a1->is(fir::VectorISubType::Concat)) {
+        const u64 n_lo = a1->args[0].get_type()->as_vec().member_number;
+        const bool lo = index < n_lo;
         fir::Builder buh{instr};
         fir::ValueR indicies[1] = {
-            fir::ValueR{ctx->get_constant_int(index, 32)}};
-        auto new_v = buh.build_extract_element(a1->args[0], indicies,
-                                               instr->result_type());
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(new_v);
-        instr.destroy();
-        if (a1->get_n_uses() == 0) {
-          a1.destroy();
-        }
-        return true;
-      }
-      if (a1->is(fir::VectorISubType::Concat) && (index == 2 || index == 3)) {
-        fir::Builder buh{instr};
-        fir::ValueR indicies[1] = {
-            fir::ValueR{ctx->get_constant_int(index - 2, 32)}};
-        auto new_v = buh.build_extract_element(a1->args[1], indicies,
+            fir::ValueR{ctx->get_constant_int(lo ? index : index - n_lo, 32)}};
+        auto new_v = buh.build_extract_element(a1->args[lo ? 0 : 1], indicies,
                                                instr->result_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_v);

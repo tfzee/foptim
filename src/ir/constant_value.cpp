@@ -135,7 +135,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
       return;
   }
 }
-[[nodiscard]] IRVec<Use> *ConstantValue::get_uses() {
+[[nodiscard]] FVec<Use> *ConstantValue::get_uses() {
   switch (ty) {
     case ConstantType::NullPtr:
     case ConstantType::PoisonValue:
@@ -150,7 +150,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
       // return &fup_u.v.func->get_uses();
   }
 }
-[[nodiscard]] const IRVec<Use> *ConstantValue::get_uses() const {
+[[nodiscard]] const FVec<Use> *ConstantValue::get_uses() const {
   switch (ty) {
     case ConstantType::NullPtr:
     case ConstantType::PoisonValue:

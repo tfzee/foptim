@@ -138,8 +138,8 @@ struct ConstantValue {
   void remove_usage(Use u, bool verify = true);
   void replace_all_uses(ValueR);
   void replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value);
-  [[nodiscard]] IRVec<Use> *get_uses();
-  [[nodiscard]] const IRVec<Use> *get_uses() const;
+  [[nodiscard]] FVec<Use> *get_uses();
+  [[nodiscard]] const FVec<Use> *get_uses() const;
 
   [[nodiscard]] bool is_valid() const;
 

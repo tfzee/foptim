@@ -247,7 +247,7 @@ SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
       buh.at_end(true_bb);
       auto call_res =
           buh.build_call(func_arg->args[1], ptr1->as_func()->func_ty,
-                         i->result_type(), {++i->args.begin(), i->args.end()});
+                         i->result_type(), {i->args.begin() + 1, i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);
@@ -258,7 +258,7 @@ SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
       buh.at_end(false_bb);
       auto call_res =
           buh.build_call(func_arg->args[2], ptr1->as_func()->func_ty,
-                         i->result_type(), {++i->args.begin(), i->args.end()});
+                         i->result_type(), {i->args.begin() + 1, i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);

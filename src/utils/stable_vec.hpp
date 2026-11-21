@@ -109,39 +109,9 @@ class StableVec {
     return n;
   }
 
-  StableVec() {
-    Slab *new_slab = AllocSlabs{}.allocate(1);
-    std::memset(static_cast<void *>(&new_slab->data[0]), 0,
-                slot_slab_len * sizeof(Slot<T>));
-    {
-      slap_append(new_slab);
-    }
-    {
-      auto free_list = _free_list.scoped_lock();
-      free_list->push_back({&new_slab->data[0], slot_slab_len});
-    }
-  }
+  StableVec() { init(); }
 
-  ~StableVec() {
-    {
-      auto free_list = _free_list.scoped_lock();
-      free_list->clear();
-    }
-    Slab *start = _slot_start;
-    while (start != nullptr) {
-      for (u32 i = 0; i < slot_slab_len; i++) {
-        // slots on the free list hold no live T
-        if (start->data[i].state() != SlotState::FreeList) {
-          std::destroy_at(&start->data[i].data);
-        }
-      }
-      // TracyFree(slot_alloc);
-      auto next = start->next;
-      AllocSlabs{}.deallocate(start, 1);
-      start = next;
-      // free(slot_alloc);
-    }
-  }
+  ~StableVec() { release(); }
 
   // The slot is only reusable (and its data destroyed) after collect_garbage
   // so refs held by other threads stay detectable until then.
@@ -238,7 +208,57 @@ class StableVec {
     return SRef{res_ptr, res_ptr->generation()};
   }
 
-  void clear() { TODO("not implemented clear yet"); }
+  // Destroys the value and makes the slot reusable at once, every ref to it
+  // dangles. Like remove + collect_garbage for one slot, without the scan over
+  // all slabs.
+  void erase_now(SRef<T> s) {
+    ASSERT(s.data_ref != nullptr);
+    ASSERT(s.data_ref->state() != SlotState::FreeList);
+    std::destroy_at(&s.data_ref->data);
+    s.data_ref->mark_free_list();
+    auto free_list = _free_list.scoped_lock();
+    free_list->push_back({s.data_ref, 1});
+  }
+
+  // destroys everything and returns the memory, all refs become dangling
+  void clear() {
+    release();
+    init();
+  }
+
+ private:
+  void init() {
+    Slab *new_slab = AllocSlabs{}.allocate(1);
+    std::memset(static_cast<void *>(&new_slab->data[0]), 0,
+                slot_slab_len * sizeof(Slot<T>));
+    {
+      slap_append(new_slab);
+    }
+    {
+      auto free_list = _free_list.scoped_lock();
+      free_list->push_back({&new_slab->data[0], slot_slab_len});
+    }
+  }
+
+  void release() {
+    {
+      auto free_list = _free_list.scoped_lock();
+      free_list->clear();
+    }
+    Slab *start = _slot_start;
+    while (start != nullptr) {
+      for (u32 i = 0; i < slot_slab_len; i++) {
+        // slots on the free list hold no live T
+        if (start->data[i].state() != SlotState::FreeList) {
+          std::destroy_at(&start->data[i].data);
+        }
+      }
+      auto next = start->next;
+      AllocSlabs{}.deallocate(start, 1);
+      start = next;
+    }
+    _slot_start = nullptr;
+  }
 };
 
 // template <class T, u32 slot_slab_len = 128,
