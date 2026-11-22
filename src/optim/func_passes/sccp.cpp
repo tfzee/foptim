@@ -1646,13 +1646,24 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     }
     case fir::InstrType::ITrunc: {
       auto a = eval(instr->get_arg(0));
-      ASSERT(a.vals.size() <= 1);
 
       if (a.is_bottom()) {
         return ConstantValue::Bottom();
       }
       if (a.is_top()) {
         return ConstantValue::Top();
+      }
+      if (a.vals.size() > 1) {
+        if (!a.is_int()) {
+          return ConstantValue::Bottom();
+        }
+        IRVec<fir::ConstantValueR> args;
+        for (const auto &v : a.vals) {
+          args.push_back(ctx->get_constant_int(
+              v.i.zext_or_trunc(instr->result_type()->as_vec().bitwidth)));
+        }
+        return ConstantValue::Constant(
+            ctx->get_constant_value(args, instr.result_type()));
       }
 
       if (!a.is_int()) {

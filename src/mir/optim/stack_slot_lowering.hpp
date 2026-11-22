@@ -83,7 +83,13 @@ class StackSlotLowering : public FunctionPass {
             auto off = static_cast<u64>(
                 static_cast<i64>(index_to_mem_off.at(arg.imm - 1)) -
                 static_cast<i64>(stack_slots_size + above_slots));
-            if (arg.scale == 32) {
+            // an extension reads a partial vector slot with its lane width
+            const auto keep_ty =
+                arg.ty == Type::Int8x8 || arg.ty == Type::Int16x4 ||
+                arg.ty == Type::Int32x2 || arg.ty == Type::Int8x4;
+            if (keep_ty && (arg.scale == 8 || arg.scale == 4)) {
+              arg = MArgument::MemOB(off, VReg::RBP(), arg.ty);
+            } else if (arg.scale == 32) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x4);
             } else if (arg.scale == 16) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x2);

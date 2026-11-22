@@ -400,9 +400,9 @@ bool handle_spill_addr_mode(FVec<MInstr> &bbm, size_t &instr_id,
              instr.is(GVecSubtype::vmul) || instr.is(GVecSubtype::vdiv) ||
              instr.is(GVecSubtype::fMin) || instr.is(GVecSubtype::fMax)) {
     auto &a2 = instr.args[2];
-    // the packed form reads 16 bytes, the slot of a pair only has 8
+    // the packed form reads 16 bytes, the slot of a partial vector is smaller
     if (a2.isMem() || !a2.uses_same_vreg(spill_vreg) ||
-        a2.ty == Type::Float32x2) {
+        (vec_lane_bits(a2.ty) != 0 && get_size(a2.ty) < 16)) {
       return false;
     }
     a2 = MArgument::stack_slot(stack_slot_id, a2.ty);

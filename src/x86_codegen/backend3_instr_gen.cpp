@@ -2043,14 +2043,18 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VADDPD;
           break;
+        case fmir::Type::Int8x4:
+        case fmir::Type::Int8x8:
         case fmir::Type::Int8x16:
         case fmir::Type::Int8x32:
           req.mnemonic = ZYDIS_MNEMONIC_VPADDB;
           break;
+        case fmir::Type::Int16x4:
         case fmir::Type::Int16x8:
         case fmir::Type::Int16x16:
           req.mnemonic = ZYDIS_MNEMONIC_VPADDW;
           break;
+        case fmir::Type::Int32x2:
         case fmir::Type::Int32x4:
         case fmir::Type::Int32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPADDD;
@@ -2084,14 +2088,18 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VSUBPD;
           break;
+        case fmir::Type::Int8x4:
+        case fmir::Type::Int8x8:
         case fmir::Type::Int8x16:
         case fmir::Type::Int8x32:
           req.mnemonic = ZYDIS_MNEMONIC_VPSUBB;
           break;
+        case fmir::Type::Int16x4:
         case fmir::Type::Int16x8:
         case fmir::Type::Int16x16:
           req.mnemonic = ZYDIS_MNEMONIC_VPSUBW;
           break;
+        case fmir::Type::Int32x2:
         case fmir::Type::Int32x4:
         case fmir::Type::Int32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPSUBD;
@@ -2527,10 +2535,10 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     case fmir::X86Subtype::mfence:
     case fmir::X86Subtype::vzeroupper: {
-      req.mnemonic = static_cast<fmir::X86Subtype>(instr.sop) ==
-                             fmir::X86Subtype::mfence
-                         ? ZYDIS_MNEMONIC_MFENCE
-                         : ZYDIS_MNEMONIC_VZEROUPPER;
+      req.mnemonic =
+          static_cast<fmir::X86Subtype>(instr.sop) == fmir::X86Subtype::mfence
+              ? ZYDIS_MNEMONIC_MFENCE
+              : ZYDIS_MNEMONIC_VZEROUPPER;
       req.operand_count = 0;
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;

@@ -227,6 +227,61 @@ class LegalizeVecs final : public FunctionPass {
     return true;
   }
 
+  // there is no byte multiply: the even bytes are the low byte of the word
+  // product, the odd bytes are the low byte of the product of the shifted
+  // down words moved back up
+  bool legalize_byte_mul(fir::Context &ctx, fir::Instr instr,
+                         TVec<fir::Instr> &worklist) {
+    using Sub = fir::BinaryInstrSubType;
+    if (!instr->is(Sub::IntMul) || !instr->result_type()->is_vec()) {
+      return false;
+    }
+    const auto vt = instr->result_type()->as_vec();
+    if (vt.bitwidth != 8 || vt.member_number % 2 != 0) {
+      return false;
+    }
+    fir::Builder b{instr};
+    if (vt.member_number == 4 || vt.member_number == 8) {
+      // partial vectors are multiplied in the lanes of a full xmm
+      const auto wide_ty =
+          ctx->get_vec_type(ctx->get_int_type(vt.member_number == 8 ? 16 : 32),
+                            static_cast<u16>(vt.member_number));
+      auto prod = b.build_int_mul(b.build_zext(instr->args[0], wide_ty),
+                                  b.build_zext(instr->args[1], wide_ty));
+      auto narrow = b.build_itrunc(prod, instr->result_type());
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(narrow);
+      instr.destroy();
+      return true;
+    }
+    if (vt.member_number != 16 && vt.member_number != 32) {
+      return false;
+    }
+    const auto byte_ty = instr->result_type();
+    const auto word_ty =
+        ctx->get_vec_type(vt.type, 16, static_cast<u16>(vt.member_number / 2));
+    const auto splat = [&](u64 value) {
+      return b.build_vbroadcast(
+          fir::ValueR{ctx->get_constant_int(static_cast<i128>(value), 16)},
+          word_ty);
+    };
+    const auto to_words = [&](fir::ValueR v) {
+      return b.build_conversion_op(v, word_ty, fir::ConversionSubType::BitCast);
+    };
+    auto x = to_words(instr->args[0]);
+    auto y = to_words(instr->args[1]);
+    auto even = b.build_binary_op(b.build_int_mul(x, y), splat(0xFF), Sub::And);
+    auto odd = b.build_shl(
+        b.build_int_mul(b.build_lshr(x, splat(8)), b.build_lshr(y, splat(8))),
+        splat(8));
+    auto res = b.build_conversion_op(b.build_binary_op(even, odd, Sub::Or),
+                                     byte_ty, fir::ConversionSubType::BitCast);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return true;
+  }
+
   // x86 has no vector integer division. 8 and 16 bit lanes are widened to 32
   // bit and divided as f32 (exact for 16 bit operands, the truncating convert
   // gives the quotient), 32 bit lanes are divided as f64 in groups of four
@@ -292,8 +347,8 @@ class LegalizeVecs final : public FunctionPass {
       const auto f64_ty = ctx->get_float_type(64);
       const auto fty = ctx->get_vec_type(f64_ty, static_cast<u16>(n));
       const auto splat_f64 = [&](f64 v) {
-        return b.build_vbroadcast(fir::ValueR{ctx->get_constant_value(v, f64_ty)},
-                                  fty);
+        return b.build_vbroadcast(
+            fir::ValueR{ctx->get_constant_value(v, f64_ty)}, fty);
       };
       if (is_signed) {
         const auto xf =
@@ -461,6 +516,9 @@ class LegalizeVecs final : public FunctionPass {
   bool legalize(fir::Context &ctx, fir::Instr instr, TVec<fir::Instr> &worklist,
                 FloatPool &pool) {
     if (legalize_byte_shift(ctx, instr, worklist)) {
+      return true;
+    }
+    if (legalize_byte_mul(ctx, instr, worklist)) {
       return true;
     }
     if (legalize_vec_int_div(ctx, instr, worklist)) {
