@@ -120,6 +120,10 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
             case fir::IntrinsicSubType::PMaddUBSW:
             case fir::IntrinsicSubType::PermD:
             case fir::IntrinsicSubType::MoveMask:
+            case fir::IntrinsicSubType::UAddSat:
+            case fir::IntrinsicSubType::USubSat:
+            case fir::IntrinsicSubType::SAddSat:
+            case fir::IntrinsicSubType::SSubSat:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::VA_start:
@@ -357,6 +361,10 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::PMaddUBSW:
             case fir::IntrinsicSubType::PermD:
             case fir::IntrinsicSubType::MoveMask:
+            case fir::IntrinsicSubType::UAddSat:
+            case fir::IntrinsicSubType::USubSat:
+            case fir::IntrinsicSubType::SAddSat:
+            case fir::IntrinsicSubType::SSubSat:
             case fir::IntrinsicSubType::IsConstant:
               fmt::println("{}", instr);
               TODO("impl");

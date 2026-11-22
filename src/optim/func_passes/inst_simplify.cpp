@@ -89,6 +89,186 @@ bool is_constant_float_zero(fir::ValueR r) {
   return c->as_float() == 0;
 }
 
+namespace {
+// signed value of an integer constant, false if v is no constant of at most 64
+// bits
+bool small_int_const(fir::ValueR v, i128 &out) {
+  if (!v.is_constant() || !v.as_constant()->is_int() ||
+      v.get_type()->get_bitwidth() > 64) {
+    return false;
+  }
+  out = v.as_constant()->as_int();
+  return true;
+}
+
+// an intrinsic min / max of sub with one constant operand, returns the other
+bool minmax_with_const(fir::ValueR v, fir::IntrinsicSubType sub,
+                       fir::ValueR &other, i128 &k) {
+  if (!v.is_instr() || !v.as_instr()->is(sub)) {
+    return false;
+  }
+  auto m = v.as_instr();
+  for (u32 i = 0; i < 2; i++) {
+    if (small_int_const(m->args[i], k)) {
+      other = m->args[1 - i];
+      return true;
+    }
+  }
+  return false;
+}
+
+// Select(cmp(x, K), C, trunc(x)) clamps x to K from one side when C is the
+// truncation of K, and the clamp of x between two bounds stays one when a
+// guard on the range of x is only there to skip it. Gives the replacement or
+// an invalid value.
+fir::ValueR simplify_trunc_clamp(fir::Instr instr) {
+  using Sub = fir::IntrinsicSubType;
+  using Cmp = fir::ICmpInstrSubType;
+  const auto none = fir::ValueR{};
+  if (!instr->result_type()->is_int() || !instr->args[0].is_instr() ||
+      !instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
+    return none;
+  }
+  auto cmp = instr->args[0].as_instr();
+  const auto res_ty = instr->result_type();
+  const u32 res_bits = res_ty->get_bitwidth();
+  i128 k = 0;
+  i128 c = 0;
+  if (!small_int_const(cmp->args[1], k) || res_bits > 64) {
+    return none;
+  }
+  const auto x = cmp->args[0];
+  const auto x_ty = x.get_type();
+  if (!x_ty->is_int() || x_ty->get_bitwidth() <= res_bits ||
+      x_ty->get_bitwidth() > 64) {
+    return none;
+  }
+  const i128 mod = static_cast<i128>(1) << res_bits;
+  auto trunc_of_x = [&](fir::ValueR v) {
+    return v.is_instr() && v.as_instr()->is(fir::InstrType::ITrunc) &&
+           v.as_instr()->args[0] == x;
+  };
+  const auto pred = static_cast<Cmp>(cmp->subtype);
+  fir::Builder b{instr};
+  // the false value is the truncation of x
+  if (trunc_of_x(instr->args[2]) && small_int_const(instr->args[1], c) &&
+      (((k - c) % mod) == 0)) {
+    Sub sub = Sub::INVALID;
+    switch (pred) {
+      case Cmp::SGT:
+        sub = Sub::SMin;
+        break;
+      case Cmp::SLT:
+        sub = Sub::SMax;
+        break;
+      case Cmp::UGT:
+        sub = Sub::UMin;
+        break;
+      case Cmp::ULT:
+        sub = Sub::UMax;
+        break;
+      default:
+        break;
+    }
+    if (sub != Sub::INVALID) {
+      auto clamped = b.build_intrinsic(x, cmp->args[1], sub);
+      return b.build_itrunc(clamped, res_ty);
+    }
+  }
+  // the false value is the truncation of a clamp from the other side
+  if (pred == Cmp::SLT && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::InstrType::ITrunc) &&
+      small_int_const(instr->args[1], c) && ((k - c) % mod) == 0) {
+    fir::ValueR inner;
+    i128 hi = 0;
+    const auto y = instr->args[2].as_instr()->args[0];
+    if (minmax_with_const(y, Sub::SMin, inner, hi) && inner == x && hi >= k) {
+      return b.build_itrunc(b.build_intrinsic(y, cmp->args[1], Sub::SMax),
+                            res_ty);
+    }
+  }
+  // x outside of [0, K] is clamped, inside the clamp is the truncation
+  if (pred == Cmp::UGT && k >= 0 && trunc_of_x(instr->args[2]) &&
+      instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::InstrType::ITrunc)) {
+    fir::ValueR mx;
+    fir::ValueR inner;
+    i128 lo = 0;
+    i128 hi = 0;
+    if (minmax_with_const(instr->args[1].as_instr()->args[0], Sub::SMax, mx,
+                          lo) &&
+        lo == 0 && minmax_with_const(mx, Sub::SMin, inner, hi) && inner == x &&
+        hi == k) {
+      return instr->args[1];
+    }
+  }
+  return none;
+}
+// select(a + b <u a, -1, a + b) is a saturating add, select(a <u b, 0, a - b)
+// a saturating subtract (also written with the compare the other way around).
+// Gives the replacement or an invalid value.
+fir::ValueR simplify_unsigned_sat(fir::Instr instr) {
+  using Cmp = fir::ICmpInstrSubType;
+  using Bin = fir::BinaryInstrSubType;
+  const auto none = fir::ValueR{};
+  const auto ty = instr->result_type();
+  if (!instr->args[0].is_instr() ||
+      !instr->args[0].as_instr()->is(fir::InstrType::ICmp) ||
+      (!ty->is_int() &&
+       !(ty->is_vec() &&
+         ty->as_vec().type == fir::VectorType::SubType::Integer))) {
+    return none;
+  }
+  auto cmp = instr->args[0].as_instr();
+  auto pred = static_cast<Cmp>(cmp->subtype);
+  auto t = instr->args[1];
+  auto f = instr->args[2];
+  auto is_const = [&](fir::ValueR v, bool ones) {
+    i128 c = 0;
+    if (!v.is_constant() || !v.as_constant()->is_int()) {
+      return false;
+    }
+    c = v.as_constant()->as_int();
+    return ones ? c == -1 : c == 0;
+  };
+  auto bin_of = [&](fir::ValueR v, Bin sub) -> std::optional<fir::Instr> {
+    if (v.is_instr() && v.as_instr()->is(sub)) {
+      return v.as_instr();
+    }
+    return std::nullopt;
+  };
+  fir::Builder b{instr};
+  if (pred == Cmp::ULT && is_const(t, true)) {
+    if (auto add = bin_of(f, Bin::IntAdd); add && cmp->args[0] == f) {
+      if (cmp->args[1] == (*add)->args[0] || cmp->args[1] == (*add)->args[1]) {
+        return b.build_intrinsic((*add)->args[0], (*add)->args[1],
+                                 fir::IntrinsicSubType::UAddSat);
+      }
+    }
+  }
+  const bool lt = pred == Cmp::ULT || pred == Cmp::ULE;
+  const bool gt = pred == Cmp::UGT || pred == Cmp::UGE;
+  if (lt || gt) {
+    const auto lhs = cmp->args[0];
+    const auto rhs = cmp->args[1];
+    const auto lhs_less = lt ? t : f;
+    const auto lhs_greater = lt ? f : t;
+    auto is_diff = [&](fir::ValueR v, fir::ValueR x, fir::ValueR y) {
+      auto sub = bin_of(v, Bin::IntSub);
+      return sub && (*sub)->args[0] == x && (*sub)->args[1] == y;
+    };
+    if (is_const(lhs_less, false) && is_diff(lhs_greater, lhs, rhs)) {
+      return b.build_intrinsic(lhs, rhs, fir::IntrinsicSubType::USubSat);
+    }
+    if (is_const(lhs_greater, false) && is_diff(lhs_less, rhs, lhs)) {
+      return b.build_intrinsic(rhs, lhs, fir::IntrinsicSubType::USubSat);
+    }
+  }
+  return none;
+}
+
+}  // namespace
+
 bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
@@ -210,6 +390,18 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         }
       }
     }
+  }
+  if (auto sat = simplify_unsigned_sat(instr); !sat.is_invalid()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(sat);
+    instr.destroy();
+    return true;
+  }
+  if (auto clamp = simplify_trunc_clamp(instr); !clamp.is_invalid()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(clamp);
+    instr.destroy();
+    return true;
   }
   if (instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {

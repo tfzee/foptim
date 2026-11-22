@@ -5,6 +5,7 @@ might get better optimized combined with sorounding code
 */
 #include "ir/function.hpp"
 #include "optim/function_pass.hpp"
+#include "optim/helper/sat_expand.hpp"
 namespace foptim::optim {
 
 class IntrinExpand final : public FunctionPass {
@@ -26,11 +27,30 @@ class IntrinExpand final : public FunctionPass {
   class Config {};
 
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
-    (void)ctx;
-    (void)func;
     ZoneScopedNC("IntrinExpand", COLOR_OPTIMF);
 
     bool modified = false;
+    // saturating scalar arithmetic has no instruction, it is a compare and a
+    // select
+    for (auto bb : func.basic_blocks) {
+      TVec<fir::Instr> sats;
+      for (auto i : bb->instructions) {
+        if (i->is(fir::InstrType::Intrinsic) &&
+            is_sat_intrinsic(static_cast<fir::IntrinsicSubType>(i->subtype)) &&
+            !sat_is_native(i.result_type())) {
+          sats.push_back(i);
+        }
+      }
+      for (auto i : sats) {
+        fir::Builder b{i};
+        const auto res =
+            expand_sat(ctx, b, static_cast<fir::IntrinsicSubType>(i->subtype),
+                       i->args[0], i->args[1]);
+        i->replace_all_uses(res);
+        i.destroy();
+        modified = true;
+      }
+    }
     auto bb_iter = func.basic_blocks.begin();
     while (bb_iter != func.basic_blocks.end()) {
       bool broke = false;

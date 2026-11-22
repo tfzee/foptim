@@ -86,6 +86,24 @@ void check_width(unsigned w, std::mt19937_64 &g, int iters) {
         ASSERT_EQ(ov, s != sext128(static_cast<u128>(s) & m, w));
       }
     }
+    if (w < 127) {
+      // the saturating forms clamp to the range of the type
+      const i128 sx = sext128(x, w);
+      const i128 sy = sext128(y, w);
+      const i128 smax = (i128{1} << (w - 1)) - 1;
+      const i128 smin = -smax - 1;
+      auto clamp_s = [&](i128 v) {
+        return v > smax ? smax : v < smin ? smin : v;
+      };
+      ASSERT_EQ(a.uadd_sat(b).to_u128(), x + y > m ? m : x + y) << w;
+      ASSERT_EQ(a.usub_sat(b).to_u128(), x < y ? 0 : x - y) << w;
+      ASSERT_EQ(a.sadd_sat(b).to_u128(),
+                static_cast<u128>(clamp_s(sx + sy)) & m)
+          << w;
+      ASSERT_EQ(a.ssub_sat(b).to_u128(),
+                static_cast<u128>(clamp_s(sx - sy)) & m)
+          << w;
+    }
     if (w <= 64) {
       (void)a.umul_ov(b, ov);
       ASSERT_EQ(ov, (x * y) > m);

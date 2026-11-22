@@ -862,6 +862,41 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           }
           return a;
         }
+        case fir::IntrinsicSubType::UAddSat:
+        case fir::IntrinsicSubType::USubSat:
+        case fir::IntrinsicSubType::SAddSat:
+        case fir::IntrinsicSubType::SSubSat: {
+          auto a = eval(instr->get_arg(0));
+          auto b = eval(instr->get_arg(1));
+          if (a.is_bottom() || b.is_bottom()) {
+            return ConstantValue::Bottom();
+          }
+          if ((!a.is_const() || !a.is_int()) ||
+              (!b.is_const() || !b.is_int())) {
+            return ConstantValue::Top();
+          }
+          const auto sub =
+              static_cast<fir::IntrinsicSubType>(instr->get_instr_subtype());
+          for (size_t i = 0; i < a.vals.size(); i++) {
+            const APInt &x = a.vals[i].i;
+            const APInt &y = b.vals[i].i;
+            switch (sub) {
+              case fir::IntrinsicSubType::UAddSat:
+                a.vals[i].i = x.uadd_sat(y);
+                break;
+              case fir::IntrinsicSubType::USubSat:
+                a.vals[i].i = x.usub_sat(y);
+                break;
+              case fir::IntrinsicSubType::SAddSat:
+                a.vals[i].i = x.sadd_sat(y);
+                break;
+              default:
+                a.vals[i].i = x.ssub_sat(y);
+                break;
+            }
+          }
+          return a;
+        }
         case fir::IntrinsicSubType::FMinimum: {
           auto a = eval(instr->get_arg(0));
           auto b = eval(instr->get_arg(1));

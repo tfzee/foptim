@@ -129,6 +129,14 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:SMin";
         case IntrinsicSubType::SMax:
           return "INTRIN:SMax";
+        case IntrinsicSubType::UAddSat:
+          return "INTRIN:UAddSat";
+        case IntrinsicSubType::USubSat:
+          return "INTRIN:USubSat";
+        case IntrinsicSubType::SAddSat:
+          return "INTRIN:SAddSat";
+        case IntrinsicSubType::SSubSat:
+          return "INTRIN:SSubSat";
         case IntrinsicSubType::FMin:
           return "INTRIN:FMin";
         case IntrinsicSubType::FMax:
@@ -703,6 +711,10 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UAddSat:
+        case IntrinsicSubType::USubSat:
+        case IntrinsicSubType::SAddSat:
+        case IntrinsicSubType::SSubSat:
         case IntrinsicSubType::UMax:
         case IntrinsicSubType::SMin:
         case IntrinsicSubType::SMax:
@@ -820,6 +832,8 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::PMaddUBSW:
         case IntrinsicSubType::PermD:
         case IntrinsicSubType::MoveMask:
+        case IntrinsicSubType::USubSat:
+        case IntrinsicSubType::SSubSat:
         case IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
@@ -833,6 +847,8 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::UMax:
         case IntrinsicSubType::SMin:
         case IntrinsicSubType::SMax:
+        case IntrinsicSubType::UAddSat:
+        case IntrinsicSubType::SAddSat:
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::FMinimum:
@@ -919,6 +935,10 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UAddSat:
+        case IntrinsicSubType::USubSat:
+        case IntrinsicSubType::SAddSat:
+        case IntrinsicSubType::SSubSat:
         case IntrinsicSubType::UMax:
         case IntrinsicSubType::SMin:
         case IntrinsicSubType::SMax:
@@ -1001,6 +1021,10 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UAddSat:
+        case IntrinsicSubType::USubSat:
+        case IntrinsicSubType::SAddSat:
+        case IntrinsicSubType::SSubSat:
         case IntrinsicSubType::UMax:
         case IntrinsicSubType::SMin:
         case IntrinsicSubType::SMax:
@@ -1092,6 +1116,10 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UAddSat:
+        case IntrinsicSubType::USubSat:
+        case IntrinsicSubType::SAddSat:
+        case IntrinsicSubType::SSubSat:
         case IntrinsicSubType::UMax:
         case IntrinsicSubType::SMin:
         case IntrinsicSubType::SMax:

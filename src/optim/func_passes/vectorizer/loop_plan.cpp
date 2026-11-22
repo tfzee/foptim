@@ -805,8 +805,9 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     l.node_of[av] = static_cast<u32>(plan.nodes.size());
     plan.nodes.push_back(std::move(n));
   }
-  if (!have_counter && trip_bw == 64) {
-    // pointer style loop: the pointer that steps forward counts the iterations
+  if (!have_counter) {
+    // pointer style loop: the pointer that steps forward counts the iterations,
+    // also when the trip count is narrow (a counter that runs down)
     for (u32 k = 0; k < hdr->args.size(); k++) {
       const auto &n = plan.nodes[k];
       if (n.kind == NodeKind::Induction && n.type->is_ptr() && n.stride > 0) {

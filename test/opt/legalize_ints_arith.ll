@@ -56,7 +56,7 @@ define i128 @neg_not128(i128 %a) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64, %1{}: i64):
 ; CHECK-NEXT:    %2: i64 = IntSub(0:i64, %0){} NUses:1
-; CHECK-NEXT:    %3: i1 = IntUGT(%0, 0:i64){} NUses:1
+; CHECK-NEXT:    %3: i1 = IntNE(%0, 0:i64){} NUses:1
 ; CHECK-NEXT:    %4: i64 = ZExt(%3){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntSub(0:i64, %1){} NUses:1
 ; CHECK-NEXT:    %6: i64 = IntSub(%5, %4){} NUses:1

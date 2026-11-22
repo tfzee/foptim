@@ -41,6 +41,11 @@ enum class GVecSubtype : u32 {
   vSMax,
   vUMin,
   vUMax,
+  // saturating add / subtract of byte and word lanes
+  vUAddSat,
+  vUSubSat,
+  vSAddSat,
+  vSSubSat,
 };
 
 enum class GJumpSubtype : u32 {

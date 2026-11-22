@@ -187,9 +187,11 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
     vtrip = b.build_binary_op(
         total_trip, cint(~static_cast<i128>(vf - 1), trip_bw), BinSub::And);
     if (plan.nodes[l.counter].type->is_ptr()) {
+      auto vtrip64 =
+          trip_bw == 64 ? vtrip : b.build_zext(vtrip, ctx->get_int_type(64));
       end_counter = ptr_add_like_step(
           b, l.counter, pre_args[l.counter],
-          b.build_int_mul(vtrip, cint(plan.nodes[l.counter].stride, 64)));
+          b.build_int_mul(vtrip64, cint(plan.nodes[l.counter].stride, 64)));
     } else {
       end_counter = b.build_int_add(pre_args[l.counter], vtrip);
     }

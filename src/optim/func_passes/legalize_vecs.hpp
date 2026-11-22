@@ -13,6 +13,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/function_pass.hpp"
+#include "optim/helper/sat_expand.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::optim {
@@ -344,6 +345,26 @@ class LegalizeVecs final : public FunctionPass {
     return true;
   }
 
+  // saturating add / subtract without a single instruction (everything but
+  // full byte and word vectors) is written with min / max, compares and selects
+  bool legalize_vec_sat(fir::Context &ctx, fir::Instr instr,
+                        TVec<fir::Instr> &worklist) {
+    if (!instr->is(fir::InstrType::Intrinsic) ||
+        !is_sat_intrinsic(static_cast<fir::IntrinsicSubType>(instr->subtype)) ||
+        !instr->result_type()->is_vec() ||
+        sat_is_native(instr->result_type())) {
+      return false;
+    }
+    fir::Builder b{instr};
+    const auto res =
+        expand_sat(ctx, b, static_cast<fir::IntrinsicSubType>(instr->subtype),
+                   instr->args[0], instr->args[1]);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return true;
+  }
+
   // shuffles of byte and word lanes with a constant mask become one pshufb per
   // source (zeroing the lanes that come from the other one) and an or. pshufb
   // stays inside its 128 bit lane, a mask that crosses lanes is left alone
@@ -443,6 +464,9 @@ class LegalizeVecs final : public FunctionPass {
       return true;
     }
     if (legalize_vec_int_div(ctx, instr, worklist)) {
+      return true;
+    }
+    if (legalize_vec_sat(ctx, instr, worklist)) {
       return true;
     }
     if (legalize_narrow_shuffle(ctx, instr, worklist)) {

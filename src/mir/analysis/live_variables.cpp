@@ -229,6 +229,10 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GVecSubtype::vSMax:
         case GVecSubtype::vUMin:
         case GVecSubtype::vUMax:
+        case GVecSubtype::vUAddSat:
+        case GVecSubtype::vUSubSat:
+        case GVecSubtype::vSAddSat:
+        case GVecSubtype::vSSubSat:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
         case GVecSubtype::ffmadd:
@@ -565,6 +569,10 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case GVecSubtype::vSMax:
         case GVecSubtype::vUMin:
         case GVecSubtype::vUMax:
+        case GVecSubtype::vUAddSat:
+        case GVecSubtype::vUSubSat:
+        case GVecSubtype::vSAddSat:
+        case GVecSubtype::vSSubSat:
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
         case GVecSubtype::vmul:

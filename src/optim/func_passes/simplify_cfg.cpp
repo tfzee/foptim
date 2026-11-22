@@ -1069,6 +1069,10 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::UMax:
           case fir::IntrinsicSubType::SMin:
           case fir::IntrinsicSubType::SMax:
+          case fir::IntrinsicSubType::UAddSat:
+          case fir::IntrinsicSubType::USubSat:
+          case fir::IntrinsicSubType::SAddSat:
+          case fir::IntrinsicSubType::SSubSat:
           case fir::IntrinsicSubType::FMin:
           case fir::IntrinsicSubType::FMax:
           case fir::IntrinsicSubType::FMinimum:
@@ -1435,12 +1439,22 @@ bool SimplifyCFG::forward_empty_blocks(fir::Function &func) {
   const auto entry = func.get_entry();
   TVec<fir::BasicBlock> dead;
   for (auto bb : blocks) {
-    if (!bb.is_valid() || bb == entry || bb->n_instrs() != 1 ||
-        bb->n_args() != 0) {
+    if (!bb.is_valid() || bb == entry || bb->n_instrs() != 1) {
       continue;
     }
     auto term = bb->get_terminator();
     if (!term->is(fir::InstrType::BranchInstr)) {
+      continue;
+    }
+    // block arguments are replaced by what each edge passes, which only works
+    // if nothing but the branch reads them
+    bool args_local = true;
+    for (auto arg : bb->args) {
+      for (auto use : arg->uses) {
+        args_local &= use.user == term;
+      }
+    }
+    if (!args_local) {
       continue;
     }
     auto succ = term->bbs[0].bb;
@@ -1456,9 +1470,17 @@ bool SimplifyCFG::forward_empty_blocks(fir::Function &func) {
     for (const auto &use : uses) {
       ASSERT(use.type == fir::UseType::BB);
       auto user = use.user;
-      ASSERT(user->bbs[use.argId].args.size() == 0);
+      TVec<fir::ValueR> edge_args{user->bbs[use.argId].args.begin(),
+                                  user->bbs[use.argId].args.end()};
       user.replace_bb(use.argId, succ, false);
       for (auto old_arg : terminator_args) {
+        if (old_arg.is_bb_arg() && old_arg.as_bb_arg()->get_parent() == bb) {
+          for (u32 i = 0; i < bb->n_args(); i++) {
+            if (fir::ValueR{bb->args[i]} == old_arg) {
+              old_arg = edge_args[i];
+            }
+          }
+        }
         user.add_bb_arg(use.argId, old_arg);
       }
     }
@@ -1637,13 +1659,17 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
 
 namespace {
 // most instructions that get executed on both paths by an if conversion
-constexpr size_t IfConvMaxInstrs = 4;
+constexpr size_t IfConvMaxInstrs = 6;
 
-// a block only entered from the branch that jumps on to the join block after a
-// few instructions that are fine to run unconditionally
+// a shared arm stays for its other predecessors, so the copy is only worth it
+// for very short ones
+constexpr size_t IfConvMaxSharedArmInstrs = 2;
+
+// a block entered from the branch that jumps on to the join block after a few
+// instructions that are fine to run unconditionally
 bool is_speculatable_arm(fir::BasicBlock arm, fir::BasicBlock branch_bb,
                          u8 &n_instrs) {
-  if (arm == branch_bb || arm->uses.size() != 1 || arm->n_args() != 0 ||
+  if (arm == branch_bb || arm->uses.empty() || arm->n_args() != 0 ||
       !arm->get_terminator()->is(fir::InstrType::BranchInstr) ||
       arm->get_terminator()->bbs[0].bb == arm) {
     return false;
@@ -1658,7 +1684,7 @@ bool is_speculatable_arm(fir::BasicBlock arm, fir::BasicBlock branch_bb,
       return false;
     }
   }
-  return true;
+  return arm->uses.size() == 1 || n_instrs <= IfConvMaxSharedArmInstrs;
 }
 }  // namespace
 

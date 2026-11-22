@@ -53,20 +53,17 @@ define i32 @unreachable_default(i32 %v) {
 ; CHECK-NEXT:    %1: i64 = SExt(%0){} NUses:3
 ; CHECK-NEXT:    %2: i64 = IntSub(%1, -50:i64){} NUses:2
 ; CHECK-NEXT:    %3: i1 = IntULT(%2, 2:i64){} NUses:1
-; CHECK-NEXT:    %4: () = CondBranch<bb1(%2), bb2()>(%3){} NUses:0
-; CHECK-NEXT:  bb1(%5{}: i64):
-; CHECK-NEXT:    %6: i64 = IntMul(%5, 4:i64){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(G(lookup_table_unreachable_default_0), %6){} NUses:1
-; CHECK-NEXT:    %8: i32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
-; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %10: i64 = IntSub(%1, 7:i64){} NUses:2
-; CHECK-NEXT:    %11: i64 = IntAdd(%10, 2:i64){} NUses:1
-; CHECK-NEXT:    %12: i1 = IntULT(%10, 3:i64){} NUses:1
-; CHECK-NEXT:    %13: i64 = IntSub(%1, 1000:i64){} NUses:1
-; CHECK-NEXT:    %14: i64 = IntAdd(%13, 5:i64){} NUses:1
-; CHECK-NEXT:    %15: i64 = Select(%12, %11, %14){} NUses:1
-; CHECK-NEXT:    %16: () = Branch<bb1(%15)>(){} NUses:0
+; CHECK-NEXT:    %4: i64 = IntSub(%1, 7:i64){} NUses:2
+; CHECK-NEXT:    %5: i64 = IntAdd(%4, 2:i64){} NUses:1
+; CHECK-NEXT:    %6: i1 = IntULT(%4, 3:i64){} NUses:1
+; CHECK-NEXT:    %7: i64 = IntSub(%1, 1000:i64){} NUses:1
+; CHECK-NEXT:    %8: i64 = IntAdd(%7, 5:i64){} NUses:1
+; CHECK-NEXT:    %9: i64 = Select(%6, %5, %8){} NUses:1
+; CHECK-NEXT:    %10: i64 = Select(%3, %2, %9){} NUses:1
+; CHECK-NEXT:    %11: i64 = IntMul(%10, 4:i64){} NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(G(lookup_table_unreachable_default_0), %11){} NUses:1
+; CHECK-NEXT:    %13: i32 = Load(%12){} NUses:1
+; CHECK-NEXT:    %14: i32 = Return(%13){} NUses:0
 ; CHECK-NEXT:}
 entry:
   switch i32 %v, label %d [ i32 -50, label %a  i32 -49, label %b  i32 7, label %c  i32 8, label %e

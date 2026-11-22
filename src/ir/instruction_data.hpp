@@ -230,6 +230,13 @@ enum class IntrinsicSubType : u16 {
   UMax,
   SMin,
   SMax,
+  // Saturating add / subtract of integers and integer vectors (llvm.uadd.sat,
+  // llvm.usub.sat, llvm.sadd.sat, llvm.ssub.sat): the result is clamped to the
+  // unsigned / signed range of the type instead of wrapping
+  UAddSat,
+  USubSat,
+  SAddSat,
+  SSubSat,
   // like std and llvm.maxinum7minnum
   FMin,
   FMax,

@@ -843,6 +843,31 @@ Res fold_intrinsic(fir::Instr instr, fir::Context &ctx) {
       }
       return int_result(instr, ctx, take_b ? b : a);
     }
+    case fir::IntrinsicSubType::UAddSat:
+    case fir::IntrinsicSubType::USubSat:
+    case fir::IntrinsicSubType::SAddSat:
+    case fir::IntrinsicSubType::SSubSat: {
+      if (!instr->args[0].is_constant() || !instr->args[1].is_constant() ||
+          !instr->args[0].as_constant()->is_int() ||
+          !instr->args[1].as_constant()->is_int()) {
+        return std::nullopt;
+      }
+      const APInt &a = instr->args[0].as_constant()->as_apint();
+      const APInt &b = instr->args[1].as_constant()->as_apint();
+      if (a.bits() != b.bits()) {
+        return std::nullopt;
+      }
+      switch (sub) {
+        case fir::IntrinsicSubType::UAddSat:
+          return int_result(instr, ctx, a.uadd_sat(b));
+        case fir::IntrinsicSubType::USubSat:
+          return int_result(instr, ctx, a.usub_sat(b));
+        case fir::IntrinsicSubType::SAddSat:
+          return int_result(instr, ctx, a.sadd_sat(b));
+        default:
+          return int_result(instr, ctx, a.ssub_sat(b));
+      }
+    }
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax: {
       if (!instr->args[0].is_constant() || !instr->args[1].is_constant() ||

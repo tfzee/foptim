@@ -676,6 +676,18 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  // integers wider than 64 bit are split into limbs after this, which needs the
+  // operation written with plain arithmetic
+  void handle_saturating(fir::Instr instr, fir::Function &func,
+                         fir::FunctionR callee,
+                         fir::IntrinsicSubType sub_type) {
+    const auto ty = instr->args[1].get_type();
+    if (!ty->is_vec() && ty->get_bitwidth() > 64) {
+      IMPL("saturating arithmetic wider than 64 bit");
+    }
+    handle_int_minmax(instr, func, callee, sub_type);
+  }
+
   void handle_minmax(fir::Instr instr, fir::Function & /*funcy*/,
                      fir::FunctionR /*callee*/, bool is_min) {
     fir::Builder bb{instr};
@@ -1115,6 +1127,22 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           modified = true;
         } else if (callee.func->name.starts_with("llvm.umax.")) {
           handle_int_minmax(instr, func, callee, fir::IntrinsicSubType::UMax);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.uadd.sat.")) {
+          handle_saturating(instr, func, callee,
+                            fir::IntrinsicSubType::UAddSat);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.usub.sat.")) {
+          handle_saturating(instr, func, callee,
+                            fir::IntrinsicSubType::USubSat);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.sadd.sat.")) {
+          handle_saturating(instr, func, callee,
+                            fir::IntrinsicSubType::SAddSat);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.ssub.sat.")) {
+          handle_saturating(instr, func, callee,
+                            fir::IntrinsicSubType::SSubSat);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.minnum")) {
           handle_minmaxnum(instr, func, callee, true);

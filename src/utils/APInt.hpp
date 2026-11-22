@@ -364,6 +364,10 @@ class APInt {
   [[nodiscard]] APInt sadd_ov(const APInt &o, bool &ov) const;
   [[nodiscard]] APInt ssub_ov(const APInt &o, bool &ov) const;
   [[nodiscard]] APInt smul_ov(const APInt &o, bool &ov) const;
+  [[nodiscard]] APInt uadd_sat(const APInt &o) const;
+  [[nodiscard]] APInt usub_sat(const APInt &o) const;
+  [[nodiscard]] APInt sadd_sat(const APInt &o) const;
+  [[nodiscard]] APInt ssub_sat(const APInt &o) const;
 
   // width changes
   [[nodiscard]] APInt zext(u32 new_bits) const {

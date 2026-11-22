@@ -518,6 +518,30 @@ APInt APInt::usub_ov(const APInt &o, bool &ov) const {
   return *this - o;
 }
 
+APInt APInt::uadd_sat(const APInt &o) const {
+  bool ov = false;
+  auto r = uadd_ov(o, ov);
+  return ov ? all_ones(bits_) : r;
+}
+
+APInt APInt::usub_sat(const APInt &o) const {
+  bool ov = false;
+  auto r = usub_ov(o, ov);
+  return ov ? zero(bits_) : r;
+}
+
+APInt APInt::sadd_sat(const APInt &o) const {
+  bool ov = false;
+  auto r = sadd_ov(o, ov);
+  return ov ? (is_neg() ? signed_min(bits_) : signed_max(bits_)) : r;
+}
+
+APInt APInt::ssub_sat(const APInt &o) const {
+  bool ov = false;
+  auto r = ssub_ov(o, ov);
+  return ov ? (is_neg() ? signed_min(bits_) : signed_max(bits_)) : r;
+}
+
 APInt APInt::umul_ov(const APInt &o, bool &ov) const {
   ASSERT(bits_ == o.bits_);
   if (is_single()) {

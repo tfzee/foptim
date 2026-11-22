@@ -222,6 +222,19 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
 
+    if (c_val == 0 && (sub_type == ICmpInstrSubType::UGT ||
+                       sub_type == ICmpInstrSubType::ULE)) {
+      Builder bb{instr};
+      auto res = bb.build_int_cmp(instr->args[0], instr->args[1],
+                                  sub_type == ICmpInstrSubType::UGT
+                                      ? ICmpInstrSubType::NE
+                                      : ICmpInstrSubType::EQ);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(res));
+      instr.destroy();
+      return true;
+    }
+
     // compare of an extended value with a constant that fits the narrow type
     // is done in the narrow type
     if (instr->args[0].is_instr() &&
@@ -239,7 +252,11 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
                                sub_type == ICmpInstrSubType::SGT ||
                                sub_type == ICmpInstrSubType::SGE;
       // sext keeps the signed order, zext the unsigned one
-      const bool pred_ok = eq_pred || (is_sext ? signed_pred : !signed_pred);
+      // a zext is not negative, so a signed compare with a constant that is
+      // not negative is the unsigned compare of the narrow value
+      const bool zext_signed = !is_sext && signed_pred && c_val >= 0;
+      const bool pred_ok =
+          eq_pred || zext_signed || (is_sext ? signed_pred : !signed_pred);
       const i128 lo = is_sext ? -(static_cast<i128>(1) << (nbw - 1)) : 0;
       const i128 hi = is_sext ? (static_cast<i128>(1) << (nbw - 1)) - 1
                               : (static_cast<i128>(1) << nbw) - 1;
@@ -249,7 +266,24 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         Builder bb{instr};
         auto narrow_c = fir::ValueR{
             ctx->get_constant_value(c_val, ext->args[0].get_type())};
-        auto res = bb.build_int_cmp(ext->args[0], narrow_c, sub_type);
+        auto narrow_pred = sub_type;
+        if (zext_signed) {
+          switch (sub_type) {
+            case ICmpInstrSubType::SLT:
+              narrow_pred = ICmpInstrSubType::ULT;
+              break;
+            case ICmpInstrSubType::SLE:
+              narrow_pred = ICmpInstrSubType::ULE;
+              break;
+            case ICmpInstrSubType::SGT:
+              narrow_pred = ICmpInstrSubType::UGT;
+              break;
+            default:
+              narrow_pred = ICmpInstrSubType::UGE;
+              break;
+          }
+        }
+        auto res = bb.build_int_cmp(ext->args[0], narrow_c, narrow_pred);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR(res));
         instr.destroy();

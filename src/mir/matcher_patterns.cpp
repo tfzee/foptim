@@ -553,9 +553,13 @@ void move_rules(RuleSet &rules) {
 // Truncates the lanes of an integer vector to fewer bits, the result holds the
 // lanes in its low bytes. 64 to 32 bit picks the even dwords, everything else
 // masks the lanes and halves them with unsigned saturating packs, which are
-// exact after the mask. The two halves of a ymm are packed together.
+// exact after the mask. The two halves of a ymm are packed together. A source
+// that is already clamped to the unsigned range of the result (lanes of 16 or
+// 32 bits) needs no mask, the saturating packs do the clamp (signed ones until
+// the last step, which is the unsigned one).
 static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
-                                MArgument dst, MArgument src) {
+                                MArgument dst, MArgument src,
+                                bool clamped = false) {
   auto int_vec = [](u32 bits, bool wide) {
     switch (bits) {
       case 8:
@@ -606,7 +610,7 @@ static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
     cur = next;
     bits = 32;
   }
-  if (bits > to_bits) {
+  if (bits > to_bits && !clamped) {
     // a partial source is read as the full register of its lane width
     const auto full = int_vec(bits, get_size(cur.ty) == 32);
     auto ones = fresh(full);
@@ -621,7 +625,12 @@ static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
   while (bits > to_bits) {
     auto [lo, hi] = halves(cur);
     auto next = out_arg(bits / 2);
-    res.result.emplace_back(X86Subtype::vpack, next, lo, hi);
+    // a clamped source goes through the signed range of the middle lanes, an
+    // unsigned pack would read 16 bit lanes above 32767 as negative
+    const bool last = bits / 2 == to_bits;
+    res.result.emplace_back(
+        clamped && !last ? X86Subtype::vpacks : X86Subtype::vpack, next, lo,
+        hi);
     cur = next;
     bits /= 2;
   }
@@ -1343,7 +1352,7 @@ void cjmp_rules(RuleSet &rules) {
   });
 }
 
-template <X86Subtype Sub>
+template <auto Sub>
 bool three_op_rule(fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
   auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
   auto a = valueToArg(instr->args[0], res.result, data.alloc);
@@ -1732,6 +1741,58 @@ void arith_rules(RuleSet &rules) {
                                      utils::StatCollector::StatMatcher);
     return true;
   });
+}
+
+static std::optional<i128> splat_int_value(fir::ValueR v) {
+  if (v.is_instr() && v.as_instr()->is(fir::VectorISubType::Broadcast)) {
+    v = v.as_instr()->args[0];
+  }
+  // LegalizeVecs reads vector constants from a constant global
+  if (v.is_instr() && v.as_instr()->is(fir::InstrType::LoadInstr) &&
+      v.get_type()->is_vec() && v.as_instr()->args[0].is_constant_global()) {
+    const auto &vec = v.get_type()->as_vec();
+    auto global = v.as_instr()->args[0].as_constant()->as_global();
+    if (vec.type != fir::VectorType::SubType::Integer ||
+        vec.bitwidth % 8 != 0 || vec.bitwidth > 64 || !global->is_constant ||
+        global->init_value == nullptr ||
+        global->n_bytes < static_cast<u64>(vec.get_size())) {
+      return std::nullopt;
+    }
+    const u32 bytes = vec.bitwidth / 8;
+    std::optional<i128> first;
+    for (u32 lane = 0; lane < vec.member_number; lane++) {
+      u64 raw = 0;
+      std::memcpy(&raw, global->init_value + (lane * bytes), bytes);
+      const i128 val =
+          static_cast<i64>(raw << (64 - vec.bitwidth)) >> (64 - vec.bitwidth);
+      if (first && *first != val) {
+        return std::nullopt;
+      }
+      first = val;
+    }
+    return first;
+  }
+  if (!v.is_constant()) {
+    return std::nullopt;
+  }
+  auto c = v.as_constant();
+  if (c->is_int()) {
+    return c->as_int();
+  }
+  if (!c->is_vec() || c->as_vec().members.empty()) {
+    return std::nullopt;
+  }
+  std::optional<i128> first;
+  for (auto m : c->as_vec().members) {
+    if (!m->is_int()) {
+      return std::nullopt;
+    }
+    if (first && *first != m->as_int()) {
+      return std::nullopt;
+    }
+    first = m->as_int();
+  }
+  return first;
 }
 
 // immediate shift amount of a vector shift when every lane shifts by the same
@@ -3903,6 +3964,37 @@ void base_rules(RuleSet &rules) {
     res.result.emplace_back(res_opcode, res_reg, val);
     return true;
   });
+  // trunc(smax(smin(x, 2^n - 1), 0)) of 16 or 32 bit lanes is a chain of
+  // unsigned saturating packs, the clamp is part of the instruction
+  rules.add(pm::ITrunc, [](fir::Instr itrunc_instr, MatchResult &res,
+                           ExtraMatchData &data) {
+    const auto ty = itrunc_instr.result_type();
+    const auto src_ty = itrunc_instr->args[0].get_type();
+    if (!ty->is_vec() || !src_ty->is_vec()) {
+      return false;
+    }
+    const u32 to_bits = ty->as_vec().bitwidth;
+    const u32 from_bits = src_ty->as_vec().bitwidth;
+    if ((from_bits != 16 && from_bits != 32) || to_bits >= from_bits ||
+        to_bits < 8) {
+      return false;
+    }
+    fir::ValueR x;
+    fir::ValueR hi;
+    fir::ValueR lo;
+    if (!pm::match(itrunc_instr,
+                   pm::ITrunc(pm::SMax(pm::SMin(RegV(x), pm::value(hi)),
+                                       pm::value(lo)))) ||
+        splat_int_value(lo) != std::optional<i128>{0} ||
+        splat_int_value(hi) !=
+            std::optional<i128>{(static_cast<i128>(1) << to_bits) - 1}) {
+      return false;
+    }
+    auto val = valueToArg(x, res.result, data.alloc);
+    auto res_reg = valueToArg(itrunc_instr.result(), res.result, data.alloc);
+    lower_vector_itrunc(res, data, res_reg, val, true);
+    return true;
+  });
   rules.add(pm::ITrunc, [](fir::Instr itrunc_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto val = valueToArg(itrunc_instr->args[0], res.result, data.alloc);
@@ -4434,6 +4526,11 @@ void intrin_rules(RuleSet &rules) {
         res.result.emplace_back(GCMovSubtype::cmov_ugt, res_reg, a, res_reg, a);
         return true;
       });
+  // the byte and word vector forms, everything else is expanded before
+  rules.add(pm::UAddSat, three_op_rule<GVecSubtype::vUAddSat>);
+  rules.add(pm::USubSat, three_op_rule<GVecSubtype::vUSubSat>);
+  rules.add(pm::SAddSat, three_op_rule<GVecSubtype::vSAddSat>);
+  rules.add(pm::SSubSat, three_op_rule<GVecSubtype::vSSubSat>);
   rules.add(
       pm::Ctlz, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
         auto res_reg = valueToArg(instr.result(), res.result, data.alloc);

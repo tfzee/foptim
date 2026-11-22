@@ -885,6 +885,10 @@ bool intrin_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
     case fir::IntrinsicSubType::UMax:
     case fir::IntrinsicSubType::SMin:
     case fir::IntrinsicSubType::SMax:
+    case fir::IntrinsicSubType::UAddSat:
+    case fir::IntrinsicSubType::USubSat:
+    case fir::IntrinsicSubType::SAddSat:
+    case fir::IntrinsicSubType::SSubSat:
       n_operands = ty->is_int() ? 2 : 0;
       break;
     case fir::IntrinsicSubType::FMin:
@@ -960,6 +964,13 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
       // 64 bit lanes need avx512vl
       return n.type->get_bitwidth() != 64 ||
              (features.avx512f && features.avx512vl);
+    case fir::IntrinsicSubType::UAddSat:
+    case fir::IntrinsicSubType::USubSat:
+    case fir::IntrinsicSubType::SAddSat:
+    case fir::IntrinsicSubType::SSubSat:
+      // the byte and word forms are one instruction, the others are expanded
+      // by the backend into compares and selects
+      return n.type->get_bitwidth() <= 16;
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
     case fir::IntrinsicSubType::Abs:
@@ -1439,6 +1450,10 @@ fir::ValueR emit_node(fir::Context &ctx, fir::Builder &bb, const PlanNode &n,
         case fir::IntrinsicSubType::UMax:
         case fir::IntrinsicSubType::SMin:
         case fir::IntrinsicSubType::SMax:
+        case fir::IntrinsicSubType::UAddSat:
+        case fir::IntrinsicSubType::USubSat:
+        case fir::IntrinsicSubType::SAddSat:
+        case fir::IntrinsicSubType::SSubSat:
           return bb.build_intrinsic(ops[0], ops[1],
                                     static_cast<fir::IntrinsicSubType>(n.sub));
         case fir::IntrinsicSubType::FMin:

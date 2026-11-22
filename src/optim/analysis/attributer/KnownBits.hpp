@@ -428,6 +428,10 @@ class KnownBits final : public AttributeAnalysis,
           }
           break;
         }
+        case fir::IntrinsicSubType::UAddSat:
+        case fir::IntrinsicSubType::USubSat:
+        case fir::IntrinsicSubType::SAddSat:
+        case fir::IntrinsicSubType::SSubSat:
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:

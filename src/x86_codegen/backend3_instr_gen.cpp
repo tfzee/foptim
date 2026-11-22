@@ -2258,6 +2258,35 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       return emit(out_buff, 0, &req);
     }
+    case fmir::GVecSubtype::vUAddSat:
+    case fmir::GVecSubtype::vUSubSat:
+    case fmir::GVecSubtype::vSAddSat:
+    case fmir::GVecSubtype::vSSubSat: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      const bool bytes = fmir::vec_lane_bits(instr.args[0].ty) == 8;
+      ASSERT(bytes || fmir::vec_lane_bits(instr.args[0].ty) == 16);
+      switch (static_cast<fmir::GVecSubtype>(instr.sop)) {
+        case fmir::GVecSubtype::vUAddSat:
+          req.mnemonic =
+              bytes ? ZYDIS_MNEMONIC_VPADDUSB : ZYDIS_MNEMONIC_VPADDUSW;
+          break;
+        case fmir::GVecSubtype::vUSubSat:
+          req.mnemonic =
+              bytes ? ZYDIS_MNEMONIC_VPSUBUSB : ZYDIS_MNEMONIC_VPSUBUSW;
+          break;
+        case fmir::GVecSubtype::vSAddSat:
+          req.mnemonic =
+              bytes ? ZYDIS_MNEMONIC_VPADDSB : ZYDIS_MNEMONIC_VPADDSW;
+          break;
+        default:
+          req.mnemonic =
+              bytes ? ZYDIS_MNEMONIC_VPSUBSB : ZYDIS_MNEMONIC_VPSUBSW;
+          break;
+      }
+      return emit(out_buff, 0, &req);
+    }
     case fmir::GVecSubtype::fMin:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

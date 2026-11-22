@@ -164,6 +164,10 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GVecSubtype, vSMax);
         ReturnString(GVecSubtype, vUMin);
         ReturnString(GVecSubtype, vUMax);
+        ReturnString(GVecSubtype, vUAddSat);
+        ReturnString(GVecSubtype, vUSubSat);
+        ReturnString(GVecSubtype, vSAddSat);
+        ReturnString(GVecSubtype, vSSubSat);
       }
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(sop)) {
@@ -372,6 +376,10 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::vSMax:
         case GVecSubtype::vUMin:
         case GVecSubtype::vUMax:
+        case GVecSubtype::vUAddSat:
+        case GVecSubtype::vUSubSat:
+        case GVecSubtype::vSAddSat:
+        case GVecSubtype::vSSubSat:
         case GVecSubtype::vsub:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
@@ -695,6 +703,10 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::vSMax:
         case GVecSubtype::vUMin:
         case GVecSubtype::vUMax:
+        case GVecSubtype::vUAddSat:
+        case GVecSubtype::vUSubSat:
+        case GVecSubtype::vSAddSat:
+        case GVecSubtype::vSSubSat:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
         case GVecSubtype::vAnd:

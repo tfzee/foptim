@@ -5,7 +5,7 @@ define i32 @sum(ptr %p, i64 %n) {
 ; CHECK-LABEL: func sum<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i64):
-; CHECK-NEXT:    %2: i1 = IntUGT(%1, 0:i64){} NUses:1
+; CHECK-NEXT:    %2: i1 = IntNE(%1, 0:i64){} NUses:1
 ; CHECK-NEXT:    %3: i64 = INTRIN:UMax(%1, 1:i64){} NUses:2
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(%0, 0:i32, 0:i64), bb2(0:i32)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%5{}: ptr, %6{}: i32, %7{}: i64):
