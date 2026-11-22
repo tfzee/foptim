@@ -113,6 +113,7 @@ class SimplifyCFG final : public FunctionPass {
   // the same integer operation on at most one different operand for one block
   // argument: the operation is done once behind the join on a new block
   // argument, phi(a + c, b + c) is phi(a, b) + c
+  bool hoist_common_front(CFG::Node &curr);
   bool sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
                       CFG::Node &curr, bool is_entry);
   bool if_convert_arms(CFG::Node &curr);

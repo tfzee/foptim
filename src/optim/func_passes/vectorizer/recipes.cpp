@@ -739,7 +739,8 @@ bool select_match_bundle(const TVec<fir::ValueR> &values, BundleCtx &ctx) {
 bool select_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
   const auto ty = i->result_type();
   if (!elem_type_ok(ty) || !is_vector_shape(shape_of(c, i->args[0])) ||
-      mask_bits_of(i->args[0]) != ty->get_bitwidth() ||
+      mask_bits_of(i->args[0]) == 0 ||
+      mask_bits_of(i->args[0]) > ty->get_bitwidth() ||
       !vector_operand_ok(c, i->args[1]) || !vector_operand_ok(c, i->args[2])) {
     return false;
   }

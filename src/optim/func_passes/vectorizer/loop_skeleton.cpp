@@ -369,6 +369,35 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
       }
       return v;
     };
+    // a mask of narrower lanes as a mask of the lanes of elem, parts of lanes
+    auto widen_mask = [&](const Parts &mask, u32 mbits, fir::TypeR elem,
+                          u32 lanes) -> Parts {
+      const u32 bw = elem->get_bitwidth();
+      if (mbits == bw) {
+        return mask;
+      }
+      const u32 mlanes = vf / static_cast<u32>(mask.size());
+      const auto mty = ctx->get_int_type(mbits);
+      const auto ones =
+          b.build_vbroadcast(cint(-1, mbits), vec_ty(mty, mlanes));
+      const auto zeros =
+          b.build_vbroadcast(cint(0, mbits), vec_ty(mty, mlanes));
+      TVec<fir::ValueR> bytes;
+      for (auto m : mask) {
+        bytes.push_back(b.build_select(vec_ty(mty, mlanes), m, ones, zeros));
+      }
+      Parts wide;
+      const auto zero_w = b.build_vbroadcast(cint(0, bw), vec_ty(elem, lanes));
+      for (u32 p = 0; p < vf / lanes; p++) {
+        fir::ValueR v = bytes[p * lanes / mlanes];
+        if (mlanes != lanes) {
+          v = slice(v, mlanes, (p * lanes) % mlanes, lanes, mty);
+        }
+        const auto ext = b.build_sext(v, vec_ty(elem, lanes));
+        wide.push_back(b.build_int_cmp(ext, zero_w, fir::ICmpInstrSubType::NE));
+      }
+      return wide;
+    };
     const auto cond_instr =
         term->args[0].is_instr() && term->args[0].as_instr()->uses.size() == 1
             ? term->args[0].as_instr()
@@ -481,11 +510,57 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
           vp[n.value] = res;
           break;
         }
+        case NodeKind::Select: {
+          const u32 cj = l.node_of.at(instr->args[0]);
+          if (pl[cj] != lanes) {
+            Parts res;
+            const Parts wide =
+                widen_mask(vp.at(instr->args[0]), mask_bits_of(instr->args[0]),
+                           n.type, lanes);
+            const Parts av = operand(instr->args[1], lanes);
+            const Parts bv = operand(instr->args[2], lanes);
+            for (u32 p = 0; p < n_parts; p++) {
+              const fir::ValueR ops[] = {wide[p], av[p], bv[p]};
+              res.push_back(emit_node(ctx, b, n, lanes, ops));
+            }
+            vp[n.value] = res;
+            break;
+          }
+          [[fallthrough]];
+        }
+        case NodeKind::ITrunc:
+          if (pl[l.node_of.at(instr->args[0])] != lanes) {
+            const u32 j = l.node_of.at(instr->args[0]);
+            const u32 spl = pl[j];
+            const Parts &sp = vp.at(instr->args[0]);
+            Parts res;
+            const u32 ratio = lanes / spl;
+            for (u32 d = 0; d < n_parts; d++) {
+              TVec<fir::ValueR> cur;
+              for (u32 r = 0; r < ratio; r++) {
+                const fir::ValueR ops[] = {sp[d * ratio + r]};
+                cur.push_back(emit_node(ctx, b, n, spl, ops));
+              }
+              u32 cl = spl;
+              while (cur.size() > 1) {
+                TVec<fir::ValueR> next;
+                for (size_t q = 0; q + 1 < cur.size(); q += 2) {
+                  next.push_back(b.build_vector_op(
+                      cur[q], cur[q + 1], vec_ty(n.type, 2 * cl),
+                      fir::VectorISubType::Concat));
+                }
+                cur = std::move(next);
+                cl *= 2;
+              }
+              res.push_back(cur[0]);
+            }
+            vp[n.value] = res;
+            break;
+          }
+          [[fallthrough]];
         case NodeKind::Binary:
         case NodeKind::Cmp:
-        case NodeKind::Select:
         case NodeKind::Zext:
-        case NodeKind::ITrunc:
         case NodeKind::Unary:
         case NodeKind::Intrin: {
           TVec<Parts> args;
@@ -497,8 +572,10 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
               div_needs_safe_divisor(instr)) {
             const auto one = b.build_vbroadcast(cint(1, n.type->get_bitwidth()),
                                                 vec_ty(n.type, lanes));
+            const Parts wide =
+                widen_mask(*mask, l.blocks[n.block].mask_bits, n.type, lanes);
             for (u32 p = 0; p < n_parts; p++) {
-              args[1][p] = b.build_select(vec_ty(n.type, lanes), (*mask)[p],
+              args[1][p] = b.build_select(vec_ty(n.type, lanes), wide[p],
                                           args[1][p], one);
             }
           }

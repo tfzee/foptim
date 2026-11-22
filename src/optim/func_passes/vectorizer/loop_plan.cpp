@@ -129,16 +129,43 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
     if (vf * max_bits > 1024 || vf * min_bits > 256) {
       return false;
     }
-    // the masks of the blocks would need conversions between lane widths
-    for (const auto &blk : l.blocks) {
-      if (!blk.always) {
-        return false;
-      }
-    }
   }
   TVec<u32> pl;
   if (!assign_part_lanes(plan, vf, features, pl)) {
     return false;
+  }
+  if (min_bits != max_bits) {
+    // Masks keep the lane width of their compare. Only the divisions widen
+    // them, the blends of a block argument need the width of the edge.
+    for (u32 i = 0; i < plan.nodes.size(); i++) {
+      const auto &n = plan.nodes[i];
+      if (!is_vector_shape(n.shape) || l.blocks[n.block].always) {
+        if (!(is_vector_shape(n.shape) && n.kind == NodeKind::Phi)) {
+          continue;
+        }
+      }
+      if (n.kind == NodeKind::Binary &&
+          div_needs_safe_divisor(n.value.as_instr())) {
+        continue;
+      }
+      const auto &blk = l.blocks[n.block];
+      if (n.kind == NodeKind::Phi && &blk != &l.blocks[0]) {
+        for (const auto &e : blk.in_edges) {
+          const auto &from = l.blocks[e.from];
+          auto t = from.bb->get_terminator();
+          const u32 bits = t->is(fir::InstrType::CondBranchInstr)
+                               ? mask_bits_of(t->args[0])
+                               : from.mask_bits;
+          if (bits != 0 && bits != node_lane_bits(n)) {
+            return false;
+          }
+        }
+      } else if (blk.mask_bits != 0 && n.kind != NodeKind::Phi &&
+                 blk.mask_bits != n.type->get_bitwidth() &&
+                 (n.kind == NodeKind::Load || n.kind == NodeKind::Store)) {
+        return false;
+      }
+    }
   }
   for (u32 i = 0; i < plan.nodes.size(); i++) {
     const auto &n = plan.nodes[i];
@@ -164,8 +191,9 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
     }
     if (n.kind == NodeKind::Binary && l.blocks[n.block].mask_bits != 0 &&
         div_needs_safe_divisor(n.value.as_instr()) &&
-        (l.blocks[n.block].mask_bits != n.type->get_bitwidth() ||
-         !mask_width_ok(l.blocks[n.block].mask_bits, pl[i]))) {
+        (l.blocks[n.block].mask_bits > n.type->get_bitwidth() ||
+         !mask_width_ok(l.blocks[n.block].mask_bits, vf) ||
+         !mask_width_ok(n.type->get_bitwidth(), pl[i]))) {
       return false;
     }
   }
@@ -206,6 +234,10 @@ i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
     if (n.kind == NodeKind::Binary && l.blocks[n.block].mask_bits != 0 &&
         div_needs_safe_divisor(n.value.as_instr())) {
       body += parts;
+      if (l.blocks[n.block].mask_bits != n.type->get_bitwidth()) {
+        // blend, slice, extend and compare to widen the mask
+        body += 4 * parts;
+      }
     }
     // masked accesses are a bit slower than plain ones
     if ((n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
@@ -1169,6 +1201,15 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
       }
     } else if (n.kind == NodeKind::ITrunc) {
       pl[i] = pl[node_of(n.value.as_instr()->args[0])];
+      // the parts of a truncation that something else than a store uses are
+      // joined into full registers
+      for (const auto &u : n.value.as_instr()->uses) {
+        if (!u.user->is(fir::InstrType::StoreInstr) ||
+            u.type != fir::UseType::NormalArg || u.argId != 1) {
+          pl[i] = std::max(pl[i], natural(bits));
+          break;
+        }
+      }
     } else if (n.kind == NodeKind::Load && instr &&
                l.blocks[n.block].mask_bits == 0) {
       // only widened: load the lanes of one part of the wide result
@@ -1237,6 +1278,15 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
         if (pl[j] < pl[i] || pl[j] % pl[i] != 0) {
           return false;
         }
+      } else if (n.kind == NodeKind::ITrunc) {
+        if (pl[i] < pl[j] || pl[i] % pl[j] != 0) {
+          return false;
+        }
+      } else if (n.kind == NodeKind::Select && a == 0) {
+        // a mask of narrower lanes is widened
+        if (pl[j] < pl[i] || pl[j] % pl[i] != 0) {
+          return false;
+        }
       } else if (n.kind == NodeKind::Store) {
         // stores take any parts
       } else if (pl[j] != pl[i]) {
@@ -1248,7 +1298,8 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
   // partial results
   for (u32 i = 0; i < n_nodes; i++) {
     const auto &n = plan.nodes[i];
-    if (n.kind != NodeKind::ITrunc) {
+    if (n.kind != NodeKind::ITrunc ||
+        pl[i] != pl[node_of(n.value.as_instr()->args[0])]) {
       continue;
     }
     for (const auto &u : n.value.as_instr()->uses) {

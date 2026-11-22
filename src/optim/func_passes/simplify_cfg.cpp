@@ -1679,6 +1679,53 @@ bool nothing_with_effect_behind(fir::Instr instr) {
 }
 }  // namespace
 
+// The first instruction of both successors of a branch is the same pure
+// computation, it runs on both paths anyway and moves in front of the branch.
+bool SimplifyCFG::hoist_common_front(CFG::Node &curr) {
+  ZoneScopedN("hoist common front");
+  auto term = curr.bb->get_terminator();
+  if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
+    return false;
+  }
+  auto s0 = term->bbs[0].bb;
+  auto s1 = term->bbs[1].bb;
+  if (s0 == s1 || s0 == curr.bb || s1 == curr.bb ||
+      s0->get_uses().size() != 1 || s1->get_uses().size() != 1 ||
+      s0->instructions.size() < 2 || s1->instructions.size() < 2) {
+    return false;
+  }
+  bool changed = false;
+  while (s0->instructions.size() >= 2 && s1->instructions.size() >= 2) {
+    auto i0 = s0->instructions[0];
+    auto i1 = s1->instructions[0];
+    if (i0->instr_type != i1->instr_type || i0->subtype != i1->subtype ||
+        i0->n_results() != 1 || i1->n_results() != 1 ||
+        i0->result_type() != i1->result_type() || !i0->bbs.empty() ||
+        i0->args.size() != i1->args.size() || !safe_to_speculate(i0) ||
+        i0->is(fir::InstrType::AllocaInstr)) {
+      break;
+    }
+    bool same = true;
+    for (size_t a = 0; a < i0->args.size(); a++) {
+      same = same && i0->args[a] == i1->args[a];
+    }
+    if (!same) {
+      break;
+    }
+    fir::Builder b{curr.bb};
+    b.at_penultimate(curr.bb);
+    auto moved = b.insert_copy(i0);
+    moved->intersect_poison_flags(*i1.operator->());
+    i0.result().replace_all_uses(moved.result());
+    i1.result().replace_all_uses(moved.result());
+    i0.destroy();
+    i1.destroy();
+    utils::StatCollector::get().addi(1, "HoistedCommonFront");
+    changed = true;
+  }
+  return changed;
+}
+
 bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
                                  CFG::Node &curr, bool is_entry) {
   ZoneScopedN("sink into join");
@@ -1722,7 +1769,10 @@ bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
       auto i0 = v0.as_instr();
       auto i1 = v1.as_instr();
       if (i0 == i1 || i0->get_parent() != pred0 || i1->get_parent() != pred1 ||
-          !i0->is(fir::InstrType::BinaryInstr) || i0->subtype != i1->subtype ||
+          !(i0->is(fir::InstrType::BinaryInstr) ||
+            i0->is(fir::InstrType::ITrunc) || i0->is(fir::InstrType::SExt) ||
+            i0->is(fir::InstrType::ZExt)) ||
+          i0->instr_type != i1->instr_type || i0->subtype != i1->subtype ||
           !i0->result_type()->is_int() ||
           i0->result_type() != i1->result_type() || i0->get_n_uses() != 1 ||
           i1->get_n_uses() != 1 || !nothing_with_effect_behind(i0) ||
@@ -1736,15 +1786,15 @@ bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
            swap++) {
         std::optional<u32> d;
         bool ok = true;
-        for (u32 p = 0; p < 2 && ok; p++) {
+        for (u32 p = 0; p < i0->args.size() && ok; p++) {
           const auto a = i0->args[p];
           const auto b = i1->args[swap != 0 ? 1 - p : p];
           if (a == b) {
             continue;
           }
           if (d || a.get_type() != b.get_type() ||
-              (a.is_constant() && b.is_constant() &&
-               wants_constant_operand(i0, p))) {
+              (i0->is(fir::InstrType::BinaryInstr) && a.is_constant() &&
+               b.is_constant() && wants_constant_operand(i0, p))) {
             ok = false;
           }
           d = p;
@@ -1758,7 +1808,8 @@ bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
       if (!matched) {
         continue;
       }
-      fir::ValueR ops[2] = {i0->args[0], i0->args[1]};
+      fir::ValueR ops[2] = {i0->args[0],
+                            i0->args.size() > 1 ? i0->args[1] : i0->args[0]};
       if (diff) {
         auto new_arg = ctx->storage.insert_bb_arg(
             fir::BBArgumentData{join, ops[*diff].get_type()});
@@ -1769,8 +1820,17 @@ bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
       }
       fir::Builder b{join};
       b.at_start(join);
-      const auto res = b.build_binary_op(
-          ops[0], ops[1], static_cast<fir::BinaryInstrSubType>(i0->subtype));
+      fir::ValueR res;
+      if (i0->is(fir::InstrType::BinaryInstr)) {
+        res = b.build_binary_op(
+            ops[0], ops[1], static_cast<fir::BinaryInstrSubType>(i0->subtype));
+      } else if (i0->is(fir::InstrType::ITrunc)) {
+        res = b.build_itrunc(ops[0], i0->result_type());
+      } else if (i0->is(fir::InstrType::SExt)) {
+        res = b.build_sext(ops[0], i0->result_type());
+      } else {
+        res = b.build_zext(ops[0], i0->result_type());
+      }
       auto sunk = res.as_instr();
       static_cast<fir::InstrAttribs &>(*sunk.operator->()) = *i0.operator->();
       sunk->intersect_poison_flags(*i1.operator->());
@@ -2529,6 +2589,10 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     if constexpr (debug_print) {
       fmt::println("10");
     }
+    return Res::NeedUpdate;
+  }
+
+  if (hoist_common_front(curr)) {
     return Res::NeedUpdate;
   }
 
