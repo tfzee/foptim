@@ -30,7 +30,8 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
   };
   // duplicates the loop, specialise(builder, copy) then fixes the condition in
   // the original (runs with it true) and in the copy (false)
-  auto unswitch_on = [&](fir::ValueR target_cond, auto &&specialise) -> bool {
+  auto unswitch_on = [&](fir::ValueR target_cond, auto &&specialise,
+                         bool specialise_after_merge = false) -> bool {
     // values defined in the loop that are used after it: once the loop is
     // duplicated both exits reach the same outside block, so every such value
     // gets a new block argument on the exit target that dominates its uses
@@ -139,7 +140,9 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       }
     }
 
-    specialise(buh, copied_loop);
+    if (!specialise_after_merge) {
+      specialise(buh, copied_loop);
+    }
 
     // merge the used after values at the exit targets
     for (auto &ua : used_after) {
@@ -164,6 +167,12 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       for (auto use : ua.uses) {
         use.replace_use(fir::ValueR{merged});
       }
+    }
+
+    // folding selects destroys loop values that can be used after the loop,
+    // so it has to see the merged values
+    if (specialise_after_merge) {
+      specialise(buh, copied_loop);
     }
 
     {
@@ -524,33 +533,34 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
         continue;
       }
       auto sel_result = sel.result();
+      auto specialise_select = [&](fir::Builder &, TVec<fir::BasicBlock> &) {
+        auto copy = help.map.at(sel_result).as_instr();
+        auto fold = [](fir::Instr s, u32 arm) {
+          auto val = s->args[arm];
+          s.result().replace_all_uses(val);
+          s.destroy();
+        };
+        auto copied_rest = [&]() {
+          auto it = help.map.find(rest_cond);
+          return it == help.map.end() ? rest_cond : it->second;
+        };
+        switch (kind) {
+          case Kind::Plain:
+            fold(sel, 1);
+            fold(copy, 2);
+            break;
+          case Kind::And:
+            sel.replace_arg(0, rest_cond);
+            fold(copy, 2);
+            break;
+          case Kind::Or:
+            fold(sel, 1);
+            copy.replace_arg(0, copied_rest());
+            break;
+        }
+      };
       // the original runs with the condition true, the copy with it false
-      if (unswitch_on(inv_cond, [&](fir::Builder &, TVec<fir::BasicBlock> &) {
-            auto copy = help.map.at(sel_result).as_instr();
-            auto fold = [](fir::Instr s, u32 arm) {
-              auto val = s->args[arm];
-              s.result().replace_all_uses(val);
-              s.destroy();
-            };
-            auto copied_rest = [&]() {
-              auto it = help.map.find(rest_cond);
-              return it == help.map.end() ? rest_cond : it->second;
-            };
-            switch (kind) {
-              case Kind::Plain:
-                fold(sel, 1);
-                fold(copy, 2);
-                break;
-              case Kind::And:
-                sel.replace_arg(0, rest_cond);
-                fold(copy, 2);
-                break;
-              case Kind::Or:
-                fold(sel, 1);
-                copy.replace_arg(0, copied_rest());
-                break;
-            }
-          })) {
+      if (unswitch_on(inv_cond, specialise_select, true)) {
         return true;
       }
     }
