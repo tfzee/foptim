@@ -13,70 +13,70 @@ define i64 @big(ptr noundef %0, i64 noundef %1, ptr noundef %2) #0 {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{}: i64, %2{nocapture; }: ptr):
 ; CHECK-NEXT:    %3: i1 = IntEQ(%1, 0:i64){} NUses:1
-; CHECK-NEXT:    %4: () = CondBranch<bb1(), bb2(0:i64, 0:i64)>(%3){} NUses:0
+; CHECK-NEXT:    %4: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %5: i64 = Return(-1:i64){} NUses:0
-; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %6: i64 = Load(%0){} NUses:1
-; CHECK-NEXT:    %7: i64 = IntSub(%8, %6){} NUses:1
-; CHECK-NEXT:    %9: i64 = IntAdd(%10, 1:i64){} NUses:1
-; CHECK-NEXT:    %11: () = Branch<bb2(%7, %9)>(){} NUses:0
+; CHECK-NEXT:  bb3(%6{}: i64, %7{}: i64):
+; CHECK-NEXT:    %8: i64 = IntMul(%7, 8:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; InBounds; } NUses:2
+; CHECK-NEXT:    %10: i64 = Load(%9){} NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%2, %8){NSW; InBounds; } NUses:2
+; CHECK-NEXT:    %12: i64 = Load(%11){} NUses:1
+; CHECK-NEXT:    %13: i64 = IntMul(%10, %12){} NUses:1
+; CHECK-NEXT:    %14: i64 = IntAdd(%13, %6){} NUses:5
+; CHECK-NEXT:    %15: i64 = Xor(%14, %7){} NUses:1
+; CHECK-NEXT:    %16: i64 = Store(%11, %15){} NUses:0
+; CHECK-NEXT:    %17: i64 = IntMul(%7, 3:i64){} NUses:1
+; CHECK-NEXT:    %18: i64 = IntAdd(%14, %17){} NUses:1
+; CHECK-NEXT:    %19: i64 = Store(%9, %18){} NUses:0
+; CHECK-NEXT:    %20: i1 = IntSGT(%14, 1000:i64){} NUses:1
+; CHECK-NEXT:    %21: () = CondBranch<bb4(), bb5(%14)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %12: i64 = IntAdd(%10, 1:i64){} NUses:1
-; CHECK-NEXT:    %13: () = Branch<bb2(%8, %12)>(){} NUses:0
-; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %14: i64 = IntMul(%10, 8:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %15: ptr = PtrAdd(%0, %14){NSW; InBounds; } NUses:2
-; CHECK-NEXT:    %16: i64 = Load(%15){} NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%2, %14){NSW; InBounds; } NUses:2
-; CHECK-NEXT:    %18: i64 = Load(%17){} NUses:1
-; CHECK-NEXT:    %19: i64 = IntMul(%16, %18){} NUses:1
-; CHECK-NEXT:    %8: i64 = IntAdd(%19, %20){} NUses:5
-; CHECK-NEXT:    %21: i64 = Xor(%8, %10){} NUses:1
-; CHECK-NEXT:    %22: i64 = Store(%17, %21){} NUses:0
-; CHECK-NEXT:    %23: i64 = IntMul(%10, 3:i64){} NUses:1
-; CHECK-NEXT:    %24: i64 = IntAdd(%8, %23){} NUses:1
-; CHECK-NEXT:    %25: i64 = Store(%15, %24){} NUses:0
-; CHECK-NEXT:    %26: i1 = IntSGT(%8, 1000:i64){} NUses:1
-; CHECK-NEXT:    %27: () = CondBranch<bb3(), bb4()>(%26){} NUses:0
-; CHECK-NEXT:  bb2(%20{}: i64, %10{}: i64):
-; CHECK-NEXT:    %28: i1 = IntSLT(%10, %1){} NUses:1
-; CHECK-NEXT:    %29: () = CondBranch<bb5(), bb6()>(%28){} NUses:0
-; CHECK-NEXT:  bb6():
-; CHECK-NEXT:    %30: i64 = AShR(%1, 63:i64){} NUses:1
-; CHECK-NEXT:    %31: i64 = LShR(%30, 63:i64){} NUses:1
-; CHECK-NEXT:    %32: i64 = IntAdd(%31, %1){} NUses:1
-; CHECK-NEXT:    %33: i64 = AShR(%32, 1:i64){} NUses:1
-; CHECK-NEXT:    %34: i64 = IntMul(%33, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %35: ptr = PtrAdd(%0, %34){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %36: i64 = Load(%35){} NUses:1
-; CHECK-NEXT:    %37: i64 = IntMul(%36, 5:i64){} NUses:1
-; CHECK-NEXT:    %38: i64 = Load(%2){} NUses:1
-; CHECK-NEXT:    %39: i64 = IntAdd(%37, %38){} NUses:1
-; CHECK-NEXT:    %40: i64 = IntAdd(%39, %20){} NUses:2
-; CHECK-NEXT:    %41: i64 = AShR(%40, 3:i64){} NUses:1
-; CHECK-NEXT:    %42: i64 = Xor(%40, %41){} NUses:1
-; CHECK-NEXT:    %43: i64 = IntMul(%1, 8:i64){} NUses:1
-; CHECK-NEXT:    %44: i64 = IntSub(%43, 8:i64){} NUses:1
-; CHECK-NEXT:    %45: ptr = PtrAdd(%2, %44){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %46: i64 = Load(%45){} NUses:1
-; CHECK-NEXT:    %47: ptr = PtrAdd(%2, 8:i64){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %22: i64 = Load(%0){} NUses:1
+; CHECK-NEXT:    %23: i64 = IntSub(%14, %22){} NUses:1
+; CHECK-NEXT:    %24: () = Branch<bb5(%23)>(){} NUses:0
+; CHECK-NEXT:  bb5(%25{}: i64):
+; CHECK-NEXT:    %26: i64 = IntAdd(%7, 1:i64){} NUses:2
+; CHECK-NEXT:    %27: i1 = IntSLT(%26, %1){} NUses:1
+; CHECK-NEXT:    %28: () = CondBranch<bb3(%25, %26), bb6(%25)>(%27){} NUses:0
+; CHECK-NEXT:  bb2():
+; CHECK-NEXT:    %29: i1 = IntSGT(%1, 0:i64){} NUses:1
+; CHECK-NEXT:    %30: () = CondBranch<bb3(0:i64, 0:i64), bb6(0:i64)>(%29){} NUses:0
+; CHECK-NEXT:  bb6(%31{}: i64):
+; CHECK-NEXT:    %32: i64 = AShR(%1, 63:i64){} NUses:1
+; CHECK-NEXT:    %33: i64 = LShR(%32, 63:i64){} NUses:1
+; CHECK-NEXT:    %34: i64 = IntAdd(%33, %1){} NUses:1
+; CHECK-NEXT:    %35: i64 = AShR(%34, 1:i64){} NUses:1
+; CHECK-NEXT:    %36: i64 = IntMul(%35, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %37: ptr = PtrAdd(%0, %36){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %38: i64 = Load(%37){} NUses:1
+; CHECK-NEXT:    %39: i64 = IntMul(%38, 5:i64){} NUses:1
+; CHECK-NEXT:    %40: i64 = Load(%2){} NUses:1
+; CHECK-NEXT:    %41: i64 = IntAdd(%39, %40){} NUses:1
+; CHECK-NEXT:    %42: i64 = IntAdd(%41, %31){} NUses:2
+; CHECK-NEXT:    %43: i64 = AShR(%42, 3:i64){} NUses:1
+; CHECK-NEXT:    %44: i64 = Xor(%42, %43){} NUses:1
+; CHECK-NEXT:    %45: i64 = IntMul(%1, 8:i64){} NUses:1
+; CHECK-NEXT:    %46: i64 = IntSub(%45, 8:i64){} NUses:1
+; CHECK-NEXT:    %47: ptr = PtrAdd(%2, %46){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %48: i64 = Load(%47){} NUses:1
-; CHECK-NEXT:    %49: i64 = IntMul(%46, %48){} NUses:1
-; CHECK-NEXT:    %50: i64 = IntAdd(%42, %49){} NUses:3
-; CHECK-NEXT:    %51: ptr = PtrAdd(%2, 16:i64){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %52: i64 = Store(%51, %50){} NUses:0
-; CHECK-NEXT:    %53: ptr = PtrAdd(%0, 8:i64){NSW; InBounds; } NUses:2
-; CHECK-NEXT:    %54: i64 = Load(%53){} NUses:1
-; CHECK-NEXT:    %55: i64 = IntAdd(%54, %50){} NUses:1
-; CHECK-NEXT:    %56: i64 = Store(%53, %55){} NUses:0
-; CHECK-NEXT:    %57: ptr = PtrAdd(%0, 16:i64){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %58: i64 = Load(%57){} NUses:1
-; CHECK-NEXT:    %59: ptr = PtrAdd(%2, 24:i64){NSW; InBounds; } NUses:2
+; CHECK-NEXT:    %49: ptr = PtrAdd(%2, 8:i64){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %50: i64 = Load(%49){} NUses:1
+; CHECK-NEXT:    %51: i64 = IntMul(%48, %50){} NUses:1
+; CHECK-NEXT:    %52: i64 = IntAdd(%44, %51){} NUses:3
+; CHECK-NEXT:    %53: ptr = PtrAdd(%2, 16:i64){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %54: i64 = Store(%53, %52){} NUses:0
+; CHECK-NEXT:    %55: ptr = PtrAdd(%0, 8:i64){NSW; InBounds; } NUses:2
+; CHECK-NEXT:    %56: i64 = Load(%55){} NUses:1
+; CHECK-NEXT:    %57: i64 = IntAdd(%56, %52){} NUses:1
+; CHECK-NEXT:    %58: i64 = Store(%55, %57){} NUses:0
+; CHECK-NEXT:    %59: ptr = PtrAdd(%0, 16:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %60: i64 = Load(%59){} NUses:1
-; CHECK-NEXT:    %61: i64 = IntAdd(%60, %58){} NUses:1
-; CHECK-NEXT:    %62: i64 = Store(%59, %61){} NUses:0
-; CHECK-NEXT:    %63: i64 = Return(%50){} NUses:0
+; CHECK-NEXT:    %61: ptr = PtrAdd(%2, 24:i64){NSW; InBounds; } NUses:2
+; CHECK-NEXT:    %62: i64 = Load(%61){} NUses:1
+; CHECK-NEXT:    %63: i64 = IntAdd(%62, %60){} NUses:1
+; CHECK-NEXT:    %64: i64 = Store(%61, %63){} NUses:0
+; CHECK-NEXT:    %65: i64 = Return(%52){} NUses:0
 ; CHECK-NEXT:}
   %4 = alloca i64, align 8
   %5 = alloca ptr, align 8

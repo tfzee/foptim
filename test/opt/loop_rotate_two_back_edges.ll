@@ -18,18 +18,17 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:  bb3():
 ; CHECK-NEXT:    %12: i32 = IntAdd(%6, %9){} NUses:2
 ; CHECK-NEXT:    %13: i32 = Store(%0, %12){VOLATILE; } NUses:0
-; CHECK-NEXT:    %14: i64 = IntAdd(%5, 1:i64){} NUses:1
-; CHECK-NEXT:    %15: () = Branch<bb5(%14, %12)>(){} NUses:0
+; CHECK-NEXT:    %14: () = Branch<bb5(%12)>(){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %16: i32 = Store(%0, %6){VOLATILE; } NUses:0
-; CHECK-NEXT:    %17: i64 = IntAdd(%5, 1:i64){} NUses:1
-; CHECK-NEXT:    %18: () = Branch<bb5(%17, %6)>(){} NUses:0
-; CHECK-NEXT:  bb5(%19{}: i64, %20{}: i32):
-; CHECK-NEXT:    %21: i1 = IntSLT(%19, %1){} NUses:1
-; CHECK-NEXT:    %22: i1 = Not(%21){} NUses:1
-; CHECK-NEXT:    %23: () = CondBranch<bb1(%20), bb2(%19, %20)>(%22){} NUses:0
-; CHECK-NEXT:  bb1(%24{}: i32):
-; CHECK-NEXT:    %25: i32 = Return(%24){} NUses:0
+; CHECK-NEXT:    %15: i32 = Store(%0, %6){VOLATILE; } NUses:0
+; CHECK-NEXT:    %16: () = Branch<bb5(%6)>(){} NUses:0
+; CHECK-NEXT:  bb5(%17{}: i32):
+; CHECK-NEXT:    %18: i64 = IntAdd(%5, 1:i64){} NUses:2
+; CHECK-NEXT:    %19: i1 = IntSLT(%18, %1){} NUses:1
+; CHECK-NEXT:    %20: i1 = Not(%19){} NUses:1
+; CHECK-NEXT:    %21: () = CondBranch<bb1(%17), bb2(%18, %17)>(%20){} NUses:0
+; CHECK-NEXT:  bb1(%22{}: i32):
+; CHECK-NEXT:    %23: i32 = Return(%22){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %head

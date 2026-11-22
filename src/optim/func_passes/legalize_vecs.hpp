@@ -50,9 +50,8 @@ class LegalizeVecs final : public FunctionPass {
                                 u32 arg_indx, FloatPool &pool) {
     auto constant = instr->args[arg_indx].as_constant();
     const u32 bits = constant->type->get_bitwidth();
-    const u64 pattern = bits == 32
-                            ? std::bit_cast<u32>(constant->as_f32())
-                            : std::bit_cast<u64>(constant->as_f64());
+    const u64 pattern = bits == 32 ? std::bit_cast<u32>(constant->as_f32())
+                                   : std::bit_cast<u64>(constant->as_f64());
     // zero and all ones are made in the register (vxor, vpcmpeq)
     if (pattern == 0 ||
         pattern == (bits == 32 ? std::numeric_limits<u32>::max()
@@ -227,6 +226,124 @@ class LegalizeVecs final : public FunctionPass {
     return true;
   }
 
+  // x86 has no vector integer division. 8 and 16 bit lanes are widened to 32
+  // bit and divided as f32 (exact for 16 bit operands, the truncating convert
+  // gives the quotient), 32 bit lanes are divided as f64 in groups of four
+  // (unsigned ones are moved into the signed range first), 64 bit lanes are
+  // divided one by one. The remainder is x - (x / y) * y. A lane that divides
+  // by zero gives garbage instead of a trap, the vectorizer only divides in
+  // lanes that run the division in the scalar code.
+  fir::ValueR lower_vec_int_div(fir::Context &ctx, fir::Builder &b,
+                                fir::BinaryInstrSubType sub, fir::ValueR x,
+                                fir::ValueR y, u32 bits, u32 n) {
+    using Sub = fir::BinaryInstrSubType;
+    const auto elem = ctx->get_int_type(static_cast<u16>(bits));
+    const auto vty = ctx->get_vec_type(elem, static_cast<u16>(n));
+    const bool is_signed = sub == Sub::IntSDiv || sub == Sub::IntSRem;
+    const bool is_rem = sub == Sub::IntSRem || sub == Sub::IntURem;
+    if (bits == 64) {
+      fir::ValueR acc = x;
+      for (u32 i = 0; i < n; i++) {
+        fir::ValueR idx[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
+        auto a = b.build_extract_element(x, idx, elem);
+        auto c = b.build_extract_element(y, idx, elem);
+        acc =
+            b.build_insert_element(acc, b.build_binary_op(a, c, sub), idx, vty);
+      }
+      return acc;
+    }
+    const u32 max_lanes = bits <= 16 ? 8 : 4;
+    if (n > max_lanes) {
+      const auto half = ctx->get_vec_type(elem, static_cast<u16>(n / 2));
+      const auto lo = lower_vec_int_div(
+          ctx, b, sub,
+          b.build_vector_op(x, half, fir::VectorISubType::ExtractLow),
+          b.build_vector_op(y, half, fir::VectorISubType::ExtractLow), bits,
+          n / 2);
+      const auto hi = lower_vec_int_div(
+          ctx, b, sub,
+          b.build_vector_op(x, half, fir::VectorISubType::ExtractHigh),
+          b.build_vector_op(y, half, fir::VectorISubType::ExtractHigh), bits,
+          n / 2);
+      return b.build_vector_op(lo, hi, vty, fir::VectorISubType::Concat);
+    }
+    const auto i32_ty = ctx->get_int_type(32);
+    const auto wide = ctx->get_vec_type(i32_ty, static_cast<u16>(n));
+    const auto splat_int = [&](u64 v) {
+      return b.build_vbroadcast(
+          fir::ValueR{ctx->get_constant_int(static_cast<i128>(v), 32)}, wide);
+    };
+    fir::ValueR xi = x;
+    fir::ValueR yi = y;
+    fir::ValueR q;
+    if (bits <= 16) {
+      xi = is_signed ? b.build_sext(x, wide) : b.build_zext(x, wide);
+      yi = is_signed ? b.build_sext(y, wide) : b.build_zext(y, wide);
+      const auto fty =
+          ctx->get_vec_type(ctx->get_float_type(32), static_cast<u16>(n));
+      const auto xf =
+          b.build_conversion_op(xi, fty, fir::ConversionSubType::SITOFP);
+      const auto yf =
+          b.build_conversion_op(yi, fty, fir::ConversionSubType::SITOFP);
+      q = b.build_conversion_op(b.build_float_div(xf, yf), wide,
+                                fir::ConversionSubType::FPTOSI);
+    } else {
+      const auto f64_ty = ctx->get_float_type(64);
+      const auto fty = ctx->get_vec_type(f64_ty, static_cast<u16>(n));
+      const auto splat_f64 = [&](f64 v) {
+        return b.build_vbroadcast(fir::ValueR{ctx->get_constant_value(v, f64_ty)},
+                                  fty);
+      };
+      if (is_signed) {
+        const auto xf =
+            b.build_conversion_op(x, fty, fir::ConversionSubType::SITOFP);
+        const auto yf =
+            b.build_conversion_op(y, fty, fir::ConversionSubType::SITOFP);
+        q = b.build_conversion_op(b.build_float_div(xf, yf), wide,
+                                  fir::ConversionSubType::FPTOSI);
+      } else {
+        const auto flip = splat_int(0x80000000U);
+        const auto bias = splat_f64(2147483648.0);
+        const auto to_f64 = [&](fir::ValueR v) {
+          auto s = b.build_binary_op(v, flip, Sub::Xor);
+          return b.build_float_add(
+              b.build_conversion_op(s, fty, fir::ConversionSubType::SITOFP),
+              bias);
+        };
+        auto qf = b.build_float_div(to_f64(x), to_f64(y));
+        // the convert only truncates inside the signed range
+        qf = b.build_intrinsic(qf, fir::IntrinsicSubType::FTrunc, fty);
+        auto qs = b.build_conversion_op(b.build_float_sub(qf, bias), wide,
+                                        fir::ConversionSubType::FPTOSI);
+        q = b.build_binary_op(qs, flip, Sub::Xor);
+      }
+    }
+    fir::ValueR res = q;
+    if (is_rem) {
+      res = b.build_int_sub(xi, b.build_int_mul(q, yi));
+    }
+    return bits < 32 ? b.build_itrunc(res, vty) : res;
+  }
+
+  bool legalize_vec_int_div(fir::Context &ctx, fir::Instr instr,
+                            TVec<fir::Instr> &worklist) {
+    using Sub = fir::BinaryInstrSubType;
+    if (!(instr->is(Sub::IntSDiv) || instr->is(Sub::IntUDiv) ||
+          instr->is(Sub::IntSRem) || instr->is(Sub::IntURem)) ||
+        !instr->result_type()->is_vec()) {
+      return false;
+    }
+    const auto vt = instr->result_type()->as_vec();
+    fir::Builder b{instr};
+    const auto res = lower_vec_int_div(ctx, b, static_cast<Sub>(instr->subtype),
+                                       instr->args[0], instr->args[1],
+                                       vt.bitwidth, vt.member_number);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return true;
+  }
+
   // shuffles of byte and word lanes with a constant mask become one pshufb per
   // source (zeroing the lanes that come from the other one) and an or. pshufb
   // stays inside its 128 bit lane, a mask that crosses lanes is left alone
@@ -323,6 +440,9 @@ class LegalizeVecs final : public FunctionPass {
   bool legalize(fir::Context &ctx, fir::Instr instr, TVec<fir::Instr> &worklist,
                 FloatPool &pool) {
     if (legalize_byte_shift(ctx, instr, worklist)) {
+      return true;
+    }
+    if (legalize_vec_int_div(ctx, instr, worklist)) {
       return true;
     }
     if (legalize_narrow_shuffle(ctx, instr, worklist)) {

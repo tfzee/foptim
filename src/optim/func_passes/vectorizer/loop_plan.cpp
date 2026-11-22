@@ -162,6 +162,12 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
         !mask_width_ok(l.blocks[n.block].mask_bits, pl[i])) {
       return false;
     }
+    if (n.kind == NodeKind::Binary && l.blocks[n.block].mask_bits != 0 &&
+        div_needs_safe_divisor(n.value.as_instr()) &&
+        (l.blocks[n.block].mask_bits != n.type->get_bitwidth() ||
+         !mask_width_ok(l.blocks[n.block].mask_bits, pl[i]))) {
+      return false;
+    }
   }
   return true;
 }
@@ -197,6 +203,10 @@ i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
       }
     }
     body += parts * c;
+    if (n.kind == NodeKind::Binary && l.blocks[n.block].mask_bits != 0 &&
+        div_needs_safe_divisor(n.value.as_instr())) {
+      body += parts;
+    }
     // masked accesses are a bit slower than plain ones
     if ((n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
         l.blocks[n.block].mask_bits != 0) {
@@ -352,7 +362,11 @@ void count_scalar_cost(LoopData &l) {
   u32 cost = 0;
   for (const auto &b : l.blocks) {
     const u32 n = static_cast<u32>(b.bb->instructions.size()) - 1;
-    cost += b.mask_bits != 0 ? (n + 1) / 2 : n;
+    u32 extra = 0;
+    for (auto instr : b.bb->instructions) {
+      extra += static_cast<u32>(scalar_int_div_extra(instr));
+    }
+    cost += b.mask_bits != 0 ? (n + extra + 1) / 2 : n + extra;
   }
   l.scalar_cost = cost;
 }

@@ -1697,7 +1697,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy() ||
+        any_instr->getType()->isVectorTy()) {
       auto add = builder.build_int_srem(left, right);
       valueToValue.insert({any_instr, add});
       return;
@@ -1708,7 +1709,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy() ||
+        any_instr->getType()->isVectorTy()) {
       auto add = builder.build_int_urem(left, right);
       valueToValue.insert({any_instr, add});
       return;
@@ -1733,7 +1735,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy() ||
+        any_instr->getType()->isVectorTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntSDiv);
       add.as_instr()->Exact = any_instr->isExact();
@@ -1746,7 +1749,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy() ||
+        any_instr->getType()->isVectorTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntUDiv);
       add.as_instr()->Exact = any_instr->isExact();

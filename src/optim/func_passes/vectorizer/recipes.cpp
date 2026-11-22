@@ -148,9 +148,14 @@ bool binary_sub_ok(BinSub sub) {
     case BinSub::FloatSub:
     case BinSub::FloatMul:
     case BinSub::FloatDiv:
+    case BinSub::IntSDiv:
+    case BinSub::IntUDiv:
+    case BinSub::IntSRem:
+    case BinSub::IntURem:
+      // integer division traps on lanes the scalar loop never runs, the
+      // emitter replaces the divisor of such lanes (see div_needs_safe_divisor)
       return true;
     default:
-      // division could trap in lanes the scalar loop never runs
       return false;
   }
 }
@@ -240,6 +245,70 @@ bool binary_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
   return true;
 }
 
+}  // namespace
+
+bool is_int_div_rem(BinSub sub) {
+  return sub == BinSub::IntSDiv || sub == BinSub::IntUDiv ||
+         sub == BinSub::IntSRem || sub == BinSub::IntURem;
+}
+
+bool div_needs_safe_divisor(fir::Instr instr) {
+  if (!instr->is(fir::InstrType::BinaryInstr) ||
+      !is_int_div_rem(static_cast<BinSub>(instr->subtype))) {
+    return false;
+  }
+  const auto d = instr->args[1];
+  if (!d.is_constant_int()) {
+    return true;
+  }
+  const auto v = d.as_constant()->as_apint();
+  const bool is_signed = instr->subtype == static_cast<u32>(BinSub::IntSDiv) ||
+                         instr->subtype == static_cast<u32>(BinSub::IntSRem);
+  // zero traps, minus one traps for the most negative dividend
+  return v.is_zero() || (is_signed && v.is_all_ones());
+}
+
+i64 scalar_int_div_extra(fir::Instr instr) {
+  if (!instr->is(fir::InstrType::BinaryInstr) ||
+      !is_int_div_rem(static_cast<BinSub>(instr->subtype))) {
+    return 0;
+  }
+  // multiply by the magic number, shift and fix up (about four operations)
+  if (instr->args[1].is_constant_int()) {
+    return 3;
+  }
+  // idiv reciprocal throughput, the 64 bit form is a bit slower
+  return instr->result_type()->get_bitwidth() > 32 ? 6 : 5;
+}
+
+namespace {
+
+//   8 and 16 bit: widen to 32 bit, convert to f32, divps, truncate, narrow
+//   32 bit: convert halves to f64, divpd, truncate, join
+//   64 bit: one scalar idiv per lane (a double cannot hold the quotient)
+// a constant divisor takes the same path (the scalar divide of a lane is the
+// multiply by the magic number)
+i64 vector_int_div_cost(const PlanNode &n, u32 lanes) {
+  const auto instr = n.value.as_instr();
+  const u32 bits = n.type->get_bitwidth();
+  const bool rem = instr->subtype == static_cast<u32>(BinSub::IntSRem) ||
+                   instr->subtype == static_cast<u32>(BinSub::IntURem);
+  const bool by_const = instr->args[1].is_constant_int();
+  const i64 l = lanes;
+  if (bits >= 64) {
+    // extract both operands, the scalar divide, insert the result
+    return by_const ? l * 6 : l * 10;
+  }
+  // the remainder is a multiply and a subtract on top of the quotient
+  const i64 rem_extra = rem ? 2 : 0;
+  if (bits <= 16) {
+    const i64 groups = (l + 7) / 8;
+    return groups * (11 + rem_extra);
+  }
+  const i64 groups = (l + 3) / 4;
+  return groups * (9 + rem_extra) + (groups > 1 ? 1 : 0);
+}
+
 bool binary_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
                   const Features &features) {
   const auto sub = static_cast<BinSub>(n.sub);
@@ -260,8 +329,11 @@ bool binary_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
   }
   return true;
 }
-i64 binary_cost(const PlanNode &n, u32 /*vf*/, const Features &features) {
+i64 binary_cost(const PlanNode &n, u32 vf, const Features &features) {
   const auto sub = static_cast<BinSub>(n.sub);
+  if (is_int_div_rem(sub) && n.value.is_instr()) {
+    return vector_int_div_cost(n, vf);
+  }
   if (sub == BinSub::IntMul && n.type->is_int()) {
     if (n.type->get_bitwidth() == 64 && !features.avx512dq) {
       return 8;
@@ -1251,13 +1323,11 @@ std::optional<fir::ReduceInstrSubType> reduce_op_for(fir::Instr root, u32 lanes,
       return fir::ReduceInstrSubType::Add;
     case BinSub::FloatAdd:
       // the horizontal add sums pairs, only two lanes keep the order
-      return assoc || lanes == 2
-                 ? std::optional{fir::ReduceInstrSubType::Add}
-                 : std::nullopt;
+      return assoc || lanes == 2 ? std::optional{fir::ReduceInstrSubType::Add}
+                                 : std::nullopt;
     case BinSub::FloatMul:
-      return assoc || lanes == 2
-                 ? std::optional{fir::ReduceInstrSubType::Mul}
-                 : std::nullopt;
+      return assoc || lanes == 2 ? std::optional{fir::ReduceInstrSubType::Mul}
+                                 : std::nullopt;
     default:
       return std::nullopt;
   }

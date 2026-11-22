@@ -21,6 +21,7 @@ class Dominators;
 // + [x] convert nearly duplicate bbs into single with args
 // + [x] convert if else into cmove
 // + [x] convert branch into lookup table
+// + [x] sink common operations of the arms of a join
 // + [ ]
 
 // bb args that reach an instruction with an effect, computed on demand
@@ -108,6 +109,12 @@ class SimplifyCFG final : public FunctionPass {
   // If we got a conditionalbrach with both taking the same target
   // then we can cmove the bbargs and then do a simple branch
   bool conditional_to_cmove(CFG::Node &curr);
+  // a join that is entered from two blocks with a single jump each, which pass
+  // the same integer operation on at most one different operand for one block
+  // argument: the operation is done once behind the join on a new block
+  // argument, phi(a + c, b + c) is phi(a, b) + c
+  bool sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
+                      CFG::Node &curr, bool is_entry);
   bool if_convert_arms(CFG::Node &curr);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args

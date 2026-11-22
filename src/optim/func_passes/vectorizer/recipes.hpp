@@ -52,6 +52,13 @@ bool node_legal(const PlanNode &n, LaneSpace space, u32 vf,
                 const Features &features);
 i64 node_vec_cost(const PlanNode &n, u32 vf, const Features &features);
 i64 node_scalar_cost(const PlanNode &n);
+bool is_int_div_rem(fir::BinaryInstrSubType sub);
+// an integer division in a block that does not run in every lane needs a
+// divisor that cannot trap in the lanes that do not run it
+bool div_needs_safe_divisor(fir::Instr instr);
+// what a scalar integer division costs on top of the one operation that
+// counts every instruction
+i64 scalar_int_div_extra(fir::Instr instr);
 i64 bundle_benefit(const Plan &plan, u32 id, const Features &features);
 
 // operands in operand order, the builder is positioned by the caller

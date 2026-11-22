@@ -1354,6 +1354,14 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
+      if (fmir::vec_lane_bits(instr.args[0].ty) != 0) {
+        // packed i32 lanes to f32 lanes or to the same number of f64 lanes
+        ASSERT(fmir::vec_lane_bits(instr.args[1].ty) == 32);
+        req.mnemonic = fmir::vec_lane_bits(instr.args[0].ty) == 32
+                           ? ZYDIS_MNEMONIC_VCVTDQ2PS
+                           : ZYDIS_MNEMONIC_VCVTDQ2PD;
+        return emit(out_buff, 0, &req);
+      }
       req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                          ? ZYDIS_MNEMONIC_VCVTSI2SS
                          : ZYDIS_MNEMONIC_VCVTSI2SD;
@@ -1376,6 +1384,16 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     case fmir::GConvSubtype::FL2SI: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      if (fmir::vec_lane_bits(instr.args[0].ty) != 0) {
+        // packed truncating conversion to i32 lanes, from f32 lanes or from
+        // the same number of f64 lanes
+        ASSERT(!instr.is(fmir::GConvSubtype::FL2UI));
+        ASSERT(fmir::vec_lane_bits(instr.args[0].ty) == 32);
+        req.mnemonic = fmir::vec_lane_bits(instr.args[1].ty) == 32
+                           ? ZYDIS_MNEMONIC_VCVTTPS2DQ
+                           : ZYDIS_MNEMONIC_VCVTTPD2DQ;
+        return emit(out_buff, 0, &req);
       }
       bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
       bool out_64 = instr.args[0].ty == fmir::Type::Int64;
@@ -2453,7 +2471,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VROUNDPD;
           break;
-          break;
+      }
+      if (fmir::vec_lane_bits(instr.args[0].ty) != 0) {
+        // the packed forms have no operand that supplies the upper bits
+        req.operand_count = 3;
+        req.operands[1] = req.operands[2];
+        req.operands[2] = req.operands[3];
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;

@@ -5,6 +5,7 @@
 #include <fmt/std.h>
 
 #include <algorithm>
+#include <array>
 #include <optional>
 
 #include "ir/basic_block.hpp"
@@ -519,6 +520,24 @@ bool is_immediate_operand(fir::Instr instr, u32 idx) {
   return false;
 }
 
+bool wants_constant_operand(fir::Instr instr, u32 idx) {
+  using Sub = fir::BinaryInstrSubType;
+  switch (static_cast<Sub>(instr->subtype)) {
+    case Sub::IntSDiv:
+    case Sub::IntUDiv:
+    case Sub::IntSRem:
+    case Sub::IntURem:
+    case Sub::Shl:
+    case Sub::Shr:
+    case Sub::AShr:
+      return idx == 1;
+    case Sub::IntMul:
+      return true;
+    default:
+      return false;
+  }
+}
+
 [[nodiscard]] bool check_args(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost, TVec<DiffValues> &difference_values,
@@ -527,6 +546,14 @@ bool is_immediate_operand(fir::Instr instr, u32 idx) {
     auto &arg1 = i1->args[i];
     auto &arg2 = i2->args[i];
     if (arg1 != arg2 && is_immediate_operand(i1, i)) {
+      return false;
+    }
+    // different constants would become a block argument, the backend has no
+    // cheap form for a divisor, shift amount or multiplier that is not a
+    // constant
+    if (arg1 != arg2 && arg1.is_constant() && arg2.is_constant() &&
+        i1->is(fir::InstrType::BinaryInstr) && wants_constant_operand(i1, i) &&
+        !i1->args[1 - i].is_constant()) {
       return false;
     }
     auto kept_res =
@@ -1637,6 +1664,135 @@ bool is_speculatable_arm(fir::BasicBlock arm, fir::BasicBlock branch_bb,
 
 // triangle and diamond: the arms are hoisted into the branching block and the
 // values they pass to the join block are selected
+namespace {
+// no instruction with an effect behind instr in its block, so it can be done
+// later
+bool nothing_with_effect_behind(fir::Instr instr) {
+  auto bb = instr->get_parent();
+  const auto n = bb->instructions.size();
+  for (size_t i = bb->get_instr_id(instr) + 1; i + 1 < n; i++) {
+    if (bb->instructions[i]->has_pot_sideeffects()) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace
+
+bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
+                                 CFG::Node &curr, bool is_entry) {
+  ZoneScopedN("sink into join");
+  auto join = curr.bb;
+  if (is_entry || join->n_args() == 0 || join->get_uses().size() != 2) {
+    return false;
+  }
+  const auto use0 = join->get_uses()[0];
+  const auto use1 = join->get_uses()[1];
+  if (use0.type != fir::UseType::BB || use1.type != fir::UseType::BB) {
+    return false;
+  }
+  auto term0 = use0.user;
+  auto term1 = use1.user;
+  if (term0 == term1 || !term0->is(fir::InstrType::BranchInstr) ||
+      !term1->is(fir::InstrType::BranchInstr)) {
+    return false;
+  }
+  const auto pred0 = term0->get_parent();
+  const auto pred1 = term1->get_parent();
+  if (pred0 == join || pred1 == join ||
+      dom.dominates(cfg.get_bb_id(join), cfg.get_bb_id(pred0)) ||
+      dom.dominates(cfg.get_bb_id(join), cfg.get_bb_id(pred1))) {
+    return false;
+  }
+  auto *ctx = func.ctx;
+  bool changed = false;
+  for (u32 round = 0; round < 8; round++) {
+    bool round_changed = false;
+    for (u32 ki = join->n_args(); ki > 0 && !round_changed; ki--) {
+      const u32 k = ki - 1;
+      auto old_arg = join->args[k];
+      if (old_arg->get_n_uses() == 0) {
+        continue;
+      }
+      const auto v0 = term0->bbs[use0.argId].args[k];
+      const auto v1 = term1->bbs[use1.argId].args[k];
+      if (!v0.is_instr() || !v1.is_instr()) {
+        continue;
+      }
+      auto i0 = v0.as_instr();
+      auto i1 = v1.as_instr();
+      if (i0 == i1 || i0->get_parent() != pred0 || i1->get_parent() != pred1 ||
+          !i0->is(fir::InstrType::BinaryInstr) || i0->subtype != i1->subtype ||
+          !i0->result_type()->is_int() ||
+          i0->result_type() != i1->result_type() || i0->get_n_uses() != 1 ||
+          i1->get_n_uses() != 1 || !nothing_with_effect_behind(i0) ||
+          !nothing_with_effect_behind(i1)) {
+        continue;
+      }
+      std::optional<u32> diff;
+      std::array<fir::ValueR, 2> other{};
+      bool matched = false;
+      for (u32 swap = 0; swap < (i0->is_commutative() ? 2U : 1U) && !matched;
+           swap++) {
+        std::optional<u32> d;
+        bool ok = true;
+        for (u32 p = 0; p < 2 && ok; p++) {
+          const auto a = i0->args[p];
+          const auto b = i1->args[swap != 0 ? 1 - p : p];
+          if (a == b) {
+            continue;
+          }
+          if (d || a.get_type() != b.get_type() ||
+              (a.is_constant() && b.is_constant() &&
+               wants_constant_operand(i0, p))) {
+            ok = false;
+          }
+          d = p;
+          other[p] = b;
+        }
+        if (ok) {
+          matched = true;
+          diff = d;
+        }
+      }
+      if (!matched) {
+        continue;
+      }
+      fir::ValueR ops[2] = {i0->args[0], i0->args[1]};
+      if (diff) {
+        auto new_arg = ctx->storage.insert_bb_arg(
+            fir::BBArgumentData{join, ops[*diff].get_type()});
+        join.add_arg(new_arg);
+        term0.add_bb_arg(use0.argId, ops[*diff]);
+        term1.add_bb_arg(use1.argId, other[*diff]);
+        ops[*diff] = fir::ValueR{new_arg};
+      }
+      fir::Builder b{join};
+      b.at_start(join);
+      const auto res = b.build_binary_op(
+          ops[0], ops[1], static_cast<fir::BinaryInstrSubType>(i0->subtype));
+      auto sunk = res.as_instr();
+      static_cast<fir::InstrAttribs &>(*sunk.operator->()) = *i0.operator->();
+      sunk->intersect_poison_flags(*i1.operator->());
+      old_arg->replace_all_uses(res);
+      for (auto use : join->get_uses()) {
+        use.user.remove_bb_arg(use.argId, k);
+      }
+      join->args.erase(join->args.begin() + k);
+      ASSERT(i0->get_n_uses() == 0 && i1->get_n_uses() == 0);
+      i0.destroy();
+      i1.destroy();
+      utils::StatCollector::get().addi(1, "SunkIntoJoin");
+      round_changed = true;
+    }
+    if (!round_changed) {
+      break;
+    }
+    changed = true;
+  }
+  return changed;
+}
+
 bool SimplifyCFG::if_convert_arms(CFG::Node &curr) {
   ZoneScopedN("cond to cmove3");
   auto terminator = curr.bb->get_terminator();
@@ -2374,6 +2530,10 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
       fmt::println("10");
     }
     return Res::NeedUpdate;
+  }
+
+  if (sink_into_join(func, cfg, dom, curr, is_entry)) {
+    return Res::Changed;
   }
 
   if (conditional_to_cmove(curr)) {

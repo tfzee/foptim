@@ -492,6 +492,16 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
           for (auto a : instr->args) {
             args.push_back(operand(a, lanes));
           }
+          // lanes that do not run the division get the divisor one
+          if (mask && n.kind == NodeKind::Binary &&
+              div_needs_safe_divisor(instr)) {
+            const auto one = b.build_vbroadcast(cint(1, n.type->get_bitwidth()),
+                                                vec_ty(n.type, lanes));
+            for (u32 p = 0; p < n_parts; p++) {
+              args[1][p] = b.build_select(vec_ty(n.type, lanes), (*mask)[p],
+                                          args[1][p], one);
+            }
+          }
           Parts res;
           for (u32 p = 0; p < n_parts; p++) {
             TVec<fir::ValueR> ops;
