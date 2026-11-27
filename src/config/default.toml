@@ -106,6 +106,7 @@ passes = [
   "LegalizeInts",
   "pipeline:default_release_cleanup_round", "pipeline:default_release_cleanup_round",
   "pipeline:default_release_cleanup_round", "pipeline:default_release_cleanup_round",
+  "LUTMatch", "InstSimplify", "DCE",
   "MergeAlloca", "EarlySheduler", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
   "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
   "SCCP", "LegalizeVecs", "DCE", "IntrinConv", "DCE", "IntrinLowerCalls", "IntrinExpand", "SimplifyCFG", "DCE",
@@ -127,6 +128,7 @@ passes = [
 [pass.fir.LateInline]
 extends = "Inline"
 allow_builtins = true
+
 [pass.fir.Inline]
 allow_recursive = true
 allow_builtins = false
@@ -134,10 +136,12 @@ loop_callee_max_instrs = 80
 loop_callee_depth_bonus = 20
 [pass.fir.LegalizeInts]
 [pass.fir.SwitchLower]
+[pass.fir.LUTMatch]
 [pass.fir.PartialInlineSplit]
 rest_min = 40
 prefix_max = 16
 max_live_ins = 8
+
 [pass.fir.FuncPropAnnotator]
 [pass.fir.GlobalPromotion]
 [pass.fir.ArgPromotion]
@@ -156,6 +160,7 @@ maxUnroll = 32
 maxInstr = 32
 maxFullUnroll = 8
 maxFullInstr = 256
+
 [pass.fir.SLPVectorizer]
 reductions = true
 loops = true
@@ -201,6 +206,7 @@ name_matching = ""
 #   blocks  per-block resource/critical-path/estimate (BlockThroughputCost)
 #   loops   per-loop trip count / chain latency / total cost (LoopCostAnalysis)
 show = []
+
 [pass.fir.VerifyFunc]
 
 
