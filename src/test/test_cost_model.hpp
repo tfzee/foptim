@@ -9,9 +9,11 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/cost_model/aggregators.hpp"
+#include "optim/cost_model/branch_cost.hpp"
 #include "optim/cost_model/cost.hpp"
 #include "optim/cost_model/fir_lowering_estimate.hpp"
 #include "optim/cost_model/machine.hpp"
+#include "optim/cost_model/op_desc.hpp"
 
 namespace {
 using foptim::fir::ICmpInstrSubType;
@@ -277,7 +279,9 @@ TEST(RegisterPressureEstimateTest, OverlappingLiveRangesCountedCorrectly) {
 }
 
 TEST(CostModelMachine, CacheHierarchy) {
-  const cm::Machine m = test_machine();
+  foptim::conf::Target zen{};
+  zen.tune = "zen4";
+  const cm::Machine m = cm::Machine::from_target(zen);
   EXPECT_EQ(m.cache(0).size, 32768u);
   EXPECT_EQ(m.cache(1).size, 1048576u);
   EXPECT_EQ(m.cache(2).size, 33554432u);
@@ -289,3 +293,168 @@ TEST(CostModelMachine, CacheHierarchy) {
   }
   EXPECT_GT(m.mem_latency(), prev);
 }
+
+TEST(CostModelMachine, CacheOverrideKeepsLatencies) {
+  foptim::conf::Target target{};
+  const double table_l2_latency = cm::Machine::from_target(target).cache(1).latency;
+  target.cache[1].size = 2097152;
+  target.cache[1].assoc = 16;
+  target.cache[2].size = 16777216;
+  const cm::Machine m = cm::Machine::from_target(target);
+  EXPECT_EQ(m.cache(0).size, 32768u);
+  EXPECT_EQ(m.cache(1).size, 2097152u);
+  EXPECT_EQ(m.cache(1).assoc, 16u);
+  EXPECT_EQ(m.cache(1).line_size, 64u);
+  EXPECT_EQ(m.cache(1).latency, table_l2_latency);
+  EXPECT_EQ(m.cache(2).size, 16777216u);
+}
+
+TEST(CostModelMachine, TuneSelectsTables) {
+  foptim::conf::Target target{};
+  // no tune means the generic profile
+  EXPECT_EQ(cm::Machine::from_target(target).arch, cm::MicroArch::Generic);
+  for (const std::string_view name :
+       {"generic", "zen4", "goldencove", "lioncove"}) {
+    target.tune = name;
+    const auto m = cm::Machine::from_target(target);
+    EXPECT_EQ(cm::microarch_name(m.arch), name);
+    EXPECT_EQ(cm::parse_microarch(name), m.arch);
+  }
+  EXPECT_FALSE(cm::parse_microarch("skylake").has_value());
+  target.tune = "lioncove";
+  EXPECT_EQ(cm::Machine::from_target(target).cache(1).size, 3145728u);
+}
+
+TEST(CostModelMachine, EveryProfileIsCompleteAndPlausible) {
+  for (const auto arch : cm::all_microarchs()) {
+    foptim::conf::Target target{};
+    target.tune = std::string(cm::microarch_name(arch));
+    const auto m = cm::Machine::from_target(target);
+    SCOPED_TRACE(cm::microarch_name(arch));
+    for (size_t i = 0; i < static_cast<size_t>(cm::X86OpClass::COUNT); i++) {
+      const auto &row = m.table(static_cast<cm::X86OpClass>(i));
+      SCOPED_TRACE(i);
+      EXPECT_GT(row.recip_throughput, 0.0);
+      EXPECT_GE(row.latency, 0.0);
+      EXPECT_NE(row.ports_mask, 0);
+      EXPECT_GT(row.size_bytes, 0);
+    }
+    const auto &c = m.core();
+    EXPECT_GT(c.issue_width, 0u);
+    EXPECT_GE(c.retire_width, c.issue_width);
+    EXPECT_GT(c.n_alu_ports, 0u);
+    EXPECT_GT(c.load_ports, 0u);
+    EXPECT_GT(c.store_ports, 0u);
+    EXPECT_GT(c.mispredict_penalty, 0u);
+    EXPECT_GT(c.n_gp_regs, 0u);
+    EXPECT_GT(c.n_vec_regs, 0u);
+    EXPECT_GE(c.zmm_parts, 1u);
+    EXPECT_GT(m.tune().size_weight, 0.0);
+    for (u32 l = 0; l < cm::kNumCacheLevels; l++) {
+      EXPECT_GT(m.cache(l).size, 0u);
+      EXPECT_GT(m.cache(l).latency, 0.0);
+    }
+    EXPECT_GT(m.mem_latency(), 0.0);
+  }
+}
+
+TEST(CostModelMachine, ProfilesFallBackToGeneric) {
+  foptim::conf::Target target{};
+  const auto generic = cm::Machine::from_target(target);
+  target.tune = "goldencove";
+  const auto gc = cm::Machine::from_target(target);
+  // goldencove leaves its tune file out and the keys it does not set
+  EXPECT_EQ(gc.tune().size_weight, generic.tune().size_weight);
+  EXPECT_EQ(gc.core().taken_branch_cost, generic.core().taken_branch_cost);
+  EXPECT_NE(gc.core().issue_width, generic.core().issue_width);
+}
+
+namespace {
+double op_tput(const cm::Machine &m, cm::OpKind kind, u32 bits, u32 lanes,
+               bool is_float = false) {
+  return cm::cost(cm::OpDesc{.kind = kind,
+                             .elem_bits = bits,
+                             .lanes = lanes,
+                             .is_float = is_float},
+                  cm::CostKind::Throughput, m)
+      .value;
+}
+
+TEST(CostModelOpDesc, VectorFamiliesAreDistinct) {
+  const auto m = test_machine();
+  // a packed multiply is slower than an add, a divide slower than both
+  EXPECT_GT(op_tput(m, cm::OpKind::IntMul, 32, 8),
+            op_tput(m, cm::OpKind::IntAlu, 32, 8));
+  EXPECT_GT(op_tput(m, cm::OpKind::FloatDiv, 32, 8, true),
+            op_tput(m, cm::OpKind::FloatMul, 32, 8, true));
+  // a gather of eight lanes costs more than a plain load
+  EXPECT_GT(op_tput(m, cm::OpKind::Gather, 32, 8),
+            op_tput(m, cm::OpKind::Load, 32, 8));
+}
+
+TEST(CostModelOpDesc, WideVectorsPayPerPart) {
+  const auto m = test_machine();
+  // no avx512: a 512 bit op is two ymm ops
+  EXPECT_DOUBLE_EQ(op_tput(m, cm::OpKind::IntAlu, 32, 16),
+                   2 * op_tput(m, cm::OpKind::IntAlu, 32, 8));
+}
+
+TEST(CostModelOpDesc, Int64MulNeedsAvx512dqOrEmulation) {
+  // the machine points at the features of its target
+  foptim::conf::Target plain_target{};
+  plain_target.features = {};
+  foptim::conf::Target dq_target{};
+  dq_target.features = {};
+  dq_target.features.avx512dq = true;
+  const auto plain = cm::Machine::from_target(plain_target);
+  const auto dq = cm::Machine::from_target(dq_target);
+  EXPECT_GT(op_tput(plain, cm::OpKind::IntMul, 64, 4),
+            op_tput(dq, cm::OpKind::IntMul, 64, 4));
+}
+
+TEST(CostModelOpDesc, ScalarFormUsesScalarRows) {
+  const auto m = test_machine();
+  EXPECT_DOUBLE_EQ(op_tput(m, cm::OpKind::IntAlu, 64, 1),
+                   m.table(cm::X86OpClass::ALU_RR).recip_throughput);
+}
+TEST(CostModelBranch, MispredictRateIsTheMinoritySide) {
+  EXPECT_DOUBLE_EQ(cm::mispredict_rate(0.5), 0.5);
+  EXPECT_DOUBLE_EQ(cm::mispredict_rate(0.1), 0.1);
+  EXPECT_DOUBLE_EQ(cm::mispredict_rate(0.9), 0.1);
+  EXPECT_DOUBLE_EQ(cm::mispredict_rate(1.0), 0.0);
+}
+
+TEST(CostModelBranch, IfConvertPicksByArmCost) {
+  const auto m = test_machine();
+  cm::IfConvertInput in;
+  in.n_int_selects = 1;
+  // a short arm is cheaper than a mispredict at 50 percent
+  in.arm0 = {.tput = 1.0, .latency = 1.0};
+  EXPECT_TRUE(cm::cost_if_convert(in, m).prefer_select());
+  // a long arm is not
+  in.arm0 = {.tput = 40.0, .latency = 52.0};
+  EXPECT_FALSE(cm::cost_if_convert(in, m).prefer_select());
+  // unless the branch is almost never mispredicted and the arm almost never
+  // taken
+  in.p0 = 0.01;
+  EXPECT_FALSE(cm::cost_if_convert(in, m).prefer_select());
+}
+
+TEST(CostModelBranch, CarriedLatencyFavorsTheBranch) {
+  const auto m = test_machine();
+  cm::IfConvertInput in;
+  in.n_int_selects = 1;
+  // a one sided arm with a long latency, cheap in throughput
+  in.arm0 = {.tput = 2.0, .latency = 14.0};
+  in.p0 = 0.5;
+  EXPECT_TRUE(cm::cost_if_convert(in, m).prefer_select());
+  in.carried = true;
+  const auto c = cm::cost_if_convert(in, m);
+  EXPECT_GT(c.select, 14.0);
+  // the branch only pays the arm when it is taken
+  EXPECT_LT(c.branch - cm::mispredict_rate(in.p0) *
+                           m.core().mispredict_penalty,
+            c.select);
+}
+
+}  // namespace

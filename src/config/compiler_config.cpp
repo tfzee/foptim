@@ -18,6 +18,7 @@ namespace {
 
 bool target_parse(Target &target, toml::node_view<toml::node> cnf) {
   target.name = cnf["name"].value_or(std::string_view{target.name});
+  target.tune = cnf["tune"].value_or(std::string_view{target.tune});
   auto features = cnf["features"];
   target.features.avx512f =
       features["avx512f"].value_or(target.features.avx512f);
@@ -505,7 +506,7 @@ bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
   Pipeline p;
   p.name = pipe_name;
   if (append) {
-    p.passes.push_back({optim.fir_pipeline});
+    p.passes.emplace_back(optim.fir_pipeline);
   }
   for (const auto tok : split_pass_list(list)) {
     if (tok.empty()) {
@@ -518,7 +519,7 @@ bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
         print_available_pipelines<IRType::FIR>();
         return false;
       }
-      p.passes.push_back({*found});
+      p.passes.emplace_back(*found);
     } else {
       auto found = resolve_pass<IRType::FIR>(*this, tok);
       if (!found) {
@@ -526,7 +527,7 @@ bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
         print_available_passes<IRType::FIR>();
         return false;
       }
-      p.passes.push_back({*found});
+      p.passes.emplace_back(*found);
     }
   }
   fir_pipelines.push_back(p);

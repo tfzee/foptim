@@ -1,0 +1,8 @@
+key,value
+issue_width,6
+retire_width,8
+n_alu_ports,5
+load_ports,3
+store_ports,2
+mispredict_penalty,17
+vpmaskmov_store_microcoded,0

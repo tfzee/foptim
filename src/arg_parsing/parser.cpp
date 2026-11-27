@@ -72,6 +72,12 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
           "overwrite the configured target features, only 'native' is "
           "supported")
       .default_value(std::string{});
+  program.add_argument("--mtune")
+      .help(
+          "microarchitecture of the cost model tables, overwrites the "
+          "configured and the --march native choice (zen4, goldencove, "
+          "lioncove)")
+      .default_value(std::string{});
   program.add_argument("input").default_value("-").help(
       "specify the input .ll file.");
   program.add_argument("output")
@@ -95,8 +101,23 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   }
 
   if (program.is_used("--march")) {
-    foptim::populateConfig(conf.target.features,
-                           program.get<std::string>("--march"));
+    foptim::populateConfig(conf.target, program.get<std::string>("--march"));
+  }
+  if (program.is_used("--mtune")) {
+    const auto name = program.get<std::string>("--mtune");
+    if (!foptim::optim::cost_model::parse_microarch(name)) {
+      fmt::println(stderr, "unknown --mtune '{}', known: {}", name,
+                   foptim::optim::cost_model::microarch_names());
+      std::exit(1);
+    }
+    conf.target.tune = name;
+  }
+  if (!conf.target.tune.empty() &&
+      !foptim::optim::cost_model::parse_microarch(conf.target.tune)) {
+    fmt::println(stderr, "unknown target tune '{}', known: {}",
+                 std::string_view{conf.target.tune},
+                 foptim::optim::cost_model::microarch_names());
+    std::exit(1);
   }
 
   conf.number_worker_threads = program.get<int>("workers");

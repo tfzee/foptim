@@ -1,0 +1,11 @@
+# sizes are per core (L1D, L2) or shared (LLC), latency is the load to use
+# latency in cycles on a hit at that level, public measurements rounded. the
+# MEM row is a miss all the way out, only its latency and bandwidth are used. --march native
+# replaces the sizes, line sizes and ways with what the cpu reports.
+# bandwidth is the sustained bytes per cycle of one core streaming lines in from
+# that level (a hardware prefetcher keeps up), the MEM row is memory into the LLC
+level,size_bytes,line_size,assoc,latency,bandwidth
+L1D,49152,64,12,5,64
+L2,3145728,64,12,17,32
+LLC,25165824,64,12,75,16
+MEM,0,64,0,350,8

@@ -34,6 +34,16 @@ struct Target {
     bool avxvnni;
     bool bmi2;
   } features;
+  // microarchitecture the cost model tables are taken from, empty is the
+  // default one. names are listed by cost_model::microarch_names()
+  FString tune;
+  // cache hierarchy of the host, filled by --march native, 0 keeps the value
+  // of the microarchitecture table. L1D, L2, LLC
+  struct CacheOverride {
+    u32 size = 0;
+    u32 line_size = 0;
+    u32 assoc = 0;
+  } cache[3];
 };
 
 struct Input {

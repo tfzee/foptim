@@ -49,12 +49,30 @@ CLASSES = {
     "VEC_ALU_128": [r"^VP(ADD|SUB)D \(XMM, XMM, XMM\)$", r"^VP(AND|OR|XOR) \(XMM, XMM, XMM\)$"],
     "VEC_ALU_256": [r"^VP(ADD|SUB)D \(YMM, YMM, YMM\)$", r"^VP(AND|OR|XOR) \(YMM, YMM, YMM\)$"],
     "VEC_SHUFFLE": [r"^VPSHUFD \(XMM, XMM, I8\)$", r"^VPSHUFB \(XMM, XMM, XMM\)$"],
+    "VEC_IMUL": [r"^VPMULLD \(XMM, XMM, XMM\)$"],
+    "VEC_FP_ALU": [r"^V(ADD|SUB|MUL)PS \(XMM, XMM, XMM\)$"],
+    "VEC_FP_DIV": [r"^V(DIV|SQRT)PS \(XMM, XMM(, XMM)?\)$"],
+    "VEC_CROSS_SHUFFLE": [r"^VPERMD \(YMM, YMM, YMM\)$", r"^VPERMQ \(YMM, YMM, I8\)$"],
+    "VEC_BLEND": [r"^VPBLENDVB \(XMM, XMM, XMM, XMM\)$", r"^VBLENDVPS \(XMM, XMM, XMM, XMM\)$"],
+    "VEC_CMP": [r"^VPCMP(EQ|GT)D \(XMM, XMM, XMM\)$"],
+    "VEC_SHIFT": [r"^VPS(LL|RL|RA)D \(XMM, XMM, I8\)$", r"^VPS(LL|RL|RA)VD \(XMM, XMM, XMM\)$"],
+    "VEC_MINMAX": [r"^VPM(IN|AX)SD \(XMM, XMM, XMM\)$", r"^VM(IN|AX)PS \(XMM, XMM, XMM\)$"],
+    "VEC_GATHER": [r"^VPGATHERDD \(YMM, VSIB_YMM, YMM\)$"],
+    "VEC_MASK_LOAD": [r"^VPMASKMOVD \(YMM, YMM, M256\)$"],
+    "VEC_MASK_STORE": [r"^VPMASKMOVD \(M256, YMM, YMM\)$"],
+    "VEC_LOAD": [r"^VMOVDQU \(YMM, M256\)$"],
+    "VEC_STORE": [r"^VMOVDQU \(M256, YMM\)$"],
+    "VEC_INSERT": [r"^VPINSRD \(XMM, XMM, R32, I8\)$"],
+    "VEC_EXTRACT": [r"^VPEXTRD \(R32, XMM, I8\)$"],
+    "VEC_BROADCAST": [r"^VPBROADCASTD \(YMM, XMM\)$"],
+    "VEC_CVT": [r"^VCVTDQ2PS \(XMM, XMM\)$"],
 }
 
 # a macro fused cmp+jcc is one jcc uop, the fusion is not an instruction
 DERIVED = {"CMP_JCC_FUSED": "JCC"}
-# a store and a branch produce no register value
-LATENCY_OVERRIDE = {"STORE": 1.0, "JCC": 1.0, "JMP": 1.0}
+# a store, a branch and a call produce no register value (uops.info has no
+# latency of a call on every microarchitecture)
+LATENCY_OVERRIDE = {"STORE": 1.0, "VEC_STORE": 1.0, "VEC_MASK_STORE": 1.0, "JCC": 1.0, "JMP": 1.0, "CALL": 1.0}
 
 # abstract ports of Machine::kNumPorts, the named port groups of uops.info are
 # mapped onto them, everything else from the throughput
@@ -63,7 +81,7 @@ PORT_GROUPS = {
     "FP0/1/2/3": 0xF, "FP2/3": 0xC, "FP1/2": 0x6, "FP0/1": 0x3,
     "FP3": 0x8, "FP1": 0x2, "FP2": 0x4, "FP0": 0x1,
 }
-PORTS_FROM_THROUGHPUT = {"LOAD", "STORE", "ALU_RM"}
+PORTS_FROM_THROUGHPUT = {"LOAD", "STORE", "ALU_RM", "VEC_LOAD", "VEC_STORE", "VEC_MASK_LOAD", "VEC_MASK_STORE", "VEC_GATHER"}
 NUM_PORTS = 4
 
 
@@ -78,7 +96,7 @@ def latency_of(cls, arch_el):
     lats = m.findall("latency")
     addr = [float(l.get("cycles_addr")) for l in lats if l.get("cycles_addr")]
     # a memory source reads through the address, a load is that latency alone
-    if cls == "LOAD":
+    if cls in ("LOAD", "VEC_LOAD", "VEC_MASK_LOAD"):
         return min(addr) if addr else None
     if cls.endswith("_RM") and addr:
         return max(addr)

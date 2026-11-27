@@ -1,6 +1,6 @@
 ; Hand written CHECKs: the output is the PrintCostModel debug dump, which
 ; update_fir_tests.py does not know (same reason as test/opt/dump/dump_options.ll).
-; RUN: %foffcc %s --passes 'PrintCostModel{show=["instrs","blocks"]}' --print-fir 2>&1 | FileCheck %s
+; RUN: %foffcc --mtune zen4 %s --passes 'PrintCostModel{show=["instrs","blocks"]}' --print-fir 2>&1 | FileCheck %s
 
 ; A 3 deep chain of ALU ops: the critical path (3 cycles) dominates the resource
 ; bound, so block estimate equals critpath.

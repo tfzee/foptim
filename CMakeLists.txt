@@ -125,22 +125,47 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(COST_TABLE_DIR ${CMAKE_BINARY_DIR}/generated/cost_model)
 set(COST_TABLE_INC ${COST_TABLE_DIR}/x86_cost_tables.inc)
 # one entry per microarchitecture, <MicroArch enumerator>=<csv>
+# Generic has to come first, it is the fallback of the others
 set(COST_MICROARCHS
-    Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4.csv)
+    Generic=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/generic.csv
+    Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4.csv
+    GoldenCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/goldencove.csv
+    LionCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/lioncove.csv)
 # cache hierarchy of the same microarchitectures
 set(COST_CACHE_MICROARCHS
-    cache:Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4_cache.csv)
+    cache:Generic=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/generic_cache.csv
+    cache:Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4_cache.csv
+    cache:GoldenCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/goldencove_cache.csv
+    cache:LionCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/lioncove_cache.csv)
+# core parameters and tuning knobs, a profile may leave keys or the file out
+set(COST_CORE_MICROARCHS
+    core:Generic=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/generic_core.csv
+    core:Zen4=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/zen4_core.csv
+    core:GoldenCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/goldencove_core.csv
+    core:LionCove=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/lioncove_core.csv
+    tune:Generic=${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/generic_tune.csv)
 set(COST_CSVS)
-foreach(entry ${COST_MICROARCHS} ${COST_CACHE_MICROARCHS})
+set(COST_REAL_CSVS)
+foreach(entry ${COST_MICROARCHS})
+  string(REGEX REPLACE "^[^=]*=" "" csv ${entry})
+  if(NOT entry MATCHES "^Generic=")
+    list(APPEND COST_REAL_CSVS ${csv})
+  endif()
+endforeach()
+foreach(entry ${COST_MICROARCHS} ${COST_CACHE_MICROARCHS} ${COST_CORE_MICROARCHS})
   string(REGEX REPLACE "^[^=]*=" "" csv ${entry})
   list(APPEND COST_CSVS ${csv})
 endforeach()
 add_custom_command(
   OUTPUT ${COST_TABLE_INC}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${COST_TABLE_DIR}
+  COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/scripts/make_generic_profile.py
+          --check ${CMAKE_SOURCE_DIR}/src/optim/cost_model/data/generic.csv ${COST_REAL_CSVS}
   COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py
           ${COST_TABLE_INC} ${COST_MICROARCHS} ${COST_CACHE_MICROARCHS}
-  DEPENDS ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py ${COST_CSVS}
+          ${COST_CORE_MICROARCHS}
+  DEPENDS ${CMAKE_SOURCE_DIR}/scripts/gen_cost_tables.py
+          ${CMAKE_SOURCE_DIR}/scripts/make_generic_profile.py ${COST_CSVS}
           ${CMAKE_SOURCE_DIR}/src/optim/cost_model/x86_op_class.hpp
   VERBATIM)
 set_source_files_properties(./src/optim/cost_model/machine.cpp
@@ -193,6 +218,10 @@ add_library (foptim OBJECT
                 ./src/optim/cost_model/machine.cpp
                 ./src/optim/cost_model/fir_lowering_estimate.cpp
                 ./src/optim/cost_model/cost.cpp
+                ./src/optim/cost_model/branch_cost.cpp
+                ./src/optim/cost_model/seq_cost.cpp
+                ./src/optim/cost_model/op_desc.cpp
+
                 ./src/optim/cost_model/aggregators.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp

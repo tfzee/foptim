@@ -33,6 +33,12 @@ Cost cost(fir::Instr instr, CostKind kind, const CostCtx &ctx) {
     size = 0.0;
   }
 
+  return combine_cost(kind, latency, rtput, size,
+                      ctx.m->tune().size_weight);
+}
+
+Cost combine_cost(CostKind kind, double latency, double rtput, double size,
+                  double size_weight) {
   switch (kind) {
     case CostKind::Throughput:
       return Cost{rtput};
@@ -41,7 +47,7 @@ Cost cost(fir::Instr instr, CostKind kind, const CostCtx &ctx) {
     case CostKind::Size:
       return Cost{size};
     case CostKind::SizeAndLatency:
-      return Cost{latency + kSizeAndLatencyWeight * size};
+      return Cost{latency + size_weight * size};
   }
   UNREACH();
 }

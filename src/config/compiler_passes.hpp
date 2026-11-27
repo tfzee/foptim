@@ -4,6 +4,7 @@
 #include <third_party/toml.hpp>
 
 #include "compiler_config.hpp"
+#include "optim/cost_model/print_cost_model.hpp"
 #include "optim/func_passes/cmp_known_val_prop.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/constraint_prop.hpp"
@@ -19,16 +20,15 @@
 #include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
+#include "optim/func_passes/loop_hoist.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/loop_simplify.hpp"
-#include "optim/func_passes/loop_hoist.hpp"
 #include "optim/func_passes/loop_unroll.hpp"
 #include "optim/func_passes/loop_unswitch.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/merge_alloca.hpp"
 #include "optim/func_passes/print.hpp"
-#include "optim/cost_model/print_cost_model.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/func_passes/sora.hpp"
@@ -279,10 +279,12 @@ struct PrintAnalysisConf : public ModulePassConf<PrintAnalysisConf>,
         mask |= Pass::Provenance;
       } else if (name == "accesses") {
         mask |= Pass::Accesses;
+      } else if (name == "loop_alias") {
+        mask |= Pass::LoopAlias;
       } else {
         fmt::println(stderr,
                      "PrintAnalysis: unknown analysis '{}' (memssa, alias, "
-                     "provenance, accesses)",
+                     "provenance, accesses, loop_alias)",
                      name);
         return false;
       }

@@ -1,0 +1,9 @@
+# generic client part, deliberately smaller than the zen4 numbers. loopnest tile
+# sizes derive from these so smaller is the safe side.
+# bandwidth is the sustained bytes per cycle of one core streaming lines in from
+# that level (a hardware prefetcher keeps up), the MEM row is memory into the LLC
+level,size_bytes,line_size,assoc,latency,bandwidth
+L1D,32768,64,8,4,64
+L2,524288,64,8,14,32
+LLC,16777216,64,16,45,16
+MEM,0,64,0,320,8

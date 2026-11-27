@@ -14,9 +14,6 @@ enum class CostKind {
   SizeAndLatency,
 };
 
-// weight of the size term in SizeAndLatency, a byte matters less than a cycle
-inline constexpr double kSizeAndLatencyWeight = 0.05;
-
 // context that changes what an instruction costs independent of its opcode.
 // duplicates a minimal subset of the matcher shape predicates
 // (fir_lowering_estimate.cpp) instead of sharing code idk if bad idea but this keeps it cheaper but need to sync maybe
@@ -46,6 +43,11 @@ struct Cost {
 inline bool folded_away_for_resources(const CostCtx &ctx) {
   return ctx.folds_into_address || ctx.folds_into_user;
 }
+
+// picks the number of kind out of the three totals of a lowering
+// size_weight is TuneParams::size_weight, it only matters for SizeAndLatency
+Cost combine_cost(CostKind kind, double latency, double rtput, double size,
+                  double size_weight);
 
 // cost of instr under kind in the context ctx
 Cost cost(fir::Instr instr, CostKind kind, const CostCtx &ctx);

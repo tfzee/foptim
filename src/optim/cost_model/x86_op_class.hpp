@@ -35,6 +35,25 @@ enum class X86OpClass : u16 {
   VEC_ALU_128,
   VEC_ALU_256,
   VEC_SHUFFLE,
+  // the vector classes below are measured on the 128 bit form unless noted,
+  // wider vectors scale through the lane count of the OpDesc
+  VEC_IMUL,           // 32 bit lane multiply
+  VEC_FP_ALU,         // packed float add/sub/mul
+  VEC_FP_DIV,         // packed float div/sqrt
+  VEC_CROSS_SHUFFLE,  // ymm lane crossing permute
+  VEC_BLEND,          // variable blend, vector select
+  VEC_CMP,
+  VEC_SHIFT,
+  VEC_MINMAX,
+  VEC_GATHER,      // one full 8 lane ymm dword gather
+  VEC_MASK_LOAD,   // vpmaskmov ymm load
+  VEC_MASK_STORE,  // vpmaskmov ymm store
+  VEC_LOAD,        // unaligned ymm load
+  VEC_STORE,
+  VEC_INSERT,  // one lane insert from a gpr
+  VEC_EXTRACT,
+  VEC_BROADCAST,
+  VEC_CVT,
 
   COUNT,
 };

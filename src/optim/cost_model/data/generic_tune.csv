@@ -1,0 +1,4 @@
+# tuning knobs, the fitted values. a cpu tune csv may override single keys.
+# weight of the size term in SizeAndLatency, a byte matters less than a cycle
+key,value
+size_weight,0.05
