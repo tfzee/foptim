@@ -14,7 +14,8 @@ namespace foptim::optim {
     alloca                     own object under Stack, disjoint from Foreign
                                if it never escapes
     global                     own object under Globals (ReadOnlyGlobals if
-                               constant)
+                               constant), under PrivateGlobals if the address
+                               never escapes (disjoint from Foreign)
     null / poison              Null
     argument                   Incoming (IncomingNonNull with nonnull, an
                                object under Restrict with noalias)
@@ -64,7 +65,9 @@ class Provenance {
   // heap memory or null
   bool is_heap(fir::ValueR v);
   bool is_global(fir::ValueR v) {
-    return tab.subset(set_of(v), AliasSetTable::Globals);
+    const SetId s = set_of(v);
+    return tab.subset(s, AliasSetTable::Globals) ||
+           tab.subset(s, AliasSetTable::PrivateGlobals);
   }
   [[nodiscard]] bool escapes(fir::ValueR alloca) const;
 

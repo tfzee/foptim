@@ -249,8 +249,13 @@ SetId Provenance::constant_set(fir::ValueR v) {
     s = T::Null;
   } else if (c->is_global()) {
     const SetId ro[] = {T::ReadOnlyGlobals};
-    s = c->as_global()->is_constant ? tab.create_object(T::Globals, ro)
-                                    : tab.create_object(T::Globals);
+    if (c->as_global()->is_constant) {
+      s = tab.create_object(T::Globals, ro);
+    } else if (c->as_global()->addr_private) {
+      s = tab.create_object(T::PrivateGlobals);
+    } else {
+      s = tab.create_object(T::Globals);
+    }
   } else if (c->is_func()) {
     s = c->as_func()->is_decl() ? T::Foreign : tab.create_object(T::Globals);
   }

@@ -43,7 +43,10 @@ class AliasSetTable {
   static constexpr SetId IncomingNonNull = 8;
   // the memory behind noalias arguments (one object each), may be null
   static constexpr SetId Restrict = 9;
-  static constexpr SetId NumRoots = 10;
+  // internal globals whose address never escapes (one object each), only the
+  // code of the module can reach them
+  static constexpr SetId PrivateGlobals = 10;
+  static constexpr SetId NumRoots = 11;
 
   static constexpr u32 MaxParts = 4;
 

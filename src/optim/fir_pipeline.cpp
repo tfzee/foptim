@@ -15,6 +15,7 @@
 #include "llvm/llir_loader.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/mem/alias_verify.hpp"
+#include "optim/analysis/mem/global_escape.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
 #include "optim/pass_skipping.hpp"
@@ -85,6 +86,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       fmt::println(stderr, "X {}: {}", curr_pass, pass->get_name());
     }
     curr_pass++;
+#ifdef ASSERT_ENABLED
+    // a pass may not give a global that is marked private an escaping use
+    ASSERT(verify_private_globals(ctx));
+#endif
     switch (pass->pass_type()) {
         // merge function passes so we can run them in parralel
       case PassConfig::FIR_Function: {

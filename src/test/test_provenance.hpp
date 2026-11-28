@@ -41,6 +41,12 @@ TEST(AliasSets, RootRelations) {
   EXPECT_TRUE(r.subset(T::ReadOnlyGlobals, T::Foreign));
   EXPECT_FALSE(r.subset(T::Globals, T::ReadOnlyGlobals));
   EXPECT_FALSE(r.subset(T::Stack, T::Foreign));
+  // internal globals that never escape are out of reach of everything else
+  for (auto other : {T::Foreign, T::Null, T::Stack, T::Globals, T::Heap,
+                     T::Incoming, T::IncomingNonNull, T::Restrict}) {
+    EXPECT_TRUE(r.disjoint(T::PrivateGlobals, other)) << other;
+  }
+  EXPECT_FALSE(r.subset(T::PrivateGlobals, T::Foreign));
   // a subset inherits the disjointness of its parents
   EXPECT_TRUE(r.disjoint(T::ReadOnlyGlobals, T::Heap));
   EXPECT_TRUE(r.disjoint(T::ReadOnlyGlobals, T::Stack));

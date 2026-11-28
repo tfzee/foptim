@@ -210,6 +210,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/mem/memory_ssa.cpp
                 ./src/optim/analysis/mem/alias_sets.cpp
                 ./src/optim/analysis/mem/alias_verify.cpp
+                ./src/optim/analysis/mem/global_escape.cpp
                 ./src/optim/analysis/mem/provenance.cpp
                 ./src/optim/analysis/constraint_analysis.cpp
                 ./src/optim/analysis/attributer/KnownBits.cpp

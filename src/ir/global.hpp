@@ -59,6 +59,15 @@ struct GlobalData : public LockedUsed {
   bool is_constant = false;
   // one copy per thread, only reachable through the TlsAddress intrinsic
   bool is_thread_local = false;
+  // an alias of the global exists, so its address is visible outside
+  bool has_alias = false;
+  // set by update_private_globals: internal, and the address only reaches
+  // loads, stores and pointer arithmetic by name, never a call, a stored value
+  // or a return. No pointer value other than the global itself can point into
+  // it, but any code of the module (a callee, a callback) can still access it
+  // by name. Passes must not give such a global an escaping use, the next
+  // update only notices it between passes.
+  bool addr_private = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
   Linkage linkage = Linkage::External;

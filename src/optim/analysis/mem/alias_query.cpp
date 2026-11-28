@@ -191,6 +191,16 @@ ModRef AliasQuery::call_mod_ref(fir::Instr call, const MemLoc &loc) {
   // the pointers the call is given
   const auto &tab = prov->table();
   const SetId loc_set = prov->set_of(loc.ptr.addr);
+  // a global of the module is reachable by name, from every callee that is
+  // defined here and from callbacks, however private its address is
+  const auto leaves = tab.is_union(loc_set)
+                          ? tab.parts(loc_set)
+                          : std::span<const SetId>{&loc_set, 1};
+  for (const auto leaf : leaves) {
+    if (tab.subset(leaf, AliasSetTable::PrivateGlobals)) {
+      return r;
+    }
+  }
   if (!non_null_disjoint(tab, loc_set, AliasSetTable::Foreign)) {
     return r;
   }

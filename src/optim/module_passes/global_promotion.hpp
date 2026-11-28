@@ -8,6 +8,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/mem/global_escape.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -188,6 +189,9 @@ class GlobalPromotion final : public ModulePass {
         slab = slab->next;
       }
     }
+    // a global that stays has to tell the alias analysis if its address is
+    // out of reach of everything but loads and stores by name
+    update_private_globals(ctx, analyMan);
     return PreservedAnalysis::all();
   }
 };

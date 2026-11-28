@@ -81,7 +81,7 @@ passes = [
 
 [pipeline.fir.default_release_late]
 passes = [
-      "LVN", "SCCP", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
+      "GlobalPromotion", "LVN", "SCCP", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "SCCP",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "PartialInlineSplit", "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
       "SimplifyCFG", "LVN", "SCCP", "DCE", "IntrinSimplify", "SimplifyCFG",

@@ -34,6 +34,10 @@ struct EscapeOptions {
   // code can no longer assume the memory is untouched, so this is only for
   // questions about who can reach the object
   bool nocapture_calls = false;
+  // every call that is given the address is an escape, also one that only
+  // reads through it. For objects that code of the module can name (a global),
+  // the callee may write them directly while reading through the parameter.
+  bool calls_escape = false;
 };
 
 namespace {
@@ -103,7 +107,8 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val,
     };
 
     for (auto v : snapshot) {
-      for (auto &use : *v.get_uses()) {
+      // the const overload also works for the use list of a global
+      for (const auto &use : *std::as_const(v).get_uses()) {
         if (use.type == fir::UseType::BBArg && opts.through_block_args) {
           const auto &target = use.user->bbs[use.argId];
           if (target.args[use.bbArgId] == v) {
@@ -171,6 +176,10 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val,
             return info;
           }
           case fir::InstrType::CallInstr: {
+            if (opts.calls_escape) {
+              escape();
+              return info;
+            }
             // a callee that neither keeps the address nor writes through it
             // only reads the alloca
             const bool kept_out =

@@ -2807,6 +2807,7 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
                          valueToValue.at(resolve_alias_chain(val))});
     auto aliased = valueToValue.at(val).as_constant();
     if (aliased->is_global()) {
+      aliased->as_global()->has_alias = true;
       aliased->as_global()->min_align =
           val->getPointerAlignment(mod.getDataLayout()).value();
     }

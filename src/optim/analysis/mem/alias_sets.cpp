@@ -44,6 +44,7 @@ AliasSetTable::AliasSetTable(RootsTag /*unused*/) {
   const SetId incoming[] = {Incoming};
   create(incoming);  // IncomingNonNull
   create(foreign);   // Restrict
+  create(top);       // PrivateGlobals
   ASSERT(size() == NumRoots);
 
   const SetId disjoint_roots[] = {Null, Stack, Globals};
@@ -60,6 +61,11 @@ AliasSetTable::AliasSetTable(RootsTag /*unused*/) {
   declare_disjoint(IncomingNonNull, Null);
   for (auto other : {Incoming, Stack, Globals, Heap}) {
     declare_disjoint(Restrict, other);
+  }
+  // nothing but the module itself holds their address, Null, Globals, Incoming
+  // and Restrict are below Foreign
+  for (auto other : {Foreign, Stack, Heap}) {
+    declare_disjoint(PrivateGlobals, other);
   }
 }
 
