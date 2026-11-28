@@ -7,20 +7,41 @@ define void @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i64):
 ; CHECK-NEXT:    %2: i1 = IntSGT(%1, 0:i64){} NUses:1
-; CHECK-NEXT:    %3: () = CondBranch<bb1(0:i64), bb2()>(%2){} NUses:0
-; CHECK-NEXT:  bb1(%4{}: i64):
-; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i64){} NUses:2
-; CHECK-NEXT:    %6: i64 = IntAdd(%5, 64:i64){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){} NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %5){} NUses:1
-; CHECK-NEXT:    %9: i32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %10: i32 = IntAdd(%9, 1:i32){} NUses:1
-; CHECK-NEXT:    %11: i32 = Store(%8, %10){} NUses:0
-; CHECK-NEXT:    %12: i64 = IntAdd(%4, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %13: i1 = IntSLT(%12, %1){} NUses:1
-; CHECK-NEXT:    %14: () = CondBranch<bb1(%12), bb2()>(%13){} NUses:0
+; CHECK-NEXT:    %3: i64 = INTRIN:SMax(%1, 1:i64){} NUses:2
+; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64), bb2()>(%2){} NUses:0
+; CHECK-NEXT:  bb3(%5{}: i64):
+; CHECK-NEXT:    %6: i64 = IntMul(%5, 4:i64){} NUses:2
+; CHECK-NEXT:    %7: i64 = IntAdd(%6, 64:i64){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %6){} NUses:1
+; CHECK-NEXT:    %10: i32 = Load(%8){} NUses:1
+; CHECK-NEXT:    %11: i32 = IntAdd(%10, 1:i32){} NUses:1
+; CHECK-NEXT:    %12: i32 = Store(%9, %11){} NUses:0
+; CHECK-NEXT:    %13: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %14: i1 = IntSLT(%13, %1){} NUses:1
+; CHECK-NEXT:    %15: () = CondBranch<bb3(%13), bb2()>(%14){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %15: () = Return(){} NUses:0
+; CHECK-NEXT:    %16: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%17{}: i64):
+; CHECK-NEXT:    %18: i64 = And(%3, -8:i64){} NUses:3
+; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
+; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %22: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0
+; CHECK-NEXT:  bb4(%23{}: i64):
+; CHECK-NEXT:    %24: i64 = IntMul(%23, 4:i64){} NUses:2
+; CHECK-NEXT:    %25: i64 = IntAdd(%24, 64:i64){} NUses:1
+; CHECK-NEXT:    %26: ptr = PtrAdd(%0, %25){} NUses:1
+; CHECK-NEXT:    %27: ptr = PtrAdd(%0, %24){} NUses:1
+; CHECK-NEXT:    %28: 8@i32 = Load(%26){} NUses:1
+; CHECK-NEXT:    %29: 8@i32 = IntAdd(%28, %21){} NUses:1
+; CHECK-NEXT:    %30: 8@i32 = Store(%27, %29){} NUses:0
+; CHECK-NEXT:    %31: i64 = IntAdd(%23, 8:i64){} NUses:3
+; CHECK-NEXT:    %32: i1 = IntNE(%31, %19){} NUses:1
+; CHECK-NEXT:    %33: () = CondBranch<bb4(%31), bb5(%31)>(%32){} NUses:0
+; CHECK-NEXT:  bb5(%34{}: i64):
+; CHECK-NEXT:    %35: i1 = IntEQ(%18, %3){} NUses:1
+; CHECK-NEXT:    %36: () = CondBranch<bb2(), bb3(%34)>(%35){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g = icmp sgt i64 %n, 0

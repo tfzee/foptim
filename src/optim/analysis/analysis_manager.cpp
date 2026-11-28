@@ -146,7 +146,12 @@ u64 AnalysisManager::hash_instr(fir::Instr instr) {
   const ankerl::unordered_dense::hash<fir::ValueR> hv{};
   u64 h = std::hash<fir::Instr>()(instr);
   h = mix(h, static_cast<u64>(instr->instr_type) << 32 | instr->subtype);
-  h = mix(h, type_id(instr->result_type()));
+  h = mix(h, instr->n_results());
+  h = mix(h, type_id(instr->result_type_0()));
+  for (const auto ty : instr->result_types().subspan(
+           std::min<size_t>(1, instr->result_types().size()))) {
+    h = mix(h, type_id(ty));
+  }
   h = mix(h, type_id(instr->extra_type));
   h = mix(h, static_cast<u64>(instr->NSW) | instr->NUW << 1 |
                  instr->InBounds << 2 | instr->Volatile << 3 |

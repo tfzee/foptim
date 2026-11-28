@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
@@ -125,11 +126,11 @@ void LoopInfoAnalysis::update_impl(DomType &dom) {
     }
 
     info.push_back({
-        bb_id,
-        tails,
-        std::move(body_nodes),
-        std::move(leaving_nodes),
-        std::move(body_set),
+        .head = bb_id,
+        .tails = tails,
+        .body_nodes = std::move(body_nodes),
+        .leaving_nodes = std::move(leaving_nodes),
+        .body_set = std::move(body_set),
     });
   }
 }
@@ -718,7 +719,10 @@ SCEVRef ScalarEvo::push(const SCEVExpr &e) {
       const SCEVExpr &o = exprs[cand];
       if (o.t == e.t && o.bw == e.bw && o.pred == e.pred &&
           o.cval.bits() == e.cval.bits() && o.cval == e.cval &&
-          o.val == e.val && o.a == e.a && o.b == e.b && o.c == e.c) {
+          // two invalid values do not compare equal, a node built without
+          // a value has to share with another one all the same
+          (o.val == e.val || (o.val.is_invalid() && e.val.is_invalid())) &&
+          o.a == e.a && o.b == e.b && o.c == e.c) {
         return cand;
       }
     }
@@ -777,6 +781,34 @@ SCEVRef ScalarEvo::mk_add(SCEVRef a, SCEVRef b) {
   }
   if (eb.t == T::Const && eb.cval.is_zero()) {
     return a;
+  }
+  // (x + c1) + c2 ==> x + (c1 + c2)
+  if (eb.t == T::Const && ea.t == T::Add && exprs[ea.b].t == T::Const &&
+      exprs[ea.b].bw == bw) {
+    return mk_add(ea.a, mk_const(exprs[ea.b].cval + eb.cval));
+  }
+  // x + (x * -1) ==> 0, (x + c) + (x * -1) ==> c, x + (x + c) * -1 ==> -c
+  const auto negates = [&](const SCEVExpr &n, SCEVRef x) {
+    return n.t == T::Mul && exprs[n.b].t == T::Const &&
+           exprs[n.b].cval.is_all_ones() && same_expr(n.a, x);
+  };
+  for (int swapped = 0; swapped < 2; swapped++) {
+    if (negates(eb, a)) {
+      return mk_const(0, bw);
+    }
+    if (ea.t == T::Add && negates(eb, ea.a) && exprs[ea.b].t == T::Const &&
+        exprs[ea.b].bw == bw) {
+      return ea.b;
+    }
+    // x + (x + c) * -1 ==> -c
+    if (eb.t == T::Mul && exprs[eb.b].t == T::Const &&
+        exprs[eb.b].cval.is_all_ones() && exprs[eb.a].t == T::Add &&
+        exprs[exprs[eb.a].b].t == T::Const && exprs[exprs[eb.a].b].bw == bw &&
+        same_expr(exprs[eb.a].a, a)) {
+      return mk_const(-exprs[exprs[eb.a].b].cval);
+    }
+    std::swap(a, b);
+    std::swap(ea, eb);
   }
   const bool rec_a = ea.t == T::AddRec;
   const bool rec_b = eb.t == T::AddRec;
@@ -844,20 +876,100 @@ SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
       }
     }
   }
+  if (speculate && ea.t == T::AddRec && is_const(ea.b) && ea.bw <= 32 &&
+      bw <= 64 && ea.bw < bw) {
+    const bool known = std::ranges::any_of(assumed, [&](const NoWrap &nw) {
+      return nw.is_signed == is_signed && same_expr(nw.rec, a);
+    });
+    if (!known) {
+      assumed.push_back({.rec = a, .is_signed = is_signed});
+    }
+    return mk_addrec(mk_ext(ea.a, is_signed, bw), mk_ext(ea.b, true, bw));
+  }
   return push(
       node(is_signed ? T::SExt : T::ZExt, ea.invariant, bw, APInt(), {}, a));
 }
 
-void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed) {
+u32 ScalarEvo::signed_fit_bits(SCEVRef limit) const {
+  using T = SCEVExpr::Type;
+  const SCEVExpr e = exprs[limit];
+  const auto fits = [](i128 v) -> u32 {
+    for (const u32 w : {8U, 16U, 32U}) {
+      if (v >= 0 && v <= (i128{1} << (w - 1)) - 1) {
+        return w;
+      }
+    }
+    return 0;
+  };
+  const std::function<u32(fir::ValueR, u32)> of_value = [&](fir::ValueR v,
+                                                            u32 depth) -> u32 {
+    if (depth > 4) {
+      return 0;
+    }
+    if (v.is_constant()) {
+      return v.as_constant()->is_int() ? fits(v.as_constant()->as_int()) : 0;
+    }
+    if (!v.is_instr()) {
+      return 0;
+    }
+    const auto in = v.as_instr();
+    if (in->is(fir::InstrType::SExt)) {
+      const u32 sb = in->args[0].get_type()->get_bitwidth();
+      return sb == 8 || sb == 16 || sb == 32 ? sb : 0;
+    }
+    if (in->is(fir::IntrinsicSubType::SMax)) {
+      const u32 a = of_value(in->args[0], depth + 1);
+      const u32 b = of_value(in->args[1], depth + 1);
+      return a == 0 || b == 0 ? 0 : std::max(a, b);
+    }
+    return 0;
+  };
+  switch (e.t) {
+    case T::Invariant:
+      return e.val.is_valid(false) ? of_value(e.val, 0) : 0;
+    case T::Const:
+      return fits(e.cval_i());
+    case T::SExt:
+      return exprs[e.a].bw == 8 || exprs[e.a].bw == 16 || exprs[e.a].bw == 32
+                 ? exprs[e.a].bw
+                 : 0;
+    case T::SMax: {
+      const u32 a = signed_fit_bits(e.a);
+      const u32 b = signed_fit_bits(e.b);
+      return a == 0 || b == 0 ? 0 : std::max(a, b);
+    }
+    default:
+      return 0;
+  }
+}
+
+void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed,
+                               std::optional<i128> last_iter, SCEVRef limit) {
   if (!is_addrec(q) || !is_const(exprs[q].b)) {
     return;
   }
   const SCEVExpr eq = exprs[q];
-  no_wrap.push_back({q, is_signed});
+  no_wrap.push_back({.rec = q, .is_signed = is_signed});
   const SCEVRef pre =
       mk_addrec(mk_add(eq.a, mk_mul(eq.b, mk_const(-1, eq.bw))), eq.b);
   if (is_addrec(pre)) {
-    no_wrap.push_back({pre, is_signed});
+    no_wrap.push_back({.rec = pre, .is_signed = is_signed});
+  }
+  // q < limit with a limit that fits w bits: q never leaves w bits either, so
+  // the truncated counter is the counter and its sext is a wide recurrence
+  if (limit != InvalidSCEV && is_signed && is_const(eq.b) &&
+      exprs[eq.b].cval_i() == 1 && eq.bw > 32 &&
+      (is_non_negative(eq.a) ||
+       (is_const(eq.a) && exprs[eq.a].cval_i() >= 0))) {
+    const u32 w = signed_fit_bits(limit);
+    for (u32 t = w; w != 0 && t <= 32; t *= 2) {
+      for (const SCEVRef r : {q, pre}) {
+        const SCEVRef narrow = mk_trunc(r, t);
+        if (is_addrec(narrow)) {
+          no_wrap.push_back({.rec = narrow, .is_signed = true});
+        }
+      }
+    }
   }
   // with a constant start, k steps earlier is q minus a constant
   if (is_const(eq.a) && eq.bw <= 64) {
@@ -865,10 +977,25 @@ void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed) {
     const i128 start = exprs[eq.a].cval_i();
     const i128 lowest = is_signed ? -(static_cast<i128>(1) << (eq.bw - 1)) : 0;
     if (step > 0) {
-      for (i128 k = 2; k <= 4 && start - k * step >= lowest; k++) {
-        const SCEVRef back = mk_addrec(mk_const(start - k * step, eq.bw), eq.b);
+      for (i128 k = 2; k <= 4 && start - (k * step) >= lowest; k++) {
+        const SCEVRef back =
+            mk_addrec(mk_const(start - (k * step), eq.bw), eq.b);
         if (is_addrec(back)) {
-          no_wrap.push_back({back, is_signed});
+          no_wrap.push_back({.rec = back, .is_signed = is_signed});
+        }
+      }
+    }
+    // k steps ahead of the counter, still inside the type at the last
+    // iteration
+    if (step > 0 && last_iter && *last_iter >= 0) {
+      const i128 highest = is_signed ? (static_cast<i128>(1) << (eq.bw - 1)) - 1
+                                     : (static_cast<i128>(1) << eq.bw) - 1;
+      for (i128 k = 1; k <= 4 && start + ((*last_iter + k) * step) <= highest;
+           k++) {
+        const SCEVRef ahead =
+            mk_addrec(mk_const(start + (k * step), eq.bw), eq.b);
+        if (is_addrec(ahead)) {
+          no_wrap.push_back({.rec = ahead, .is_signed = is_signed});
         }
       }
     }
@@ -884,6 +1011,9 @@ SCEVRef ScalarEvo::mk_trunc(SCEVRef a, u32 bw) {
   }
   if (ea.t == T::Const) {
     return mk_const(ea.cval.trunc(bw));
+  }
+  if (ea.t == T::AddRec) {
+    return mk_addrec(mk_trunc(ea.a, bw), mk_trunc(ea.b, bw));
   }
   return push(node(T::Trunc, ea.invariant, bw, APInt(), {}, a));
 }
@@ -1118,6 +1248,72 @@ bool ScalarEvo::in_loop(fir::ValueR v) const {
 
 SCEVRef ScalarEvo::get(fir::ValueR v) { return expr_of(v, 0); }
 
+// add, sub, mul, ptr add and the extensions of an instruction. a sign
+// extension of an add that is NSW is the add of the extended
+// args, the same holds for zext and unsigned
+SCEVRef ScalarEvo::decode_arith(fir::Instr instr, u32 bw, u32 depth) {
+  using BT = fir::BinaryInstrSubType;
+  if (instr->is(fir::InstrType::BinaryInstr)) {
+    const auto sub = static_cast<BT>(instr->subtype);
+    if (sub != BT::IntAdd && sub != BT::PtrAdd && sub != BT::IntSub &&
+        sub != BT::IntMul) {
+      return InvalidSCEV;
+    }
+    // a constant operand is read at the width of the operation, its interned
+    // type may differ (ptr add scaled by 4:i32). anything else has to be as
+    // wide as the result
+    auto operand = [&](fir::ValueR v) {
+      if (v.is_constant_int()) {
+        return mk_const(v.as_constant()->as_int(), bw);
+      }
+      return value_bw(v) == bw ? expr_of(v, depth + 1) : mk_unknown(bw);
+    };
+    const SCEVRef lhs = operand(instr->args[0]);
+    const SCEVRef rhs = operand(instr->args[1]);
+    if (sub == BT::IntMul) {
+      return mk_mul(lhs, rhs);
+    }
+    if (sub == BT::IntSub) {
+      return mk_add(lhs, mk_mul(rhs, mk_const(-1, bw)));
+    }
+    return mk_add(lhs, rhs);
+  }
+  if (instr->is_ext()) {
+    if (!instr->args[0].get_type()->is_int()) {
+      return InvalidSCEV;
+    }
+    const bool is_signed = instr->is_sext_like();
+    const fir::ValueR a = instr->args[0];
+    if (a.is_instr() && a.as_instr()->is(fir::InstrType::BinaryInstr) &&
+        depth < MaxExprDepth) {
+      const fir::Instr op = a.as_instr();
+      const auto sub = static_cast<BT>(op->subtype);
+      const bool no_wrap_op = is_signed ? op->NSW != 0 : op->NUW != 0;
+      const u32 obw = value_bw(a);
+      if (no_wrap_op && obw != 0 &&
+          (sub == BT::IntAdd || sub == BT::IntSub || sub == BT::IntMul)) {
+        auto operand = [&](fir::ValueR v) {
+          if (v.is_constant_int()) {
+            return mk_const(v.as_constant()->as_int(), obw);
+          }
+          return value_bw(v) == obw ? expr_of(v, depth + 1) : mk_unknown(obw);
+        };
+        const SCEVRef lhs = mk_ext(operand(op->args[0]), is_signed, bw);
+        const SCEVRef rhs = mk_ext(operand(op->args[1]), is_signed, bw);
+        if (sub == BT::IntMul) {
+          return mk_mul(lhs, rhs);
+        }
+        if (sub == BT::IntSub) {
+          return mk_add(lhs, mk_mul(rhs, mk_const(-1, bw)));
+        }
+        return mk_add(lhs, rhs);
+      }
+    }
+    return mk_ext(expr_of(a, depth + 1), is_signed, bw);
+  }
+  return InvalidSCEV;
+}
+
 SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
   if (auto it = lookup.find(v); it != lookup.end()) {
     return it->second;
@@ -1136,6 +1332,18 @@ SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
     r = mk_unknown(bw);
   } else if (!in_loop(v)) {
     r = mk_invariant(v);
+    // base + constant defined in front of the loop is the base plus a
+    // constant, so a start value and the next value of a recurrence compare
+    if (v.is_instr() && bw != 0 && depth < MaxExprDepth) {
+      auto instr = v.as_instr();
+      using BT = fir::BinaryInstrSubType;
+      if (instr->is(fir::InstrType::BinaryInstr) && instr->args.size() == 2 &&
+          (instr->is(BT::PtrAdd) || instr->is(BT::IntAdd)) &&
+          instr->args[1].is_constant_int() && value_bw(instr->args[0]) == bw) {
+        r = mk_add(expr_of(instr->args[0], depth + 1),
+                   mk_const(instr->args[1].as_constant()->as_int(), bw));
+      }
+    }
   } else {
     is_loop_val = true;
     r = mk_unknown(bw);
@@ -1145,40 +1353,16 @@ SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
       r = block_arg_expr(v, depth);
     } else if (v.is_instr() && bw != 0 && depth < MaxExprDepth) {
       auto instr = v.as_instr();
-      using BT = fir::BinaryInstrSubType;
-      if (instr->is(fir::InstrType::BinaryInstr)) {
-        const auto sub = static_cast<BT>(instr->subtype);
-        if (sub == BT::IntAdd || sub == BT::PtrAdd || sub == BT::IntSub ||
-            sub == BT::IntMul) {
-          // a constant operand is read at the width of the operation, its
-          // interned type may differ (ptr add scaled by 4:i32). anything else
-          // has to be as wide as the result
-          auto operand = [&](fir::ValueR v) {
-            if (v.is_constant_int()) {
-              return mk_const(v.as_constant()->as_int(), bw);
-            }
-            return value_bw(v) == bw ? expr_of(v, depth + 1) : mk_unknown(bw);
-          };
-          {
-            const SCEVRef lhs = operand(instr->args[0]);
-            const SCEVRef rhs = operand(instr->args[1]);
-            if (sub == BT::IntMul) {
-              r = mk_mul(lhs, rhs);
-            } else if (sub == BT::IntSub) {
-              r = mk_add(lhs, mk_mul(rhs, mk_const(-1, bw)));
-            } else {
-              r = mk_add(lhs, rhs);
-            }
-          }
-        }
-      } else if (instr->is_ext()) {
-        if (instr->args[0].get_type()->is_int()) {
-          r = mk_ext(expr_of(instr->args[0], depth + 1), instr->is_sext_like(),
-                     bw);
-        }
+      const SCEVRef d = decode_arith(instr, bw, depth);
+      if (d != InvalidSCEV) {
+        r = d;
       } else if (instr->is(fir::InstrType::ITrunc)) {
         if (instr->args[0].get_type()->is_int()) {
           r = mk_trunc(expr_of(instr->args[0], depth + 1), bw);
+        }
+      } else if (instr->is(fir::ConversionSubType::PtrToInt)) {
+        if (bw == 64 && instr->args[0].get_type()->is_ptr()) {
+          r = expr_of(instr->args[0], depth + 1);
         }
       } else if (instr->is(fir::InstrType::SelectInstr)) {
         const SCEVRef m = select_as_max(instr, depth + 1);
@@ -1241,7 +1425,7 @@ SCEVRef ScalarEvo::block_arg_expr(fir::ValueR v, u32 depth) {
       if (idx >= target.args.size() || target.args[idx].is_invalid()) {
         return mk_unknown(bw);
       }
-      edges.push_back({pred, target.args[idx]});
+      edges.push_back({.pred = pred, .val = target.args[idx]});
     }
   }
   if (edges.empty()) {
@@ -1462,6 +1646,7 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
   rec_step.assign(n_args, InvalidSCEV);
   arg_start.assign(n_args, InvalidSCEV);
   no_wrap.clear();
+  assumed.clear();
   for (size_t i = 0; i < n_args; i++) {
     const fir::ValueR arg{head->args[i]};
     if (!know_start || value_bw(arg) == 0 || in_loop(entering[i])) {
@@ -1492,6 +1677,80 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
   classify_values();
 }
 
+// the expression with every invariant that is arithmetic in front of the loop
+// replaced by its operands, so equal values built in different places compare
+// equal
+SCEVRef ScalarEvo::expand_invariants(SCEVRef r, u32 depth) {
+  using T = SCEVExpr::Type;
+  const SCEVExpr e = exprs[r];
+  if (depth >= 16) {
+    return r;
+  }
+  switch (e.t) {
+    case T::Invariant: {
+      if (!e.val.is_valid(false) || !e.val.is_instr()) {
+        return r;
+      }
+      const SCEVRef d = decode_arith(e.val.as_instr(), e.bw, 0);
+      return d == InvalidSCEV || exprs[d].t == T::Unknown
+                 ? r
+                 : expand_invariants(d, depth + 1);
+    }
+    case T::Add:
+      return mk_add(expand_invariants(e.a, depth + 1),
+                    expand_invariants(e.b, depth + 1));
+    case T::Mul:
+      return mk_mul(expand_invariants(e.a, depth + 1),
+                    expand_invariants(e.b, depth + 1));
+    case T::SExt:
+    case T::ZExt:
+      return mk_ext(expand_invariants(e.a, depth + 1), e.t == T::SExt, e.bw);
+    case T::Trunc:
+      return mk_trunc(expand_invariants(e.a, depth + 1), e.bw);
+    default:
+      return r;
+  }
+}
+
+namespace {
+// the operands of a tree of adds into a sorted list of the non constant terms
+// and the sum of the constants to claen some up
+void flatten_sum(const ScalarEvo &evo, SCEVRef r, TVec<SCEVRef> &terms, i128 &c,
+                 u32 depth) {
+  const SCEVExpr e = evo.expr(r);
+  if (e.t == SCEVExpr::Type::Add && depth < 16) {
+    flatten_sum(evo, e.a, terms, c, depth + 1);
+    flatten_sum(evo, e.b, terms, c, depth + 1);
+  } else if (e.t == SCEVExpr::Type::Const) {
+    c += e.cval_i();
+  } else {
+    terms.push_back(r);
+  }
+}
+}  // namespace
+
+// equal as sums, in any grouping and order of the terms
+bool ScalarEvo::same_sum(SCEVRef a, SCEVRef b) {
+  const u32 bw = exprs[a].bw;
+  if (bw == 0 || exprs[b].bw != bw) {
+    return false;
+  }
+  TVec<SCEVRef> ta;
+  TVec<SCEVRef> tb;
+  i128 ca = 0;
+  i128 cb = 0;
+  flatten_sum(*this, a, ta, ca, 0);
+  flatten_sum(*this, b, tb, cb, 0);
+  if (ta.size() != tb.size() ||
+      wrap_int(ca, bw, true) != wrap_int(cb, bw, true)) {
+    return false;
+  }
+  std::ranges::sort(ta);
+  std::ranges::sort(tb);
+  return std::ranges::equal(
+      ta, tb, [&](SCEVRef x, SCEVRef y) { return same_expr(x, y); });
+}
+
 // a header argument that is no recurrence yet but whose back edges all pass
 // {start + c,+,c} is {start,+,c}. found ones can make others recurrences, and
 // the expressions memoized while looking used the old classification
@@ -1508,7 +1767,11 @@ bool ScalarEvo::derive_recurrences() {
     for (auto back : arg_backs[i]) {
       const SCEVRef b = expr_of(back, 0);
       if (!is_addrec(b) ||
-          !same_expr(exprs[b].a, mk_add(arg_start[i], exprs[b].b)) ||
+          !(same_expr(exprs[b].a, mk_add(arg_start[i], exprs[b].b)) ||
+            same_expr(expand_invariants(exprs[b].a, 0),
+                      expand_invariants(mk_add(arg_start[i], exprs[b].b), 0)) ||
+            same_sum(expand_invariants(exprs[b].a, 0),
+                     expand_invariants(mk_add(arg_start[i], exprs[b].b), 0))) ||
           (step != InvalidSCEV && !same_expr(step, exprs[b].b))) {
         step = InvalidSCEV;
         break;
@@ -1732,7 +1995,7 @@ std::optional<i128> const_exit_iteration(ICmpSub pred, u32 bw, i128 a_raw,
         if (step < 0) {
           return std::nullopt;
         }
-        k = (limit - a) / step + 1;
+        k = ((limit - a) / step) + 1;
         break;
       case ICmpSub::SGT:
       case ICmpSub::UGT:
@@ -1746,7 +2009,7 @@ std::optional<i128> const_exit_iteration(ICmpSub pred, u32 bw, i128 a_raw,
         if (step > 0) {
           return std::nullopt;
         }
-        k = (a - limit) / (-step) + 1;
+        k = ((a - limit) / (-step)) + 1;
         break;
       case ICmpSub::NE: {
         const i128 dist = limit - a;
@@ -1774,6 +2037,34 @@ std::optional<i128> const_exit_iteration(ICmpSub pred, u32 bw, i128 a_raw,
   return k;
 }
 
+// a value defined outside the loop that is not negative: constant, the max
+// of something and a non negative value, the min of two, da zero extension of
+// somethin
+bool value_non_negative(fir::ValueR v, u32 depth) {
+  if (depth > 8) {
+    return false;
+  }
+  if (v.is_constant_int()) {
+    return !v.as_constant()->as_apint().is_neg();
+  }
+  if (!v.is_instr()) {
+    return false;
+  }
+  const auto instr = v.as_instr();
+  if (instr->is(fir::InstrType::ZExt)) {
+    return true;
+  }
+  if (instr->is(fir::IntrinsicSubType::SMax)) {
+    return value_non_negative(instr->args[0], depth + 1) ||
+           value_non_negative(instr->args[1], depth + 1);
+  }
+  if (instr->is(fir::IntrinsicSubType::SMin)) {
+    return value_non_negative(instr->args[0], depth + 1) &&
+           value_non_negative(instr->args[1], depth + 1);
+  }
+  return false;
+}
+
 // Same as above for a start / limit that are only loop invariant:
 //   up   (step 1,  a + k < limit):  k = max(limit, a) - a
 //   down (step -1, a - k > limit):  k = max(a, limit) - limit
@@ -1781,7 +2072,8 @@ std::optional<i128> const_exit_iteration(ICmpSub pred, u32 bw, i128 a_raw,
 // wraps. The difference is non negative, for signed compares it additionally
 // has to fit, which holds if the smaller side is non negative
 SCEVRef symbolic_exit_iteration(ScalarEvo &evo, ICmpSub pred, SCEVRef a,
-                                i128 step, SCEVRef limit) {
+                                i128 step, SCEVRef limit,
+                                const std::function<bool(SCEVRef)> &non_neg) {
   bool up = false;
   bool is_signed = false;
   switch (pred) {
@@ -1805,7 +2097,7 @@ SCEVRef symbolic_exit_iteration(ScalarEvo &evo, ICmpSub pred, SCEVRef a,
   }
   const SCEVRef lo = up ? a : limit;
   const SCEVRef other = up ? limit : a;
-  if (is_signed && !evo.is_non_negative(lo)) {
+  if (is_signed && !evo.is_non_negative(lo) && !(non_neg && non_neg(lo))) {
     return InvalidSCEV;
   }
   const u32 bw = evo.expr(a).bw;
@@ -1861,6 +2153,56 @@ bool ptr_steps_no_wrap(CFG &cfg, const LoopInfo &linfo, fir::ValueR v,
   }
   return ptr_steps_no_wrap(cfg, linfo, instr->args[0], through_header,
                            depth + 1);
+}
+
+struct StepNoWrap {
+  bool nsw = false;
+  bool nuw = false;
+};
+
+// no wrap flags of the add that steps the counter v by a constant either v
+// itself, or for a header argument the value every back edge passes. a flag
+// counts only when every such add has it
+StepNoWrap step_no_wrap(CFG &cfg, const LoopInfo &linfo, fir::ValueR v,
+                        bool through_header = false) {
+  auto head = cfg.bbrs[linfo.head].bb;
+  if (v.is_bb_arg() && !through_header) {
+    auto arg = v.as_bb_arg();
+    if (arg->get_parent() != head) {
+      return {};
+    }
+    size_t idx = 0;
+    while (idx < head->args.size() && !(head->args[idx] == arg)) {
+      idx++;
+    }
+    StepNoWrap res{.nsw = true, .nuw = true};
+    for (auto tail : linfo.tails) {
+      auto term = cfg.bbrs[tail].bb->get_terminator();
+      for (auto &edge : term->bbs) {
+        if (edge.bb != head) {
+          continue;
+        }
+        const StepNoWrap f = step_no_wrap(cfg, linfo, edge.args[idx], true);
+        res.nsw = res.nsw && f.nsw;
+        res.nuw = res.nuw && f.nuw;
+      }
+    }
+    return res;
+  }
+  if (!v.is_instr()) {
+    return {};
+  }
+  auto instr = v.as_instr();
+  if (!instr->is(fir::BinaryInstrSubType::IntAdd) &&
+      !instr->is(fir::BinaryInstrSubType::IntSub)) {
+    return {};
+  }
+  if (!instr->args[1].is_constant()) {
+    return {};
+  }
+  // unsigned no wrap of x + -1 says x is 0, not that x - 1 stays above it
+  const bool positive = instr->args[1].as_constant()->as_int() > 0;
+  return StepNoWrap{.nsw = instr->NSW != 0, .nuw = instr->NUW != 0 && positive};
 }
 }  // namespace
 
@@ -2036,7 +2378,7 @@ std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
     }
   }
   while (hi - lo > 1) {
-    const i128 mid = lo + (hi - lo) / 2;
+    const i128 mid = lo + ((hi - lo) / 2);
     (running(mid) ? lo : hi) = mid;
   }
   // left because the test failed, not because the value left its width
@@ -2047,11 +2389,329 @@ std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
 }
 }  // namespace
 
+namespace {
+// What holds for limit is a header argument of a loop around inner_head and in
+// every iteration of that loop it is below the type maximum, and it is not
+// negative.
+// It starts on a constant below the maximum and steps by one on the
+// back edge which is tested `limit + 1 < x` in da latch, so the value of the
+// next iteration is below x and no step wraps, and it only grows from the
+// constant it started on.
+struct CounterFacts {
+  bool below_max = false;
+  bool non_negative = false;
+};
+
+CounterFacts counter_facts(CFG &cfg, const TVec<LoopInfo> &loops,
+                           u32 inner_head, fir::ValueR limit, bool is_signed,
+                           u32 depth = 0) {
+  if (!limit.is_bb_arg() || !limit.get_type()->is_int() || depth > 2) {
+    return {};
+  }
+  const auto arg = limit.as_bb_arg();
+  const u32 hid = cfg.get_bb_id(arg->get_parent());
+  const u32 bw = limit.get_type()->get_bitwidth();
+  for (const LoopInfo &outer : loops) {
+    if (outer.head != hid || !outer.contains(inner_head) ||
+        outer.head == inner_head || outer.tails.size() != 1 ||
+        outer.leaving_nodes.size() != 1 ||
+        outer.leaving_nodes[0] != outer.tails[0]) {
+      continue;
+    }
+    auto head = cfg.bbrs[hid].bb;
+    size_t idx = 0;
+    while (idx < head->args.size() && !(head->args[idx] == arg)) {
+      idx++;
+    }
+    const auto term = cfg.bbrs[outer.tails[0]].bb->get_terminator();
+    if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
+      return {};
+    }
+    const u32 back = cfg.get_bb_id(term->bbs[0].bb) == hid ? 0 : 1;
+    if (cfg.get_bb_id(term->bbs[back].bb) != hid ||
+        outer.contains(cfg.get_bb_id(term->bbs[1 - back].bb))) {
+      return {};
+    }
+    const fir::ValueR next = term->bbs[back].args[idx];
+    if (!next.is_instr() ||
+        !next.as_instr()->is(fir::BinaryInstrSubType::IntAdd) ||
+        !next.as_instr()->args[1].is_constant()) {
+      return {};
+    }
+    // a value that follows another counter of the loop, as the start of the
+    // inner loop of a triangle does after strength reduction. i + 1 passed
+    // around as an argument of its own. the other counter continues to
+    // iteration k + 1 only below the maximum minus one, so adding one or two
+    // to it does not wrap
+    if (!(next.as_instr()->args[0] == limit)) {
+      const fir::ValueR base = next.as_instr()->args[0];
+      const i128 d = next.as_instr()->args[1].as_constant()->as_int();
+      if (!is_signed || d < 1 || d > 2 || !base.is_bb_arg() ||
+          base.as_bb_arg()->get_parent() != head) {
+        return {};
+      }
+      const CounterFacts bf =
+          counter_facts(cfg, loops, inner_head, base, true, depth + 1);
+      if (!bf.below_max || !bf.non_negative) {
+        return {};
+      }
+      for (const u32 p : cfg.bbrs[hid].pred) {
+        if (outer.contains(p)) {
+          continue;
+        }
+        const auto pterm = cfg.bbrs[p].bb->get_terminator();
+        for (const auto &edge : pterm->bbs) {
+          if (edge.bb != head) {
+            continue;
+          }
+          const fir::ValueR start = edge.args[idx];
+          if (!start.is_constant() || !start.as_constant()->is_int() ||
+              start.as_constant()->as_int() < 0) {
+            return {};
+          }
+        }
+      }
+      return CounterFacts{.below_max = false, .non_negative = true};
+    }
+    if (next.as_instr()->args[1].as_constant()->as_int() != 1) {
+      return {};
+    }
+    // every entry from outside starts below the maximum
+    bool starts_non_negative = true;
+    const i128 max = is_signed ? ((static_cast<i128>(1) << (bw - 1)) - 1)
+                               : ((static_cast<i128>(1) << bw) - 1);
+    for (const u32 p : cfg.bbrs[hid].pred) {
+      if (outer.contains(p)) {
+        continue;
+      }
+      const auto pterm = cfg.bbrs[p].bb->get_terminator();
+      for (const auto &edge : pterm->bbs) {
+        if (edge.bb != head) {
+          continue;
+        }
+        const fir::ValueR start = edge.args[idx];
+        if (!start.is_constant() || !start.as_constant()->is_int()) {
+          return {};
+        }
+        const i128 sv = start.as_constant()->as_int();
+        const i128 norm =
+            is_signed ? sv : (sv & ((static_cast<i128>(1) << bw) - 1));
+        if (norm == max) {
+          return {};
+        }
+        starts_non_negative = starts_non_negative && sv >= 0;
+      }
+    }
+    const auto cv = term->args[0];
+    if (!cv.is_instr() || !cv.as_instr()->is(fir::InstrType::ICmp)) {
+      return {};
+    }
+    const auto cmp = cv.as_instr();
+    auto pred = static_cast<ICmpSub>(cmp->subtype);
+    // the test is on the stepped value, or on the counter itself when the
+    // header value is what the loop condition reads
+    bool on_counter = false;
+    if (cmp->args[1] == next) {
+      pred = swap_pred(pred);
+    } else if (cmp->args[1] == limit) {
+      pred = swap_pred(pred);
+      on_counter = true;
+    } else if (cmp->args[0] == limit) {
+      on_counter = true;
+    } else if (!(cmp->args[0] == next)) {
+      return {};
+    }
+    if (back != 0) {
+      pred = negate_pred(pred);
+    }
+    if (pred != (is_signed ? ICmpSub::SLT : ICmpSub::ULT)) {
+      return {};
+    }
+    // the counter steps only while below the limit, so it does not wrap, but
+    // the last iteration runs with the counter at the limit
+    return CounterFacts{.below_max = !on_counter,
+                        .non_negative = starts_non_negative};
+  }
+  return {};
+}
+
+// Is the only way into the loop an edge on which `v < x` (signed) holds. Blocks
+// that only forward are looked through.
+bool entered_below(CFG &cfg, const LoopInfo &linfo, fir::ValueR v) {
+  auto target = cfg.bbrs[linfo.head].bb;
+  u32 from = ~0U;
+  for (const u32 p : cfg.bbrs[linfo.head].pred) {
+    if (linfo.contains(p)) {
+      continue;
+    }
+    if (from != ~0U) {
+      return false;
+    }
+    from = p;
+  }
+  for (u32 hops = 0; from != ~0U && hops < 3; hops++) {
+    const auto term = cfg.bbrs[from].bb->get_terminator();
+    if (term->bbs.size() != 1 || cfg.bbrs[from].pred.size() != 1) {
+      break;
+    }
+    target = cfg.bbrs[from].bb;
+    from = cfg.bbrs[from].pred[0];
+  }
+  if (from == ~0U) {
+    return false;
+  }
+  const auto found = cfg.bbrs[from].bb->get_terminator();
+  if (!found->is(fir::InstrType::CondBranchInstr) || found->bbs.size() != 2 ||
+      !found->args[0].is_instr() ||
+      !found->args[0].as_instr()->is(fir::InstrType::ICmp)) {
+    return false;
+  }
+  const u32 e = found->bbs[0].bb == target ? 0 : 1;
+  if (found->bbs[1 - e].bb == target) {
+    return false;
+  }
+  const auto cmp = found->args[0].as_instr();
+  auto pred = static_cast<ICmpSub>(cmp->subtype);
+  if (e == 1) {
+    pred = negate_pred(pred);
+  }
+  // lhs < rhs
+  if (pred == ICmpSub::SGT) {
+    return cmp->args[1] == v;
+  }
+  return pred == ICmpSub::SLT && cmp->args[0] == v;
+}
+
+// Exit iteration of a recurrence stepping by a power of two (more than one)
+// towards a constant limit, with a symbolic start. The test passing shows that
+// the next value does not wrap when the limit leaves room for one step.
+SCEVRef const_limit_exit_iteration(ScalarEvo &evo, ICmpSub pred, SCEVRef start,
+                                   i128 step, i128 limit_raw) {
+  const u32 bw = evo.expr(start).bw;
+  const i128 t = step < 0 ? -step : step;
+  if (bw == 0 || bw > 64 || t < 2 || (t & (t - 1)) != 0) {
+    return InvalidSCEV;
+  }
+  const bool is_signed = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+                         pred == ICmpSub::SGT || pred == ICmpSub::SGE;
+  const bool up = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+                  pred == ICmpSub::ULT || pred == ICmpSub::ULE;
+  const bool down = pred == ICmpSub::SGT || pred == ICmpSub::SGE ||
+                    pred == ICmpSub::UGT || pred == ICmpSub::UGE;
+  if ((!up && !down) || up != (step > 0)) {
+    return InvalidSCEV;
+  }
+  const i128 minv = is_signed ? -(static_cast<i128>(1) << (bw - 1)) : 0;
+  const i128 maxv = is_signed ? (static_cast<i128>(1) << (bw - 1)) - 1
+                              : (static_cast<i128>(1) << bw) - 1;
+  i128 limit = wrap_int(limit_raw, bw, is_signed);
+  // a <= / >= test becomes the strict one
+  const bool inclusive = pred == ICmpSub::SLE || pred == ICmpSub::ULE ||
+                         pred == ICmpSub::SGE || pred == ICmpSub::UGE;
+  if (inclusive) {
+    limit += up ? 1 : -1;
+  }
+  if (limit > maxv || limit < minv) {
+    return InvalidSCEV;
+  }
+  if (up ? limit + t > maxv : limit - t < minv) {
+    return InvalidSCEV;
+  }
+  const SCEVRef lim = evo.mk_const(limit, bw);
+  const ICmpSub strict = up ? (is_signed ? ICmpSub::SLT : ICmpSub::ULT)
+                            : (is_signed ? ICmpSub::SGT : ICmpSub::UGT);
+  const SCEVRef holds = evo.mk_cmp(strict, start, lim);
+  SCEVRef k = up ? evo.mk_add(lim, evo.mk_mul(start, evo.mk_const(-1, bw)))
+                 : evo.mk_add(start, evo.mk_mul(lim, evo.mk_const(-1, bw)));
+  k = evo.mk_add(k, evo.mk_const(-1, bw));
+  k = evo.mk_lshr(k, static_cast<u32>(__builtin_ctzll(static_cast<u64>(t))));
+  k = evo.mk_add(k, evo.mk_const(1, bw));
+  const SCEVRef res = evo.mk_select(holds, k, evo.mk_const(0, bw));
+  return evo.expr(res).t == SCEVExpr::Type::Unknown ? InvalidSCEV : res;
+}
+
+// Exit iteration of `lo < hi` (or mirrored compare) where lo steps up and
+// hi steps down by constants. The test passing at one iteration shows that
+// lo + 1 and hi - 1 do not wrap, so a unit step needs no no wrap flag, any
+// other step needs one (pointers stay inside their object). Up to the first
+// failing test both values are the plain integers so
+// k = (hi - lo - 1) / (up + down) + 1 when lo < hi and 0 otherwise, for a
+// total step that is a power of two.
+SCEVRef two_recurrence_exit_iteration(CFG &cfg, const LoopInfo &linfo,
+                                      ScalarEvo &evo, ICmpSub pred, SCEVRef q,
+                                      SCEVRef limit, fir::ValueR qv,
+                                      fir::ValueR limv) {
+  bool q_is_lo = false;
+  bool is_signed = false;
+  switch (pred) {
+    case ICmpSub::SLT:
+      q_is_lo = true;
+      is_signed = true;
+      break;
+    case ICmpSub::ULT:
+      q_is_lo = true;
+      break;
+    case ICmpSub::SGT:
+      is_signed = true;
+      break;
+    case ICmpSub::UGT:
+      break;
+    default:
+      return InvalidSCEV;
+  }
+  const SCEVRef lo = q_is_lo ? q : limit;
+  const SCEVRef hi = q_is_lo ? limit : q;
+  const fir::ValueR lo_v = q_is_lo ? qv : limv;
+  const fir::ValueR hi_v = q_is_lo ? limv : qv;
+  const u32 bw = evo.expr(lo).bw;
+  if (bw == 0 || bw > 64 || evo.expr(hi).bw != bw ||
+      !evo.is_const(evo.expr(lo).b) || !evo.is_const(evo.expr(hi).b)) {
+    return InvalidSCEV;
+  }
+  const i128 up = evo.expr(evo.expr(lo).b).cval_i();
+  const i128 down = -evo.expr(evo.expr(hi).b).cval_i();
+  if (up <= 0 || down <= 0) {
+    return InvalidSCEV;
+  }
+  const i128 total = up + down;
+  if ((total & (total - 1)) != 0) {
+    return InvalidSCEV;
+  }
+  if (lo_v.get_type()->is_ptr()) {
+    if (!ptr_steps_no_wrap(cfg, linfo, lo_v, false, 0) ||
+        !ptr_steps_no_wrap(cfg, linfo, hi_v, false, 0)) {
+      return InvalidSCEV;
+    }
+  } else {
+    const auto ok = [&](fir::ValueR v, i128 step) {
+      const StepNoWrap nw = step_no_wrap(cfg, linfo, v);
+      return step == 1 || (is_signed ? nw.nsw : nw.nuw);
+    };
+    if (!ok(lo_v, up) || !ok(hi_v, down)) {
+      return InvalidSCEV;
+    }
+  }
+  const SCEVRef lo0 = evo.expr(lo).a;
+  const SCEVRef hi0 = evo.expr(hi).a;
+  const SCEVRef holds =
+      evo.mk_cmp(is_signed ? ICmpSub::SLT : ICmpSub::ULT, lo0, hi0);
+  SCEVRef k = evo.mk_add(evo.mk_add(hi0, evo.mk_mul(lo0, evo.mk_const(-1, bw))),
+                         evo.mk_const(-1, bw));
+  k = evo.mk_lshr(k,
+                  static_cast<u32>(__builtin_ctzll(static_cast<u64>(total))));
+  k = evo.mk_add(k, evo.mk_const(1, bw));
+  const SCEVRef res = evo.mk_select(holds, k, evo.mk_const(0, bw));
+  return evo.expr(res).t == SCEVExpr::Type::Unknown ? InvalidSCEV : res;
+}
+}  // namespace
+
 bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
-                               ScalarEvo &evo, bool allow_inner_loops) {
+                               ScalarEvo &evo, bool allow_inner_loops,
+                               const TVec<LoopInfo> *outer_loops) {
   exit_iter = InvalidSCEV;
   const_exit_iter = std::nullopt;
   cmp_rec = InvalidSCEV;
+  cmp_limit = InvalidSCEV;
   cmp_signed = cmp_unsigned = false;
   if (linfo.leaving_nodes.size() != 1) {
     return false;
@@ -2122,13 +2782,31 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
   auto pred = static_cast<ICmpSub>(cond->subtype);
   SCEVRef q = evo.get(cond->args[0]);
   SCEVRef limit_ref = evo.get(cond->args[1]);
+  fir::ValueR qv = cond->args[0];
   if ((!evo.is_addrec(q) && evo.is_addrec(limit_ref)) ||
       (evo.is_invariant(q) && !evo.is_invariant(limit_ref))) {
     std::swap(q, limit_ref);
     pred = swap_pred(pred);
+    qv = cond->args[1];
   }
   if (!in0) {
     pred = negate_pred(pred);
+  }
+  if (pred != ICmpSub::INVALID && evo.is_addrec(q) &&
+      evo.is_addrec(limit_ref)) {
+    const fir::ValueR limv =
+        qv == cond->args[0] ? cond->args[1] : cond->args[0];
+    exit_iter = two_recurrence_exit_iteration(cfg, linfo, evo, pred, q,
+                                              limit_ref, qv, limv);
+    if (exit_iter == InvalidSCEV) {
+      return false;
+    }
+    if (evo.is_const(exit_iter)) {
+      const_exit_iter = evo.expr(exit_iter).cval_i();
+    }
+    from_bb = cfg.bbrs[leaving].bb;
+    to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+    return true;
   }
   if (pred == ICmpSub::INVALID || !evo.is_invariant(limit_ref) ||
       evo.is_invariant(q)) {
@@ -2192,6 +2870,43 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
   if (step == 0) {
     return false;
   }
+  if (pred == ICmpSub::NE &&
+      !(evo.is_const(start_ref) && evo.is_const(limit_ref))) {
+    // stepping by one the counter cannot skip the limit, and with an add that
+    // must not wrap it cannot start on the other side either since it would wrap
+    // before reaching it. So q != limit runs exactly like q < limit (q > limit
+    // counting down) in that signedness
+    const StepNoWrap nw = step_no_wrap(cfg, linfo, qv);
+    if (step != 1 && step != -1) {
+      return false;
+    }
+    if (!nw.nsw && !nw.nuw) {
+      // the counter hits the limit exactly after (limit - start) * step
+      // iterations modulo the type, however it wraps on the way
+      return false;
+      // const SCEVRef diff =
+      //     step == 1 ? evo.mk_add(limit_ref,
+      //                            evo.mk_mul(start_ref, evo.mk_const(-1, bw)))
+      //               : evo.mk_add(start_ref,
+      //                            evo.mk_mul(limit_ref, evo.mk_const(-1,
+      //                            bw)));
+      // if (evo.expr(diff).t == SCEVExpr::Type::Unknown) {
+      //   return false;
+      // }
+      // exit_iter = diff;
+      // from_bb = cfg.bbrs[leaving].bb;
+      // to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+      // mark as speschial
+      // return true;
+    }
+    if (nw.nsw) {
+      pred = step == 1 ? ICmpSub::SLT : ICmpSub::SGT;
+    } else {
+      pred = step == 1 ? ICmpSub::ULT : ICmpSub::UGT;
+    }
+    cmp_signed = nw.nsw;
+    cmp_unsigned = !nw.nsw;
+  }
 
   std::optional<i128> k;
   if (evo.is_const(start_ref) && evo.is_const(limit_ref)) {
@@ -2201,10 +2916,111 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
       return false;
     }
     exit_iter = evo.mk_const(*k, bw);
+    if (pred == ICmpSub::SLT && step == 1) {
+      cmp_limit = limit_ref;
+    }
   } else {
-    exit_iter = symbolic_exit_iteration(evo, pred, start_ref, step, limit_ref);
+    SCEVRef sym_limit = limit_ref;
+    if ((pred == ICmpSub::SLE || pred == ICmpSub::ULE || pred == ICmpSub::SGE ||
+         pred == ICmpSub::UGE) &&
+        (step == 1 || step == -1)) {
+      // q <= limit is q < limit + 1 (q >= limit is q > limit - 1). the bound
+      // moved by one can only wrap when q would step past the type limit
+      // itself, which is poison for an add that does not wrap
+      const StepNoWrap nw = step_no_wrap(cfg, linfo, qv);
+      const bool up = pred == ICmpSub::SLE || pred == ICmpSub::ULE;
+      const bool sgn = pred == ICmpSub::SLE || pred == ICmpSub::SGE;
+      // only the upward bound is proven through an enclosing counter
+      const fir::ValueR limv =
+          qv == cond->args[0] ? cond->args[1] : cond->args[0];
+      if ((step == 1) == up &&
+          ((sgn ? nw.nsw : nw.nuw) ||
+           (up && outer_loops != nullptr &&
+            counter_facts(cfg, *outer_loops, linfo.head, limv, sgn)
+                .below_max))) {
+        sym_limit = evo.mk_add(limit_ref, evo.mk_const(up ? 1 : -1, bw));
+        pred = up ? (sgn ? ICmpSub::SLT : ICmpSub::ULT)
+                  : (sgn ? ICmpSub::SGT : ICmpSub::UGT);
+      }
+    }
+    // a start that is the counter of an enclosing loop plus a small constant.
+    // the counter is at most max - 1, a bigger constant needs the guard in
+    // front of the loop (v + 1 < x for the start v, so v + 2 does not wrap)
+    const auto non_neg = [&](SCEVRef r) {
+      // a bottom tested counter compares the value it stepped to, so its
+      // start is the first value plus one. the add that steps it does not
+      // wrap, which makes that start non negative when the first value is
+      const auto first_non_neg = [&](SCEVRef x) {
+        const SCEVExpr ex = evo.expr(x);
+        return evo.is_non_negative(x) || (ex.t == SCEVExpr::Type::Invariant &&
+                                          value_non_negative(ex.val, 0));
+      };
+      if (step == 1) {
+        const SCEVExpr s = evo.expr(r);
+        if (first_non_neg(r)) {
+          return true;
+        }
+        if (s.t == SCEVExpr::Type::Add && evo.is_const(s.b) &&
+            evo.expr(s.b).cval_i() == 1 && first_non_neg(s.a) &&
+            step_no_wrap(cfg, linfo, qv).nsw) {
+          return true;
+        }
+      }
+      if (outer_loops == nullptr) {
+        return false;
+      }
+      SCEVExpr e = evo.expr(r);
+      i128 c = 0;
+      if (e.t == SCEVExpr::Type::Add && evo.is_const(e.b)) {
+        c = evo.expr(e.b).cval_i();
+        e = evo.expr(e.a);
+      }
+      if (e.t != SCEVExpr::Type::Invariant) {
+        return false;
+      }
+      // the invariant may be the add of the counter written out
+      fir::ValueR counter = e.val;
+      while (counter.is_instr() &&
+             counter.as_instr()->is(fir::BinaryInstrSubType::IntAdd) &&
+             counter.as_instr()->args[1].is_constant() && c <= 2) {
+        c += counter.as_instr()->args[1].as_constant()->as_int();
+        counter = counter.as_instr()->args[0];
+      }
+      if (c < 0 || c > 2) {
+        return false;
+      }
+      const auto facts =
+          counter_facts(cfg, *outer_loops, linfo.head, counter, true);
+      if (!facts.non_negative) {
+        return false;
+      }
+      if (c <= 1) {
+        return true;
+      }
+      // the start of the loop is the counter plus one
+      const auto *uses = counter.get_uses();
+      if (uses == nullptr) {
+        return false;
+      }
+      return std::ranges::any_of(*uses, [&](const fir::Use &u) {
+        return u.user.is_valid() &&
+               u.user->is(fir::BinaryInstrSubType::IntAdd) &&
+               u.user->args[0] == counter && u.user->args[1].is_constant() &&
+               u.user->args[1].as_constant()->as_int() == 1 &&
+               entered_below(cfg, linfo, u.user.result());
+      });
+    };
+    exit_iter =
+        symbolic_exit_iteration(evo, pred, start_ref, step, sym_limit, non_neg);
+    if (exit_iter == InvalidSCEV && evo.is_const(limit_ref)) {
+      exit_iter = const_limit_exit_iteration(evo, pred, start_ref, step,
+                                             evo.expr(limit_ref).cval_i());
+    }
     if (exit_iter == InvalidSCEV) {
       return false;
+    }
+    if (pred == ICmpSub::SLT && step == 1) {
+      cmp_limit = sym_limit;
     }
   }
   const_exit_iter = k;
@@ -2225,7 +3041,33 @@ void InductionEndValueAnalysis::update(CFG &cfg, Dominators &dom,
 
   // value of everything we can express in the iteration the loop is left in
   TMap<fir::ValueR, SCEVRef> values;
+  TMap<fir::ValueR, EndInfo::PtrEnd> ptr_values;
   for (auto v : evo.loop_values()) {
+    if (v.get_type()->is_ptr()) {
+      // start + k * step with the start a pointer in front of the loop plus
+      // a constant, the offset is what gets expanded
+      const SCEVRef cur = evo.get(v);
+      if (cur == InvalidSCEV || !evo.is_addrec(cur)) {
+        continue;
+      }
+      SCEVExpr start = evo.expr(evo.expr(cur).a);
+      i128 c = 0;
+      if (start.t == SCEVExpr::Type::Add && evo.is_const(start.b)) {
+        c = evo.expr(start.b).cval_i();
+        start = evo.expr(start.a);
+      }
+      if (start.t != SCEVExpr::Type::Invariant ||
+          !start.val.get_type()->is_ptr()) {
+        continue;
+      }
+      const SCEVRef off = evo.mk_addrec(evo.mk_const(c, 64), evo.expr(cur).b);
+      const SCEVRef end = evo.at_iteration(off, trip.exit_iter);
+      if (end != InvalidSCEV && evo.is_expandable(end)) {
+        ptr_values.insert(
+            {v, EndInfo::PtrEnd{.base = start.val, .offset = end}});
+      }
+      continue;
+    }
     if (!v.get_type()->is_int()) {
       continue;
     }
@@ -2235,13 +3077,14 @@ void InductionEndValueAnalysis::update(CFG &cfg, Dominators &dom,
       values.insert({v, end});
     }
   }
-  if (values.empty()) {
+  if (values.empty() && ptr_values.empty()) {
     return;
   }
   info.push_back(EndInfo{
       .from_bb = trip.from_bb,
       .to_bb = trip.to_bb,
       .values = std::move(values),
+      .ptr_values = std::move(ptr_values),
   });
 }
 

@@ -13,32 +13,32 @@ define void @f(ptr noalias noundef %0, ptr noalias noundef %1, ptr noalias nound
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; nocapture; readonly; }: ptr, %1{noalias; nocapture; readonly; }: ptr, %2{noalias; nocapture; }: ptr, %3{}: i32):
 ; CHECK-NEXT:    %4: i1 = IntSGT(%3, 0:i32){} NUses:1
-; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i32, %2), bb2()>(%4){} NUses:0
-; CHECK-NEXT:  bb1(%6{}: i32, %7{}: ptr):
-; CHECK-NEXT:    %8: i32 = Load(%0){} NUses:2
-; CHECK-NEXT:    %9: i1 = IntSGT(%8, 0:i32){} NUses:1
-; CHECK-NEXT:    %10: () = CondBranch<bb3(0:i32), bb4()>(%9){} NUses:0
+; CHECK-NEXT:    %5: i64 = SExt(%3){} NUses:1
+; CHECK-NEXT:    %6: () = CondBranch<bb1(%2, 1:i64), bb2()>(%4){} NUses:0
+; CHECK-NEXT:  bb1(%7{}: ptr, %8{}: i64):
+; CHECK-NEXT:    %9: i32 = Load(%0){} NUses:2
+; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
+; CHECK-NEXT:    %11: i64 = SExt(%9){} NUses:1
+; CHECK-NEXT:    %12: () = CondBranch<bb3(0:i64), bb4()>(%10){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %11: () = Return(){} NUses:0
-; CHECK-NEXT:  bb3(%12{}: i32):
-; CHECK-NEXT:    %13: i64 = SExt(%12){} NUses:1
-; CHECK-NEXT:    %14: i64 = IntMul(%13, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %16: i32 = Load(%15){} NUses:1
-; CHECK-NEXT:    %17: f32 = SI_FP(%16){} NUses:1
-; CHECK-NEXT:    %18: f32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %19: f32 = FloatAdd(%18, %17){} NUses:1
-; CHECK-NEXT:    %20: f32 = Store(%7, %19){} NUses:0
-; CHECK-NEXT:    %21: i32 = IntAdd(%12, 1:i32){} NUses:2
-; CHECK-NEXT:    %22: i1 = IntSLT(%21, %8){} NUses:1
-; CHECK-NEXT:    %23: () = CondBranch<bb3(%21), bb4()>(%22){} NUses:0
+; CHECK-NEXT:    %13: () = Return(){} NUses:0
+; CHECK-NEXT:  bb3(%14{}: i64):
+; CHECK-NEXT:    %15: i64 = IntMul(%14, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %17: i32 = Load(%16){} NUses:1
+; CHECK-NEXT:    %18: f32 = SI_FP(%17){} NUses:1
+; CHECK-NEXT:    %19: f32 = Load(%7){} NUses:1
+; CHECK-NEXT:    %20: f32 = FloatAdd(%19, %18){} NUses:1
+; CHECK-NEXT:    %21: f32 = Store(%7, %20){} NUses:0
+; CHECK-NEXT:    %22: i64 = IntAdd(%14, 1:i64){NSW; } NUses:2
+; CHECK-NEXT:    %23: i1 = IntSLT(%22, %11){} NUses:1
+; CHECK-NEXT:    %24: () = CondBranch<bb3(%22), bb4()>(%23){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %24: i32 = IntAdd(%6, 1:i32){} NUses:3
-; CHECK-NEXT:    %25: i1 = IntSLT(%24, %3){} NUses:1
-; CHECK-NEXT:    %26: i64 = SExt(%24){} NUses:1
-; CHECK-NEXT:    %27: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %28: ptr = PtrAdd(%2, %27){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %29: () = CondBranch<bb1(%24, %28), bb2()>(%25){} NUses:0
+; CHECK-NEXT:    %25: i1 = IntSLT(%8, %5){} NUses:1
+; CHECK-NEXT:    %26: i64 = IntMul(%8, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %27: ptr = PtrAdd(%2, %26){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %28: i64 = IntAdd(%8, 1:i64){NSW; } NUses:1
+; CHECK-NEXT:    %29: () = CondBranch<bb1(%27, %28), bb2()>(%25){} NUses:0
 ; CHECK-NEXT:}
   %5 = alloca ptr, align 8
   %6 = alloca ptr, align 8
@@ -130,29 +130,29 @@ define i64 @g(ptr noundef %0, ptr noundef %1, i32 noundef %2) #0 {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{nocapture; readonly; }: ptr, %1{nocapture; }: ptr, %2{}: i32):
 ; CHECK-NEXT:    %3: i1 = IntSGT(%2, 0:i32){} NUses:1
-; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:i32, %1), bb2(0:i64)>(%3){} NUses:0
-; CHECK-NEXT:  bb1(%5{}: i64, %6{}: i32, %7{}: ptr):
-; CHECK-NEXT:    %8: i32 = Load(%0){} NUses:2
-; CHECK-NEXT:    %9: i1 = IntSGT(%8, 0:i32){} NUses:1
-; CHECK-NEXT:    %10: () = CondBranch<bb3(%5, 0:i32), bb4(%5)>(%9){} NUses:0
-; CHECK-NEXT:  bb3(%11{}: i64, %12{}: i32):
-; CHECK-NEXT:    %13: i64 = SExt(%12){} NUses:2
-; CHECK-NEXT:    %14: i64 = IntAdd(%13, %11){} NUses:2
-; CHECK-NEXT:    %15: i32 = IntAdd(%12, 1:i32){} NUses:2
-; CHECK-NEXT:    %16: i1 = IntSLT(%15, %8){} NUses:1
-; CHECK-NEXT:    %17: () = CondBranch<bb3(%14, %15), bb5()>(%16){} NUses:0
-; CHECK-NEXT:  bb2(%18{}: i64):
-; CHECK-NEXT:    %19: i64 = Return(%18){} NUses:0
-; CHECK-NEXT:  bb4(%20{}: i64):
-; CHECK-NEXT:    %21: i32 = IntAdd(%6, 1:i32){} NUses:3
-; CHECK-NEXT:    %22: i1 = IntSLT(%21, %2){} NUses:1
-; CHECK-NEXT:    %23: i64 = SExt(%21){} NUses:1
-; CHECK-NEXT:    %24: i64 = IntMul(%23, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %25: ptr = PtrAdd(%1, %24){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %26: () = CondBranch<bb1(%20, %21, %25), bb2(%20)>(%22){} NUses:0
+; CHECK-NEXT:    %4: i64 = SExt(%2){} NUses:1
+; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64, %1, 1:i64), bb2(0:i64)>(%3){} NUses:0
+; CHECK-NEXT:  bb1(%6{}: i64, %7{}: ptr, %8{}: i64):
+; CHECK-NEXT:    %9: i32 = Load(%0){} NUses:2
+; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
+; CHECK-NEXT:    %11: () = CondBranch<bb3(%6, 0:i32), bb4(%6)>(%10){} NUses:0
+; CHECK-NEXT:  bb3(%12{}: i64, %13{}: i32):
+; CHECK-NEXT:    %14: i64 = SExt(%13){} NUses:2
+; CHECK-NEXT:    %15: i64 = IntAdd(%14, %12){} NUses:2
+; CHECK-NEXT:    %16: i32 = IntAdd(%13, 1:i32){} NUses:2
+; CHECK-NEXT:    %17: i1 = IntSLT(%16, %9){} NUses:1
+; CHECK-NEXT:    %18: () = CondBranch<bb3(%15, %16), bb5()>(%17){} NUses:0
+; CHECK-NEXT:  bb2(%19{}: i64):
+; CHECK-NEXT:    %20: i64 = Return(%19){} NUses:0
+; CHECK-NEXT:  bb4(%21{}: i64):
+; CHECK-NEXT:    %22: i1 = IntSLT(%8, %4){} NUses:1
+; CHECK-NEXT:    %23: i64 = IntMul(%8, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %24: ptr = PtrAdd(%1, %23){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %25: i64 = IntAdd(%8, 1:i64){NSW; } NUses:1
+; CHECK-NEXT:    %26: () = CondBranch<bb1(%21, %24, %25), bb2(%21)>(%22){} NUses:0
 ; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %27: i64 = Store(%7, %13){} NUses:0
-; CHECK-NEXT:    %28: () = Branch<bb4(%14)>(){} NUses:0
+; CHECK-NEXT:    %27: i64 = Store(%7, %14){} NUses:0
+; CHECK-NEXT:    %28: () = Branch<bb4(%15)>(){} NUses:0
 ; CHECK-NEXT:}
   %4 = alloca ptr, align 8
   %5 = alloca ptr, align 8

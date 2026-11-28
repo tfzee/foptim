@@ -21,6 +21,9 @@
 #include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
+#include "optim/func_passes/narrow_ints.hpp"
+#include "optim/func_passes/widen_accum.hpp"
+#include "optim/func_passes/widen_iv.hpp"
 #include "optim/func_passes/loop_hoist.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/loop_simplify.hpp"
@@ -474,6 +477,24 @@ struct LegalizeVecsConf : public FunctionPassConf<LegalizeVecsConf> {
 struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
   static constexpr const char *BaseName = "LoopUnswitch";
   using Pass = optim::LoopUnswitch;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct NarrowIntsConf : public FunctionPassConf<NarrowIntsConf> {
+  static constexpr const char *BaseName = "NarrowInts";
+  using Pass = optim::NarrowInts;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct WidenAccumConf : public FunctionPassConf<WidenAccumConf> {
+  static constexpr const char *BaseName = "WidenAccum";
+  using Pass = optim::WidenAccum;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct WidenIVConf : public FunctionPassConf<WidenIVConf> {
+  static constexpr const char *BaseName = "WidenIV";
+  using Pass = optim::WidenIV;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };
