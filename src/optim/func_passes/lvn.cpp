@@ -212,7 +212,8 @@ class MemForwarder {
       }
     }
     for (const auto &a : info.accesses()) {
-      if (a.kind == MemAccess::Kind::Load && base_use[a.loc.ptr.base] == 2) {
+      if (a.kind == MemAccess::Kind::Load && base_use[a.loc.ptr.base] == 2 &&
+          !calloc_of(a.loc.ptr.base)) {
         continue;
       }
       if (a.kind != MemAccess::Kind::Load || a.ordered || a.loc.size == 0 ||
@@ -223,7 +224,8 @@ class MemForwarder {
       const auto *meta =
           a.instr->has_access_meta ? func->get_access_meta(a.instr) : nullptr;
       const u32 c = walker.clobber(a.instr);
-      if (forward_store(a, c, meta) || forward_load(a, c)) {
+      if (forward_calloc_zero(a, meta) || forward_store(a, c, meta) ||
+          forward_load(a, c)) {
         dead.push_back(a.instr);
       }
     }
@@ -242,6 +244,54 @@ class MemForwarder {
       return ba->get_instr_id(a) < ba->get_instr_id(b);
     }
     return dom.strict_dominates(ba, bb);
+  }
+
+  std::optional<fir::Instr> calloc_of(fir::ValueR base) const {
+    if (!base.is_instr() || !base.as_instr()->is(fir::InstrType::CallInstr)) {
+      return std::nullopt;
+    }
+    auto call = base.as_instr();
+    if (!call->args[0].is_constant() ||
+        !call->args[0].as_constant()->is_func() ||
+        call->args[0].as_constant()->as_func()->attribs.libfunc !=
+            fir::LibFunc::Calloc) {
+      return std::nullopt;
+    }
+    return call;
+  }
+
+  // memory of a calloc that nothing wrote since reads as zero (a load inside of
+  // the object is the only one that is not undefined)
+  bool forward_calloc_zero(const MemAccess &load, const fir::AccessMeta *meta) {
+    const auto call_opt = calloc_of(load.loc.ptr.base);
+    if (!call_opt) {
+      return false;
+    }
+    const fir::Instr call = *call_opt;
+    auto ty = load.instr->result_type();
+    auto *ctx = func->ctx;
+    fir::ValueR zero;
+    if (ty->is_int()) {
+      zero = fir::ValueR{ctx->get_constant_int(0, ty->get_bitwidth())};
+    } else if (ty->is_ptr()) {
+      zero = fir::ValueR{ctx->get_constant_null()};
+    } else if (ty->is_float() && ty->as_float() == 32) {
+      zero = fir::ValueR{ctx->get_constant_value(0.0F, ty)};
+    } else if (ty->is_float() && ty->as_float() == 64) {
+      zero = fir::ValueR{ctx->get_constant_value(0.0, ty)};
+    } else {
+      return false;
+    }
+    const u32 from = mssa.access_of(call);
+    const u32 to = mssa.defining_access(load.instr);
+    if (from == MemorySSA::None || to == MemorySSA::None ||
+        !dominates(call, load.instr) ||
+        walker.clobbered_between(from, to, load.loc, meta)) {
+      return false;
+    }
+    fir::Instr l = load.instr;
+    l->replace_all_uses(zero);
+    return true;
   }
 
   // The clobber if it is a plain store to the object of the load that
@@ -387,12 +437,22 @@ class MemForwarder {
   std::optional<fir::ValueR> forward_int(const MemAccess &load, u32 c,
                                          const fir::AccessMeta *meta) {
     constexpr u32 MaxPieces = 8;
-    auto lty = load.instr->result_type();
-    if (!lty->is_int() || lty->get_bitwidth() % 8 != 0 ||
-        lty->get_bitwidth() > 64) {
+    const auto load_ty = load.instr->result_type();
+    if (!(load_ty->is_int() || load_ty->is_ptr()) ||
+        load_ty->get_bitwidth() % 8 != 0 || load_ty->get_bitwidth() > 64) {
       return std::nullopt;
     }
     auto *ctx = func->ctx;
+    // a pointer is rebuilt as an integer of its width and cast at the end
+    const fir::TypeR lty =
+        load_ty->is_ptr()
+            ? fir::TypeR{ctx->get_int_type(load_ty->get_bitwidth())}
+            : load_ty;
+    const auto finish = [&](fir::Builder &b, fir::ValueR v) {
+      return load_ty == lty ? v
+                            : b.build_conversion_op(
+                                  v, load_ty, fir::ConversionSubType::BitCast);
+    };
     const i64 lsize = lty->get_bitwidth() / 8;
     const u64 full = (1ULL << lsize) - 1;
     struct Piece {
@@ -427,7 +487,7 @@ class MemForwarder {
         if (sty->get_bitwidth() != lty->get_bitwidth()) {
           v = buh.build_itrunc(v, lty);
         }
-        return v;
+        return finish(buh, v);
       }
       if (soff < 0 || soff + ssize > lsize) {
         return std::nullopt;
@@ -461,7 +521,7 @@ class MemForwarder {
           first ? v : buh.build_binary_op(res, v, fir::BinaryInstrSubType::Or);
       first = false;
     }
-    return res;
+    return finish(buh, res);
   }
 
   // An earlier load of the same address that sees the same state.

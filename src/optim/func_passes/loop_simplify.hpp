@@ -978,6 +978,214 @@ class LoopSimplify final : public FunctionPass {
     return false;
   }
 
+  // A header load whose address in iteration k + 1 is the address of a store
+  // that runs every iteration, in iteration k, reads that stored value, so it
+  // becomes a header argument fed by the stored value (the buffer of an append
+  // loop that reads the terminator it wrote). The first iteration reads in
+  // front of the loop, behind a guard on a block of the entry edge
+  // (cfg_changed). Nothing else of the loop may write the bytes. Only
+  // addresses that are header arguments, plus constants, can be rebuilt in
+  // front of the loop.
+  bool forward_store_to_next_iteration(fir::Context &ctx, fir::Function &func,
+                                       CFG &cfg, Dominators &dom,
+                                       LoopInfo &loop, bool &cfg_changed) {
+    auto in_loop = [&](u32 id) { return loop.contains(id); };
+    auto &preds = cfg.bbrs[loop.head].pred;
+    if (!in_loop(loop.head) || preds.size() != loop.tails.size() + 1) {
+      return false;
+    }
+    fir::BasicBlock pre{fir::BasicBlock::invalid()};
+    for (auto p : preds) {
+      if (!in_loop(p)) {
+        pre = cfg.bbrs[p].bb;
+      }
+    }
+    if (!pre.is_valid()) {
+      return false;
+    }
+    auto header = cfg.bbrs[loop.head].bb;
+    const bool guarded =
+        !pre->get_terminator()->is(fir::InstrType::BranchInstr);
+    if (guarded) {
+      auto term = pre->get_terminator();
+      if (!term->is(fir::InstrType::CondBranchInstr) ||
+          std::ranges::count_if(
+              term->bbs, [&](const auto &e) { return e.bb == header; }) != 1) {
+        return false;
+      }
+    }
+    ScalarEvo evo{cfg, loop};
+    AliasQuery aq{AnalysisManager::provenance(func)};
+    const IterSpan span{&cfg, &loop};
+    auto pre_term = pre->get_terminator();
+    const u16 pre_edge = pre_term.get_bb_id(header);
+
+    // value of a loop address in the first iteration, only header arguments
+    // and constants offsets are looked through
+    std::function<std::optional<std::pair<fir::ValueR, i64>>(fir::ValueR)>
+        entry_base =
+            [&](fir::ValueR v) -> std::optional<std::pair<fir::ValueR, i64>> {
+      if (v.is_bb_arg()) {
+        if (v.as_bb_arg()->get_parent() != header) {
+          return in_loop(cfg.get_bb_id(v.as_bb_arg()->get_parent()))
+                     ? std::nullopt
+                     : std::optional{std::pair{v, i64{0}}};
+        }
+        const auto &args = header->args;
+        for (u32 i = 0; i < args.size(); i++) {
+          if (fir::ValueR{args[i]} == v) {
+            return entry_base(pre_term->bbs[pre_edge].args[i]);
+          }
+        }
+        return std::nullopt;
+      }
+      if (v.is_instr()) {
+        auto i = v.as_instr();
+        if (!in_loop(cfg.get_bb_id(i->get_parent()))) {
+          return std::pair{v, i64{0}};
+        }
+        if (i->is(fir::BinaryInstrSubType::PtrAdd) &&
+            i->args[1].is_constant() && i->args[1].as_constant()->is_int()) {
+          auto inner = entry_base(i->args[0]);
+          if (!inner) {
+            return std::nullopt;
+          }
+          return std::pair{
+              inner->first,
+              inner->second +
+                  static_cast<i64>(i->args[1].as_constant()->as_int())};
+        }
+        return std::nullopt;
+      }
+      return std::pair{v, i64{0}};
+    };
+
+    for (auto load : header->instructions) {
+      if (!load->is(fir::InstrType::LoadInstr)) {
+        continue;
+      }
+      auto access = classify_access(load);
+      if (!access || access->ordered || access->loc.size == 0 ||
+          load->Volatile) {
+        continue;
+      }
+      const auto la = evo.get(load->args[0]);
+      if (la == InvalidSCEV || !evo.is_addrec(la) ||
+          !evo.is_const(evo.expr(la).b)) {
+        continue;
+      }
+      const i128 step = evo.expr(evo.expr(la).b).cval_i();
+      if (step == 0) {
+        continue;
+      }
+      const auto init_addr = entry_base(load->args[0]);
+      if (!init_addr) {
+        continue;
+      }
+
+      std::optional<fir::Instr> store;
+      bool ok = true;
+      for (auto b : loop.body_nodes) {
+        for (auto instr : cfg.bbrs[b].bb->instructions) {
+          if (instr == load) {
+            continue;
+          }
+          auto a = classify_access(instr);
+          if (!a) {
+            continue;
+          }
+          if (a->kind == MemAccess::Kind::Store && !a->ordered &&
+              !instr->Volatile && a->loc.size == access->loc.size &&
+              instr->args[1].get_type() == load.result_type() && !store) {
+            // the store of the previous iteration, it has to run every
+            // iteration and after the load
+            const auto sa = evo.get(instr->args[0]);
+            const bool every_iteration = std::ranges::all_of(
+                loop.tails, [&](u32 t) { return dom.dominates(b, t); });
+            const bool after_load =
+                b != loop.head ||
+                header->get_instr_id(instr) > header->get_instr_id(load);
+            if (sa != InvalidSCEV && evo.is_addrec(sa) &&
+                evo.is_const(evo.expr(sa).b) &&
+                evo.expr(evo.expr(sa).b).cval_i() == step && every_iteration &&
+                after_load) {
+              const u32 bw = evo.expr(evo.expr(la).a).bw;
+              const auto minus_one = evo.mk_const(-1, bw);
+              const auto next =
+                  evo.mk_add(evo.expr(la).a, evo.mk_const(step, bw));
+              const auto diff =
+                  evo.mk_add(evo.expr(sa).a, evo.mk_mul(minus_one, next));
+              if (evo.is_const(diff) && evo.expr(diff).cval_i() == 0) {
+                store = instr;
+                continue;
+              }
+            }
+          }
+          if (touches(aq, instr, *a, load, access->loc, false, span)) {
+            ok = false;
+          }
+        }
+      }
+      if (!ok || !store) {
+        continue;
+      }
+
+      fir::ValueR init{};
+      {
+        fir::Builder nb{header};
+        fir::BasicBlock edge_bb{fir::BasicBlock::invalid()};
+        if (guarded) {
+          // the load only runs when the loop is entered
+          edge_bb = nb.append_bb();
+          nb.at_end(edge_bb);
+        } else {
+          nb = fir::Builder{pre_term};
+        }
+        fir::ValueR addr = init_addr->first;
+        if (init_addr->second != 0) {
+          addr = nb.build_ptr_add(
+              addr, fir::ValueR{ctx->get_constant_int(init_addr->second, 64)});
+        }
+        init = nb.build_load(load.result_type(), addr, false, false);
+        if (guarded) {
+          TVec<fir::ValueR> old_args{pre_term->bbs[pre_edge].args.begin(),
+                                     pre_term->bbs[pre_edge].args.end()};
+          auto br = nb.build_branch(header);
+          for (auto old : old_args) {
+            br.add_bb_arg(0, old);
+          }
+          pre_term.replace_bb(pre_edge, edge_bb, false);
+          cfg_changed = true;
+          br.add_bb_arg(0, init);
+        }
+      }
+      auto acc = header.add_arg(
+          ctx->storage.insert_bb_arg(header, load.result_type()));
+      auto value = (*store)->args[1];
+
+      TVec<u32> pred_ids;
+      for (auto p : preds) {
+        if (!std::ranges::contains(pred_ids, p)) {
+          pred_ids.push_back(p);
+        }
+      }
+      for (auto p : pred_ids) {
+        auto term = cfg.bbrs[p].bb->get_terminator();
+        for (u16 i = 0; i < term->bbs.size(); i++) {
+          if (term->bbs[i].bb == header) {
+            term.add_bb_arg(i, in_loop(p) ? value : init);
+          }
+        }
+      }
+      load.result().replace_all_uses(fir::ValueR{acc});
+      load.destroy();
+      utils::StatCollector::get().addi(1, "LoopStoreForward",
+                                       utils::StatCollector::StatFOptim);
+      return true;
+    }
+    return false;
+  }
+
   // a header load through a pointer argument that is stepped by a select
   // (p = c ? x : p, the argmin of std::min_element) becomes a value argument
   // v = c ? *x : v, so the load leaves the loop carried chain. The loop has to
@@ -1160,6 +1368,22 @@ class LoopSimplify final : public FunctionPass {
       };
       while (step(1, [&] {
         return promote_memory_accumulator(
+            ctx, func, cfg, dom, loops.info.at(loop_ip1 - 1), fwd_cfg_changed);
+      })) {
+        modified = true;
+        if (fwd_cfg_changed) {
+          break;
+        }
+      }
+      if (fwd_cfg_changed) {
+        cfg.update(func, false);
+        dom.update(cfg);
+        loops.update(dom);
+        loop_ip1 = 0;
+        continue;
+      }
+      while (step(5, [&] {
+        return forward_store_to_next_iteration(
             ctx, func, cfg, dom, loops.info.at(loop_ip1 - 1), fwd_cfg_changed);
       })) {
         modified = true;

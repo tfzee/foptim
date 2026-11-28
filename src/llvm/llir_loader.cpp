@@ -306,6 +306,8 @@ static bool libfunc_shape_matches(foptim::fir::LibFunc f,
       return sig(i32, {ptr, i64, i64});
     case LibFunc::Malloc:
       return sig(ptr, {i64});
+    case LibFunc::Calloc:
+      return sig(ptr, {i64, i64});
     case LibFunc::Free:
       return sig(llvm::Type::getVoidTy(lctx), {ptr});
     default:
@@ -2267,7 +2269,8 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     // a plain declaration of malloc carries no attributes
     const bool fresh =
         ret.hasAttribute(llvm::Attribute::NoAlias) ||
-        foff_func->attribs.libfunc == foptim::fir::LibFunc::Malloc;
+        foff_func->attribs.libfunc == foptim::fir::LibFunc::Malloc ||
+        foff_func->attribs.libfunc == foptim::fir::LibFunc::Calloc;
     foff_func->set_result_attribs(fresh ? 1 : 0,
                                   ret.hasAttribute(llvm::Attribute::NonNull) ||
                                           ret.getDereferenceableBytes() > 0

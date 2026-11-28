@@ -36,6 +36,7 @@ enum class LibFunc : u8 {
   // the loader turns calls into calls of PosixMemalignHelper
   PosixMemalign,
   Malloc,
+  Calloc,
   Free,
 };
 
@@ -92,6 +93,7 @@ inline constexpr LibFuncName LibFuncNames[] = {
     {"strcat", LibFunc::Strcat, 2, true},
     {"posix_memalign", LibFunc::PosixMemalign, 3, true},
     {"malloc", LibFunc::Malloc, 1, true},
+    {"calloc", LibFunc::Calloc, 2, true},
     {"free", LibFunc::Free, 1, true},
 };
 

@@ -1562,17 +1562,21 @@ static bool fold_string_libfunc(fir::Instr instr, fir::LibFunc lf,
   return true;
 }
 
-static bool is_malloc_call(fir::Instr instr) {
-  return instr->is(fir::InstrType::CallInstr) && instr->args[0].is_constant() &&
-         instr->args[0].as_constant()->is_func() &&
-         instr->args[0].as_constant()->as_func()->attribs.libfunc ==
-             fir::LibFunc::Malloc;
+static bool is_alloc_libfunc(fir::LibFunc f) {
+  return f == fir::LibFunc::Malloc || f == fir::LibFunc::Calloc;
 }
 
-// A malloc whose result is only used as the destination of plain stores,
-// memsets and memcpys (also through pointer adds) and by free is dead together
-// with all of those. Any other use, a load included, keeps it.
-static bool remove_write_only_malloc(fir::Instr alloc) {
+static bool is_alloc_call(fir::Instr instr) {
+  return instr->is(fir::InstrType::CallInstr) && instr->args[0].is_constant() &&
+         instr->args[0].as_constant()->is_func() &&
+         is_alloc_libfunc(
+             instr->args[0].as_constant()->as_func()->attribs.libfunc);
+}
+
+// A malloc or calloc whose result is only used as the destination of plain
+// stores, memsets and memcpys (also through pointer adds) and by free is dead
+// together with all of those. Any other use, a load included, keeps it.
+static bool remove_write_only_alloc(fir::Instr alloc) {
   TVec<fir::Instr> accesses;
   TVec<fir::Instr> derived;
   TVec<fir::Use> work{alloc->uses.begin(), alloc->uses.end()};
@@ -1657,14 +1661,14 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
 
     // an allocation that is only written to and freed
-    if (funci->attribs.libfunc == fir::LibFunc::Malloc) {
-      if (remove_write_only_malloc(instr)) {
+    if (is_alloc_libfunc(funci->attribs.libfunc)) {
+      if (remove_write_only_alloc(instr)) {
         return true;
       }
     } else if (funci->attribs.libfunc == fir::LibFunc::Free &&
                instr->args.size() == 2 && instr->args[1].is_instr() &&
-               is_malloc_call(instr->args[1].as_instr()) &&
-               remove_write_only_malloc(instr->args[1].as_instr())) {
+               is_alloc_call(instr->args[1].as_instr()) &&
+               remove_write_only_alloc(instr->args[1].as_instr())) {
       return true;
     }
 
