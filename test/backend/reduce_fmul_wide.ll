@@ -43,14 +43,10 @@ define nofpclass(nan inf) float @prod8(ptr noundef %0) {
 ; CHECK-NEXT:    $xmm0: f32x4 = $xmm0: f32x4 * $xmm1: f32x4
 ; CHECK-NEXT:    vmovshdup($mm1: f32, $mm0: f32x2, )
 ; CHECK-NEXT:    $mm1: f32 = $mm1: f32 * $mm0: f32x2
-; CHECK-NEXT:    $mm0: f32 = [$rdi + 16]: f32
-; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * $mm1: f32
-; CHECK-NEXT:    $mm1: f32 = [$rdi + 20]: f32
-; CHECK-NEXT:    $mm0: f32 = $mm1: f32 * $mm0: f32
-; CHECK-NEXT:    $mm1: f32 = [$rdi + 24]: f32
-; CHECK-NEXT:    $mm1: f32 = $mm1: f32 * $mm0: f32
-; CHECK-NEXT:    $mm0: f32 = [$rdi + 28]: f32
-; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * $mm1: f32
+; CHECK-NEXT:    $mm0: f32 = $mm1: f32 * [$rdi + 16]: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * [$rdi + 20]: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * [$rdi + 24]: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * [$rdi + 28]: f32
 ; CHECK-NEXT:    ret($mm0: f32, )
   %2 = alloca ptr, align 8
   %3 = alloca float, align 4

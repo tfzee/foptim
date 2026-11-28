@@ -4,12 +4,11 @@
 define i32 @f(ptr %p) {
 ; CHECK: func f ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + -4]: i64, )
 ; CHECK-NEXT:    $eax: i32 = [$rdi]: i32
-; CHECK-NEXT:    $eax: i32 += [$rcx]: i32
+; CHECK-NEXT:    $eax: i32 += [$rdi + -4]: i32
+; CHECK-NEXT:    lea($rdi: i64, [$rdi + -4]: i64, )
 ; CHECK-NEXT:    $rsp: i64 -= 8: i32
 ; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rdi: i64 = $rcx: i64
 ; CHECK-NEXT:    call(use, )
 ; CHECK-NEXT:    pop($rax: i64, )
 ; CHECK-NEXT:    $rsp: i64 += 8: i32

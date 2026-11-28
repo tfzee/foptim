@@ -14,33 +14,32 @@ define void @daxpy(i32 noundef %0, float noundef %1, ptr noundef %2, i32 noundef
 ; CHECK-NEXT:    $r8: i64 = $rcx: i64
 ; CHECK-NEXT:    $r10d: i32 = $edx: i32
 ; CHECK-NEXT:    $r9: i64 = $rsi: i64
-; CHECK-NEXT:    $mm2: f32 = $mm0: f32
+; CHECK-NEXT:    $mm1: f32 = $mm0: f32
 ; CHECK-NEXT:    cjmp_int_sle($edi: i32, 0: i32, ) -> 6
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    clear $mm0: f32
-; CHECK-NEXT:    cjmp_flt_oeq($mm2: f32, $mm0: f32, ) -> 6
+; CHECK-NEXT:    cjmp_flt_oeq($mm1: f32, $mm0: f32, ) -> 6
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
 ; CHECK-NEXT:    cjmp_int_ne($r10d: i32, 1: i32, ) -> 7
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
 ; CHECK-NEXT:    cjmp_int_ne($r11d: i32, 1: i32, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
-; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    clear $rcx: i64
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $mm1: f32 = [$r9 + $rax *4]: f32
-; CHECK-NEXT:    $mm0: f32 = [$r8 + $rax *4]: f32
-; CHECK-NEXT:    $mm1: f32 = $mm1: f32 * $mm2: f32
-; CHECK-NEXT:    $mm1: f32 = $mm1: f32 + $mm0: f32
-; CHECK-NEXT:    [$r8 + $rax *4]: f32 = $mm1: f32
-; CHECK-NEXT:    $rdx: i64 = $rax: i64
+; CHECK-NEXT:    $mm0: f32 = [$r9 + $rcx *4]: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * $mm1: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 + [$r8 + $rcx *4]: f32
+; CHECK-NEXT:    [$r8 + $rcx *4]: f32 = $mm0: f32
+; CHECK-NEXT:    $rdx: i64 = $rcx: i64
 ; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    $rax: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_slt($rdx: i64, $rcx: i64, ) -> 5
+; CHECK-NEXT:    $rcx: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_slt($rdx: i64, $rax: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    ret()
@@ -62,9 +61,8 @@ define void @daxpy(i32 noundef %0, float noundef %1, ptr noundef %2, i32 noundef
 ; CHECK-NEXT:    mov_sx($rcx: i64, $esi: i32, )
 ; CHECK-NEXT:    $mm0: f32 = [$r9 + $rcx *4]: f32
 ; CHECK-NEXT:    mov_sx($rcx: i64, $eax: i32, )
-; CHECK-NEXT:    $mm1: f32 = [$r8 + $rcx *4]: f32
-; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * $mm2: f32
-; CHECK-NEXT:    $mm0: f32 = $mm0: f32 + $mm1: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 * $mm1: f32
+; CHECK-NEXT:    $mm0: f32 = $mm0: f32 + [$r8 + $rcx *4]: f32
 ; CHECK-NEXT:    [$r8 + $rcx *4]: f32 = $mm0: f32
 ; CHECK-NEXT:    $esi: i32 += $r10d: i32
 ; CHECK-NEXT:    $eax: i32 += $r11d: i32

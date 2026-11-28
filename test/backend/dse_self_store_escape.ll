@@ -9,7 +9,7 @@ declare void @ext(ptr)
 ; the loaded self pointer is passed to a call
 define void @neg_call() {
 ; CHECK: func neg_call ()
-; CHECK: [$rax]: i64 = $rdi
+; CHECK: [$rcx]: i64 = $rax: i64
 ; CHECK: call(ext, )
   %s = alloca %S, align 8
   %buf = getelementptr inbounds %S, ptr %s, i32 0, i32 2

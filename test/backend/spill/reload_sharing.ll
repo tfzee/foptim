@@ -5,150 +5,107 @@
 ; same block have to reuse that register instead of loading again.
 ; RUN: %foffcc %s --print-mir --no-reorder-funcs | FileCheck %s
 
-define i64 @reload_sharing(ptr %p) {
-; CHECK: func reload_sharing ($2: i64, )
+define i64 @reload_sharing(ptr %p, ptr %q) {
+; CHECK: func reload_sharing ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 160: i64
+; CHECK-NEXT:    $rsp: i64 -= 32: i64
+; CHECK-NEXT:    $rsp: i64 -= 8: i64
 ; CHECK-NEXT:    push($rbx: i64, )
+; CHECK-NEXT:    push($r15: i64, )
 ; CHECK-NEXT:    push($r14: i64, )
 ; CHECK-NEXT:    push($r13: i64, )
 ; CHECK-NEXT:    push($r12: i64, )
-; CHECK-NEXT:    $rdx: i64 = [$rdi]: i64
-; CHECK-NEXT:    lea($rax: i64, [$rdi + 8]: i64, )
-; CHECK-NEXT:    $r13: i64 = [$rdi + 8]: i64
-; CHECK-NEXT:    lea($rsi: i64, [$rdi + 16]: i64, )
-; CHECK-NEXT:    $r14: i64 = [$rdi + 16]: i64
-; CHECK-NEXT:    lea($r8: i64, [$rdi + 24]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 24]: i64
-; CHECK-NEXT:    [$rbp + -8]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($r9: i64, [$rdi + 32]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 32]: i64
-; CHECK-NEXT:    [$rbp + -152]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($r10: i64, [$rdi + 40]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 40]: i64
-; CHECK-NEXT:    [$rbp + -128]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($r11: i64, [$rdi + 48]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 48]: i64
-; CHECK-NEXT:    [$rbp + -104]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rbx: i64, [$rdi + 56]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 56]: i64
-; CHECK-NEXT:    [$rbp + -80]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($r12: i64, [$rdi + 64]: i64, )
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 64]: i64
-; CHECK-NEXT:    [$rbp + -72]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 72]: i64, )
-; CHECK-NEXT:    [$rbp + -160]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 72]: i64
-; CHECK-NEXT:    [$rbp + -64]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 80]: i64, )
-; CHECK-NEXT:    [$rbp + -144]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 80]: i64
-; CHECK-NEXT:    [$rbp + -56]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 88]: i64, )
-; CHECK-NEXT:    [$rbp + -136]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 88]: i64
-; CHECK-NEXT:    [$rbp + -48]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 96]: i64, )
-; CHECK-NEXT:    [$rbp + -120]: i64 = $rcx: i64
+; CHECK-NEXT:    $rdx: i64 = $rsi: i64
+; CHECK-NEXT:    $rax: i64 = [$rdi]: i64
+; CHECK-NEXT:    [$rbp + -8]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rdi + 8]: i64
+; CHECK-NEXT:    $rsi: i64 = [$rdi + 16]: i64
+; CHECK-NEXT:    $r8: i64 = [$rdi + 24]: i64
+; CHECK-NEXT:    $r9: i64 = [$rdi + 32]: i64
+; CHECK-NEXT:    $r10: i64 = [$rdi + 40]: i64
+; CHECK-NEXT:    $r11: i64 = [$rdi + 48]: i64
+; CHECK-NEXT:    $rbx: i64 = [$rdi + 56]: i64
+; CHECK-NEXT:    $r12: i64 = [$rdi + 64]: i64
+; CHECK-NEXT:    $r13: i64 = [$rdi + 72]: i64
+; CHECK-NEXT:    $r14: i64 = [$rdi + 80]: i64
+; CHECK-NEXT:    $r15: i64 = [$rdi + 88]: i64
 ; CHECK-NEXT:    $rcx: i64 = [$rdi + 96]: i64
-; CHECK-NEXT:    [$rbp + -40]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 104]: i64, )
-; CHECK-NEXT:    [$rbp + -112]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 104]: i64
 ; CHECK-NEXT:    [$rbp + -32]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 112]: i64, )
-; CHECK-NEXT:    [$rbp + -96]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 112]: i64
+; CHECK-NEXT:    $rcx: i64 = [$rdi + 104]: i64
 ; CHECK-NEXT:    [$rbp + -24]: i64 = $rcx: i64
-; CHECK-NEXT:    lea($rcx: i64, [$rdi + 120]: i64, )
-; CHECK-NEXT:    [$rbp + -88]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi + 120]: i64
+; CHECK-NEXT:    $rcx: i64 = [$rdi + 112]: i64
 ; CHECK-NEXT:    [$rbp + -16]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rdi]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $rcx: i64 ^= $rdx: i64
-; CHECK-NEXT:    $rax: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 *= [$rsi]: i64
-; CHECK-NEXT:    $rdx: i64 = $rax: i64
-; CHECK-NEXT:    $rdx: i64 ^= $r13: i64
-; CHECK-NEXT:    $rdx: i64 += $rcx: i64
-; CHECK-NEXT:    $rax: i64 = [$rsi]: i64
-; CHECK-NEXT:    $rax: i64 *= [$r8]: i64
-; CHECK-NEXT:    $rax: i64 ^= $r14: i64
-; CHECK-NEXT:    $rax: i64 += $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = [$r8]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$r9]: i64
-; CHECK-NEXT:    $rdx: i64 = $rcx: i64
+; CHECK-NEXT:    $rdi: i64 = [$rdi + 120]: i64
+; CHECK-NEXT:    [$rdx]: i8 = 0: i8
+; CHECK-NEXT:    $rdx: i64 = [$rbp + -8]: i64
+; CHECK-NEXT:    $rdx: i64 *= $rax: i64
 ; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -8]: i64
-; CHECK-NEXT:    $rdx: i64 += $rax: i64
-; CHECK-NEXT:    $rcx: i64 = [$r9]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$r10]: i64
-; CHECK-NEXT:    $rcx: i64 ^= [$rbp + -152]: i64
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    $rcx: i64 *= $rsi: i64
+; CHECK-NEXT:    $rcx: i64 ^= $rax: i64
 ; CHECK-NEXT:    $rcx: i64 += $rdx: i64
-; CHECK-NEXT:    $rax: i64 = [$r10]: i64
-; CHECK-NEXT:    $rax: i64 *= [$r11]: i64
-; CHECK-NEXT:    $rax: i64 ^= [$rbp + -128]: i64
+; CHECK-NEXT:    $rax: i64 = $rsi: i64
+; CHECK-NEXT:    $rax: i64 *= $r8: i64
+; CHECK-NEXT:    $rax: i64 ^= $rsi: i64
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$r11]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rbx]: i64
-; CHECK-NEXT:    $rcx: i64 ^= [$rbp + -104]: i64
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    $rcx: i64 *= $r9: i64
+; CHECK-NEXT:    $rcx: i64 ^= $r8: i64
 ; CHECK-NEXT:    $rcx: i64 += $rax: i64
-; CHECK-NEXT:    $rax: i64 = [$rbx]: i64
-; CHECK-NEXT:    $rax: i64 *= [$r12]: i64
-; CHECK-NEXT:    $rdx: i64 = $rax: i64
-; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -80]: i64
+; CHECK-NEXT:    $rax: i64 = $r9: i64
+; CHECK-NEXT:    $rax: i64 *= $r10: i64
+; CHECK-NEXT:    $rax: i64 ^= $r9: i64
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    $rcx: i64 = $r10: i64
+; CHECK-NEXT:    $rcx: i64 *= $r11: i64
+; CHECK-NEXT:    $rcx: i64 ^= $r10: i64
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    $rax: i64 = $r11: i64
+; CHECK-NEXT:    $rax: i64 *= $rbx: i64
+; CHECK-NEXT:    $rax: i64 ^= $r11: i64
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    $rcx: i64 = $rbx: i64
+; CHECK-NEXT:    $rcx: i64 *= $r12: i64
+; CHECK-NEXT:    $rcx: i64 ^= $rbx: i64
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    $rax: i64 = $r12: i64
+; CHECK-NEXT:    $rax: i64 *= $r13: i64
+; CHECK-NEXT:    $rax: i64 ^= $r12: i64
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    $rcx: i64 = $r13: i64
+; CHECK-NEXT:    $rcx: i64 *= $r14: i64
+; CHECK-NEXT:    $rcx: i64 ^= $r13: i64
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    $rax: i64 = $r14: i64
+; CHECK-NEXT:    $rax: i64 *= $r15: i64
+; CHECK-NEXT:    $rax: i64 ^= $r14: i64
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    $rcx: i64 = $r15: i64
+; CHECK-NEXT:    $rcx: i64 *= [$rbp + -32]: i64
+; CHECK-NEXT:    $rcx: i64 ^= $r15: i64
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    $rdx: i64 = [$rbp + -32]: i64
+; CHECK-NEXT:    $rdx: i64 *= [$rbp + -24]: i64
+; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -32]: i64
 ; CHECK-NEXT:    $rdx: i64 += $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$r12]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -160]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $rsi: i64 = $rcx: i64
-; CHECK-NEXT:    $rsi: i64 ^= [$rbp + -72]: i64
-; CHECK-NEXT:    $rsi: i64 += $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -144]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $r8: i64 = $rcx: i64
-; CHECK-NEXT:    $r8: i64 ^= [$rbp + -64]: i64
-; CHECK-NEXT:    $r8: i64 += $rsi: i64
-; CHECK-NEXT:    $rcx: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -136]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $rdx: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -56]: i64
-; CHECK-NEXT:    $rdx: i64 += $r8: i64
-; CHECK-NEXT:    $rcx: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -120]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $rsi: i64 = $rcx: i64
-; CHECK-NEXT:    $rsi: i64 ^= [$rbp + -48]: i64
-; CHECK-NEXT:    $rsi: i64 += $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -112]: i64
-; CHECK-NEXT:    $rcx: i64 *= [$rax]: i64
-; CHECK-NEXT:    $rdx: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -40]: i64
-; CHECK-NEXT:    $rdx: i64 += $rsi: i64
-; CHECK-NEXT:    $rax: i64 = [$rax]: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -96]: i64
-; CHECK-NEXT:    $rax: i64 *= [$rcx]: i64
-; CHECK-NEXT:    $rsi: i64 = $rax: i64
-; CHECK-NEXT:    $rsi: i64 ^= [$rbp + -32]: i64
-; CHECK-NEXT:    $rsi: i64 += $rdx: i64
-; CHECK-NEXT:    $rax: i64 = [$rcx]: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -88]: i64
-; CHECK-NEXT:    $rax: i64 *= [$rcx]: i64
-; CHECK-NEXT:    $rdx: i64 = $rax: i64
-; CHECK-NEXT:    $rdx: i64 ^= [$rbp + -24]: i64
-; CHECK-NEXT:    $rdx: i64 += $rsi: i64
-; CHECK-NEXT:    $rax: i64 = [$rcx]: i64
-; CHECK-NEXT:    $rax: i64 *= [$rdi]: i64
-; CHECK-NEXT:    $rax: i64 ^= [$rbp + -16]: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -24]: i64
+; CHECK-NEXT:    $rax: i64 *= [$rbp + -16]: i64
+; CHECK-NEXT:    $rax: i64 ^= [$rbp + -24]: i64
 ; CHECK-NEXT:    $rax: i64 += $rdx: i64
+; CHECK-NEXT:    $rcx: i64 = [$rbp + -16]: i64
+; CHECK-NEXT:    $rcx: i64 *= $rdi: i64
+; CHECK-NEXT:    $rcx: i64 ^= [$rbp + -16]: i64
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    $rax: i64 = $rdi: i64
+; CHECK-NEXT:    $rax: i64 *= [$rbp + -8]: i64
+; CHECK-NEXT:    $rax: i64 ^= $rdi: i64
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    pop($r12: i64, )
 ; CHECK-NEXT:    pop($r13: i64, )
 ; CHECK-NEXT:    pop($r14: i64, )
+; CHECK-NEXT:    pop($r15: i64, )
 ; CHECK-NEXT:    pop($rbx: i64, )
-; CHECK-NEXT:    $rsp: i64 += 160: i64
+; CHECK-NEXT:    $rsp: i64 += 32: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %g0 = getelementptr i64, ptr %p, i64 0
   %v0 = load i64, ptr %g0
@@ -182,6 +139,7 @@ define i64 @reload_sharing(ptr %p) {
   %v14 = load i64, ptr %g14
   %g15 = getelementptr i64, ptr %p, i64 15
   %v15 = load i64, ptr %g15
+  store i8 0, ptr %q
   br label %bb1
 bb1:
   %m0 = mul i64 %v0, %v1

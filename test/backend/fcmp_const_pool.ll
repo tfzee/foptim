@@ -14,7 +14,6 @@ target triple = "x86_64-unknown-linux-gnu"
 define double @hit(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK: func hit ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    lea($r8: i64, [$rdi + 16]: i64, )
 ; CHECK-NEXT:    $rax: i64 = 1e+20d
 ; CHECK-NEXT:    $mm4: f64 = $rax: i64
 ; CHECK-NEXT:    $edx: i32 = 8: i32
@@ -29,40 +28,40 @@ define double @hit(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    $rax: i64 += 8: i64
 ; CHECK-NEXT:    $xmm0: f64x2 = [$rax]: f64x2
-; CHECK-NEXT:    $xmm1: f64x2 = $xmm0: f64x2 - [$rdi]: f64x2
+; CHECK-NEXT:    $xmm2: f64x2 = $xmm0: f64x2 - [$rdi]: f64x2
 ; CHECK-NEXT:    $rax: i64 = [sp]: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rax + $rcx + 24]: f64
-; CHECK-NEXT:    $mm2: f64 = $mm0: f64 - [$r8]: f64
-; CHECK-NEXT:    $xmm0: f64x2 = $xmm1: f64x2 * [$rsi]: f64x2
-; CHECK-NEXT:    HAdd($mm3: f64, $xmm0: f64x2, )
-; CHECK-NEXT:    $mm0: f64 = [$rsi + 16]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm2: f64 * $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm3: f64
-; CHECK-NEXT:    $xmm1: f64x2 = $xmm1: f64x2 * $xmm1: f64x2
-; CHECK-NEXT:    HAdd($mm1: f64, $xmm1: f64x2, )
-; CHECK-NEXT:    $mm2: f64 = $mm2: f64 * $mm2: f64
-; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm1: f64
-; CHECK-NEXT:    $rax: i64 = -0d
-; CHECK-NEXT:    $mm1: f64 = $rax: i64
-; CHECK-NEXT:    $mm1: f64 = $mm2: f64 ^ $mm1: f64
-; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * $mm0: f64
-; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm1: f64
-; CHECK-NEXT:    $rax: i64 = [sp]: i64
-; CHECK-NEXT:    $mm1: f64 = [$rax + $rcx]: f64
+; CHECK-NEXT:    $mm1: f64 = $mm0: f64 - [$rdi + 16]: f64
+; CHECK-NEXT:    $xmm0: f64x2 = $xmm2: f64x2 * [$rsi]: f64x2
+; CHECK-NEXT:    HAdd($mm0: f64, $xmm0: f64x2, )
+; CHECK-NEXT:    $mm3: f64 = $mm1: f64 * [$rsi + 16]: f64
+; CHECK-NEXT:    $mm3: f64 = $mm3: f64 + $mm0: f64
+; CHECK-NEXT:    $xmm0: f64x2 = $xmm2: f64x2 * $xmm2: f64x2
+; CHECK-NEXT:    HAdd($mm0: f64, $xmm0: f64x2, )
 ; CHECK-NEXT:    $mm1: f64 = $mm1: f64 * $mm1: f64
-; CHECK-NEXT:    $mm1: f64 = $mm1: f64 + $mm2: f64
+; CHECK-NEXT:    $mm1: f64 = $mm1: f64 + $mm0: f64
+; CHECK-NEXT:    $rax: i64 = -0d
+; CHECK-NEXT:    $mm0: f64 = $rax: i64
+; CHECK-NEXT:    $mm0: f64 = $mm1: f64 ^ $mm0: f64
+; CHECK-NEXT:    $mm1: f64 = $mm3: f64 * $mm3: f64
+; CHECK-NEXT:    $mm1: f64 = $mm1: f64 + $mm0: f64
+; CHECK-NEXT:    $rax: i64 = [sp]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rax + $rcx]: f64
+; CHECK-NEXT:    $rax: i64 = [sp]: i64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax + $rcx]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm1: f64
 ; CHECK-NEXT:    $eax: i32 = 4: i32
-; CHECK-NEXT:    clear $mm3: f64
-; CHECK-NEXT:    cjmp_flt_ogt($mm3: f64, $mm1: f64, ) -> 6
+; CHECK-NEXT:    clear $mm1: f64
+; CHECK-NEXT:    cjmp_flt_ogt($mm1: f64, $mm0: f64, ) -> 6
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    sqrt($mm1: f64, $mm1: f64, )
-; CHECK-NEXT:    $mm2: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    cjmp_flt_ogt($mm2: f64, [const_legalizeVec_hit_2]: f64, ) -> 9
+; CHECK-NEXT:    sqrt($mm1: f64, $mm0: f64, )
+; CHECK-NEXT:    $mm0: f64 = $mm3: f64 - $mm1: f64
+; CHECK-NEXT:    cjmp_flt_ogt($mm0: f64, [const_legalizeVec_hit_2]: f64, ) -> 9
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
-; CHECK-NEXT:    $mm2: f64 = $mm0: f64 + $mm1: f64
-; CHECK-NEXT:    cjmp_flt_ogt($mm2: f64, [const_legalizeVec_hit_2]: f64, ) -> 9
+; CHECK-NEXT:    $mm0: f64 = $mm3: f64 + $mm1: f64
+; CHECK-NEXT:    cjmp_flt_ogt($mm0: f64, [const_legalizeVec_hit_2]: f64, ) -> 9
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
 ; CHECK-NEXT:    $eax: i32 = 4: i32
@@ -78,9 +77,9 @@ define double @hit(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK-NEXT:    $mm0: f64 = $mm4: f64
 ; CHECK-NEXT:    ret($mm0: f64, )
 ; CHECK-NEXT:  9:
-; CHECK-NEXT:    fMin($mm0: f64, $mm2: f64, $mm4: f64, )
-; CHECK-NEXT:    vcmp($xmm1: i64x2, $mm4: f64, $mm4: f64, 3: i8, )
-; CHECK-NEXT:    vblendv($mm2: f64, $mm0: f64, $mm2: f64, $xmm1: i64x2, )
+; CHECK-NEXT:    fMin($mm1: f64, $mm0: f64, $mm4: f64, )
+; CHECK-NEXT:    vcmp($xmm2: i64x2, $mm4: f64, $mm4: f64, 3: i8, )
+; CHECK-NEXT:    vblendv($mm2: f64, $mm1: f64, $mm0: f64, $xmm2: i64x2, )
 ; CHECK-NEXT:    $mm4: f64 = $mm2: f64
 ; CHECK-NEXT:    clear $eax: i32
 ; CHECK-NEXT:    jmp() -> 6

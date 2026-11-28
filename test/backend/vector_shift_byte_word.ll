@@ -37,8 +37,7 @@ define <16 x i8> @shl_v16i8(<16 x i8> %a) {
 ; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i8x16
 ; CHECK-NEXT:    psll($xmm0: i16x8, $xmm0: i16x8, 3: i8, )
 ; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i16x8
-; CHECK-NEXT:    $xmm1: i8x16 = [const_legalizeVec_shl_v16i8_1]: i8x16
-; CHECK-NEXT:    vAnd($xmm0: i8x16, $xmm0: i8x16, $xmm1: i8x16, )
+; CHECK-NEXT:    vAnd($xmm0: i8x16, $xmm0: i8x16, [const_legalizeVec_shl_v16i8_1]: i8x16, )
 ; CHECK-NEXT:    ret($xmm0: i8x16, )
   %r = shl <16 x i8> %a, <i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3, i8 3>
   ret <16 x i8> %r
@@ -50,8 +49,7 @@ define <32 x i8> @lshr_v32i8(<32 x i8> %a) {
 ; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i8x32
 ; CHECK-NEXT:    psrl($ymm0: i16x16, $ymm0: i16x16, 5: i8, )
 ; CHECK-NEXT:    $ymm0: i8x32 = $ymm0: i16x16
-; CHECK-NEXT:    $ymm1: i8x32 = [const_legalizeVec_lshr_v32i8_1]: i8x32
-; CHECK-NEXT:    vAnd($ymm0: i8x32, $ymm0: i8x32, $ymm1: i8x32, )
+; CHECK-NEXT:    vAnd($ymm0: i8x32, $ymm0: i8x32, [const_legalizeVec_lshr_v32i8_1]: i8x32, )
 ; CHECK-NEXT:    ret($ymm0: i8x32, )
   %r = lshr <32 x i8> %a, <i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5, i8 5>
   ret <32 x i8> %r
@@ -63,12 +61,9 @@ define <16 x i8> @ashr_v16i8(<16 x i8> %a) {
 ; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i8x16
 ; CHECK-NEXT:    psrl($xmm0: i16x8, $xmm0: i16x8, 2: i8, )
 ; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i16x8
-; CHECK-NEXT:    $xmm1: i8x16 = [const_legalizeVec_ashr_v16i8_5]: i8x16
-; CHECK-NEXT:    vAnd($xmm0: i8x16, $xmm0: i8x16, $xmm1: i8x16, )
-; CHECK-NEXT:    $xmm1: i8x16 = [const_legalizeVec_ashr_v16i8_4]: i8x16
-; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i8x16 ^ $xmm1: i8x16
-; CHECK-NEXT:    $xmm1: i8x16 = [const_legalizeVec_ashr_v16i8_3]: i8x16
-; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i8x16 - $xmm1: i8x16
+; CHECK-NEXT:    vAnd($xmm0: i8x16, $xmm0: i8x16, [const_legalizeVec_ashr_v16i8_5]: i8x16, )
+; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i8x16 ^ [const_legalizeVec_ashr_v16i8_4]: i8x16
+; CHECK-NEXT:    $xmm0: i8x16 = $xmm0: i8x16 - [const_legalizeVec_ashr_v16i8_3]: i8x16
 ; CHECK-NEXT:    ret($xmm0: i8x16, )
   %r = ashr <16 x i8> %a, <i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2>
   ret <16 x i8> %r

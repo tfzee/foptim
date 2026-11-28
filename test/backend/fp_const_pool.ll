@@ -8,10 +8,8 @@ define double @pooled_f64(double %x) {
 ; CHECK: func pooled_f64 ($2: f64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [const_legalizeVec_pooled_f64_4]: f64
-; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_pooled_f64_5]: f64
-; CHECK-NEXT:    $mm1: f64 = [const_legalizeVec_pooled_f64_4]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * $mm2: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm1: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [const_legalizeVec_pooled_f64_5]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [const_legalizeVec_pooled_f64_4]: f64
 ; CHECK-NEXT:    ret($mm0: f64, )
   %a = fadd double %x, 12345.0
   %b = fmul double %a, 914237.0

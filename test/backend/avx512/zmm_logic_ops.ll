@@ -10,37 +10,33 @@ declare i64 @llvm.smax.i64(i64, i64)
 define void @and_i32(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK: func and_i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($rcx: i64, $r8: i64, $rcx: i64, $r8: i64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    land2($rax: i64, -16: i64, )
-; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, 0: i64, ) -> 5
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -16: i64, )
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $rdx: i64
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rdx *4]: i32x16
-; CHECK-NEXT:    $zmm1: i32x16 = [$rsi + $rdx *4]: i32x16
-; CHECK-NEXT:    vAnd($zmm0: i32x16, $zmm0: i32x16, $zmm1: i32x16, )
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32x16 = $zmm0: i32x16
-; CHECK-NEXT:    $rdx: i64 += 16: i64
-; CHECK-NEXT:    cjmp_int_ne($rdx: i64, $rax: i64, ) -> 2
+; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rax *4]: i32x16
+; CHECK-NEXT:    vAnd($zmm0: i32x16, $zmm0: i32x16, [$rsi + $rax *4]: i32x16, )
+; CHECK-NEXT:    [$rdi + $rax *4]: i32x16 = $zmm0: i32x16
+; CHECK-NEXT:    $rax: i64 += 16: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rcx: i64, ) -> 7
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $ecx: i32 = [$rdi + $rdx *4]: i32
-; CHECK-NEXT:    $eax: i32 = [$rsi + $rdx *4]: i32
-; CHECK-NEXT:    land2($ecx: i32, $eax: i32, )
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32 = $ecx: i32
-; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $ecx: i32 = [$rsi + $rax *4]: i32
+; CHECK-NEXT:    land2([$rdi + $rax *4]: i32, $ecx: i32, )
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rdx: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    jmp() -> 5
@@ -67,37 +63,33 @@ exit:
 define void @or_i32(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK: func or_i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($rcx: i64, $r8: i64, $rcx: i64, $r8: i64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    land2($rax: i64, -16: i64, )
-; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, 0: i64, ) -> 5
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -16: i64, )
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $rdx: i64
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rdx *4]: i32x16
-; CHECK-NEXT:    $zmm1: i32x16 = [$rsi + $rdx *4]: i32x16
-; CHECK-NEXT:    vOr($zmm0: i32x16, $zmm0: i32x16, $zmm1: i32x16, )
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32x16 = $zmm0: i32x16
-; CHECK-NEXT:    $rdx: i64 += 16: i64
-; CHECK-NEXT:    cjmp_int_ne($rdx: i64, $rax: i64, ) -> 2
+; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rax *4]: i32x16
+; CHECK-NEXT:    vOr($zmm0: i32x16, $zmm0: i32x16, [$rsi + $rax *4]: i32x16, )
+; CHECK-NEXT:    [$rdi + $rax *4]: i32x16 = $zmm0: i32x16
+; CHECK-NEXT:    $rax: i64 += 16: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rcx: i64, ) -> 7
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $ecx: i32 = [$rdi + $rdx *4]: i32
-; CHECK-NEXT:    $eax: i32 = [$rsi + $rdx *4]: i32
-; CHECK-NEXT:    lor2($ecx: i32, $eax: i32, )
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32 = $ecx: i32
-; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $ecx: i32 = [$rsi + $rax *4]: i32
+; CHECK-NEXT:    lor2([$rdi + $rax *4]: i32, $ecx: i32, )
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rdx: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    jmp() -> 5
@@ -124,37 +116,33 @@ exit:
 define void @xor_i32(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK: func xor_i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($rcx: i64, $r8: i64, $rcx: i64, $r8: i64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    land2($rax: i64, -16: i64, )
-; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, 0: i64, ) -> 5
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -16: i64, )
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $rdx: i64
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rdx *4]: i32x16
-; CHECK-NEXT:    $zmm1: i32x16 = [$rsi + $rdx *4]: i32x16
-; CHECK-NEXT:    $zmm0: i32x16 = $zmm0: i32x16 ^ $zmm1: i32x16
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32x16 = $zmm0: i32x16
-; CHECK-NEXT:    $rdx: i64 += 16: i64
-; CHECK-NEXT:    cjmp_int_ne($rdx: i64, $rax: i64, ) -> 2
+; CHECK-NEXT:    $zmm0: i32x16 = [$rdi + $rax *4]: i32x16
+; CHECK-NEXT:    $zmm0: i32x16 = $zmm0: i32x16 ^ [$rsi + $rax *4]: i32x16
+; CHECK-NEXT:    [$rdi + $rax *4]: i32x16 = $zmm0: i32x16
+; CHECK-NEXT:    $rax: i64 += 16: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rcx: i64, ) -> 7
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $ecx: i32 = [$rdi + $rdx *4]: i32
-; CHECK-NEXT:    $eax: i32 = [$rsi + $rdx *4]: i32
-; CHECK-NEXT:    $ecx: i32 ^= $eax: i32
-; CHECK-NEXT:    [$rdi + $rdx *4]: i32 = $ecx: i32
-; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $ecx: i32 = [$rsi + $rax *4]: i32
+; CHECK-NEXT:    [$rdi + $rax *4]: i32 ^= $ecx: i32
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rdx: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    jmp() -> 5
@@ -469,37 +457,33 @@ exit:
 define void @and_i64(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK: func and_i64 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($rcx: i64, $r8: i64, $rcx: i64, $r8: i64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    land2($rax: i64, -8: i64, )
-; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, 0: i64, ) -> 5
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -8: i64, )
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $rdx: i64
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $zmm0: i64x8 = [$rdi + $rdx *8]: i64x8
-; CHECK-NEXT:    $zmm1: i64x8 = [$rsi + $rdx *8]: i64x8
-; CHECK-NEXT:    vAnd($zmm0: i64x8, $zmm0: i64x8, $zmm1: i64x8, )
-; CHECK-NEXT:    [$rdi + $rdx *8]: i64x8 = $zmm0: i64x8
-; CHECK-NEXT:    $rdx: i64 += 8: i64
-; CHECK-NEXT:    cjmp_int_ne($rdx: i64, $rax: i64, ) -> 2
+; CHECK-NEXT:    $zmm0: i64x8 = [$rdi + $rax *8]: i64x8
+; CHECK-NEXT:    vAnd($zmm0: i64x8, $zmm0: i64x8, [$rsi + $rax *8]: i64x8, )
+; CHECK-NEXT:    [$rdi + $rax *8]: i64x8 = $zmm0: i64x8
+; CHECK-NEXT:    $rax: i64 += 8: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rcx: i64, ) -> 7
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $rcx: i64 = [$rdi + $rdx *8]: i64
-; CHECK-NEXT:    $rax: i64 = [$rsi + $rdx *8]: i64
-; CHECK-NEXT:    land2($rcx: i64, $rax: i64, )
-; CHECK-NEXT:    [$rdi + $rdx *8]: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $rcx: i64 = [$rsi + $rax *8]: i64
+; CHECK-NEXT:    land2([$rdi + $rax *8]: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rdx: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    jmp() -> 5
@@ -526,37 +510,33 @@ exit:
 define void @or_i64(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK: func or_i64 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($rcx: i64, $r8: i64, $rcx: i64, $r8: i64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    land2($rax: i64, -8: i64, )
-; CHECK-NEXT:    clear $rdx: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, 0: i64, ) -> 5
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -8: i64, )
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $rdx: i64
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $zmm0: i64x8 = [$rdi + $rdx *8]: i64x8
-; CHECK-NEXT:    $zmm1: i64x8 = [$rsi + $rdx *8]: i64x8
-; CHECK-NEXT:    vOr($zmm0: i64x8, $zmm0: i64x8, $zmm1: i64x8, )
-; CHECK-NEXT:    [$rdi + $rdx *8]: i64x8 = $zmm0: i64x8
-; CHECK-NEXT:    $rdx: i64 += 8: i64
-; CHECK-NEXT:    cjmp_int_ne($rdx: i64, $rax: i64, ) -> 2
+; CHECK-NEXT:    $zmm0: i64x8 = [$rdi + $rax *8]: i64x8
+; CHECK-NEXT:    vOr($zmm0: i64x8, $zmm0: i64x8, [$rsi + $rax *8]: i64x8, )
+; CHECK-NEXT:    [$rdi + $rax *8]: i64x8 = $zmm0: i64x8
+; CHECK-NEXT:    $rax: i64 += 8: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rcx: i64, ) -> 7
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $rcx: i64 = [$rdi + $rdx *8]: i64
-; CHECK-NEXT:    $rax: i64 = [$rsi + $rdx *8]: i64
-; CHECK-NEXT:    lor2($rcx: i64, $rax: i64, )
-; CHECK-NEXT:    [$rdi + $rdx *8]: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $rcx: i64 = [$rsi + $rax *8]: i64
+; CHECK-NEXT:    lor2([$rdi + $rax *8]: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $rdx: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    jmp() -> 5

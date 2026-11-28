@@ -808,6 +808,69 @@ Type int_vec_like(Type ty) {
 }
 
 void memory_rules(RuleSet &rules) {
+  // store p, (op (load p), v) as op [p], v
+  rules.add(pm::Store, [](fir::Instr store_instr, MatchResult &res,
+                          ExtraMatchData &data) {
+    using Bin = fir::BinaryInstrSubType;
+    if (store_instr->Volatile || store_instr->Atomic ||
+        !store_instr->args[1].is_instr()) {
+      return false;
+    }
+    auto op = store_instr->args[1].as_instr();
+    if (!op->is(fir::InstrType::BinaryInstr) || op->get_n_uses() != 1 ||
+        !op.result_type()->is_int()) {
+      return false;
+    }
+    GArithSubtype arith;
+    bool commutative = true;
+    if (op->is(Bin::IntAdd)) {
+      arith = GArithSubtype::add2;
+    } else if (op->is(Bin::IntSub)) {
+      arith = GArithSubtype::sub2;
+      commutative = false;
+    } else if (op->is(Bin::And)) {
+      arith = GArithSubtype::land2;
+    } else if (op->is(Bin::Or)) {
+      arith = GArithSubtype::lor2;
+    } else if (op->is(Bin::Xor)) {
+      arith = GArithSubtype::lxor2;
+    } else {
+      return false;
+    }
+    const auto width = op.result_type()->as_int();
+    if (width != 8 && width != 16 && width != 32 && width != 64) {
+      return false;
+    }
+    const auto is_own_load = [&](fir::ValueR v) {
+      if (!v.is_instr() || v.get_n_uses() != 1 ||
+          !v.as_instr()->is(fir::InstrType::LoadInstr) ||
+          v.as_instr()->args[0] != store_instr->args[0]) {
+        return false;
+      }
+      return can_fold_load(v, store_instr);
+    };
+    u32 other = 1;
+    if (!is_own_load(op->args[0])) {
+      if (!commutative || !is_own_load(op->args[1])) {
+        return false;
+      }
+      other = 0;
+    }
+    auto value = valueToArg(op->args[other], res.result, data.alloc);
+    if (!value.isReg() &&
+        !(value.isImm() && static_cast<i64>(value.imm) ==
+                               static_cast<i64>(static_cast<i32>(value.imm)))) {
+      return false;
+    }
+    const auto ty = convert_type(op.result_type());
+    if (value.ty != ty) {
+      return false;
+    }
+    auto mem =
+        valueToArgPtrSmart(store_instr->args[0], ty, res.result, data.alloc);
+    res.result.emplace_back(arith, mem, value);
+    return true;
+  });
   rules.add(pm::MaskedLoad, [](fir::Instr load_instr, MatchResult &res,
                                ExtraMatchData &data) {
     auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
@@ -1827,9 +1890,12 @@ void arith_rules(RuleSet &rules) {
     }
 
     auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
+    // both are emitted at the add so it is the user that nothing may write
+    // memory in front of
     auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
-    auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
-    auto add_arg2 = valueToArg(addend, res.result, data.alloc);
+    auto mul_arg2 = valueToArgPosMem(mul_instr->args[1], res.result,
+                                     data.alloc, add_instr);
+    auto add_arg2 = valueToArgPosMem(addend, res.result, data.alloc, add_instr);
 
     // TODO: need a fpcontract or fastmath flag for this
     //  if (mul_arg1.isReg() && mul_arg2.isReg() && add_arg2.isReg()) {
@@ -2097,6 +2163,14 @@ bool match_rotate(Combinator combinator, fir::Instr instr, MatchResult &res,
   return true;
 }
 
+// operands of a commutative op, the one that can become a memory operand last
+std::pair<fir::ValueR, fir::ValueR> commutative_args(fir::Instr instr) {
+  if (prefer_load_second(instr)) {
+    return {instr->args[1], instr->args[0]};
+  }
+  return {instr->args[0], instr->args[1]};
+}
+
 void vec_rules(RuleSet &rules) {
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
@@ -2123,9 +2197,9 @@ void vec_rules(RuleSet &rules) {
 void base_binary_rules(RuleSet &rules) {
   rules.add(pm::FloatAdd, [](fir::Instr f_add_instr, MatchResult &res,
                              ExtraMatchData &data) {
-    auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
-    auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
-                               f_add_instr);
+    const auto [v1, v2] = commutative_args(f_add_instr);
+    auto a1 = valueToArg(v1, res.result, data.alloc);
+    auto a2 = valueToArgPosMem(v2, res.result, data.alloc, f_add_instr);
     auto res_reg = valueToArg(f_add_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vadd, res_reg, a1, a2);
@@ -2143,9 +2217,9 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::FloatMul, [](fir::Instr f_mul_instr, MatchResult &res,
                              ExtraMatchData &data) {
-    auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
-    auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
-                               f_mul_instr);
+    const auto [v1, v2] = commutative_args(f_mul_instr);
+    auto a1 = valueToArg(v1, res.result, data.alloc);
+    auto a2 = valueToArgPosMem(v2, res.result, data.alloc, f_mul_instr);
     auto res_reg = valueToArg(f_mul_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vmul, res_reg, a1, a2);
@@ -2182,19 +2256,18 @@ void base_binary_rules(RuleSet &rules) {
   rules.add(pm::IntAdd, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
+    const auto [v0, v1] = commutative_args(add_instr);
 
     auto res_ty = convert_type(add_instr.result_type());
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
-      auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
-      auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                 add_instr);
+      auto a0 = valueToArg(v0, res.result, data.alloc);
+      auto a1 = valueToArgPosMem(v1, res.result, data.alloc, add_instr);
       res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
       return true;
     }
 
-    auto a0 =
-        valueToArgPosMem(add_instr->args[0], res.result, data.alloc, add_instr);
+    auto a0 = valueToArgPosMem(v0, res.result, data.alloc, add_instr);
     if (res_reg.ty != a0.ty) {
       if (a0.isMem()) {
         a0.ty = res_reg.ty;
@@ -2207,8 +2280,7 @@ void base_binary_rules(RuleSet &rules) {
       }
     }
 
-    auto a1 =
-        valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr);
+    auto a1 = valueToArgPosMem(v1, res.result, data.alloc, add_instr);
     if (a1.isImm()) {
       // then we gucci
     } else if (res_reg.ty != a1.ty) {
@@ -2226,19 +2298,18 @@ void base_binary_rules(RuleSet &rules) {
   rules.add(pm::PtrAdd, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
+    const auto [v0, v1] = commutative_args(add_instr);
 
     auto res_ty = convert_type(add_instr.result_type());
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
-      auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
-      auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                 add_instr);
+      auto a0 = valueToArg(v0, res.result, data.alloc);
+      auto a1 = valueToArgPosMem(v1, res.result, data.alloc, add_instr);
       res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
       return true;
     }
 
-    auto a0 =
-        valueToArgPosMem(add_instr->args[0], res.result, data.alloc, add_instr);
+    auto a0 = valueToArgPosMem(v0, res.result, data.alloc, add_instr);
     if (res_reg.ty != a0.ty) {
       if (a0.isMem()) {
         a0.ty = res_reg.ty;
@@ -2251,8 +2322,7 @@ void base_binary_rules(RuleSet &rules) {
       }
     }
 
-    auto a1 =
-        valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr);
+    auto a1 = valueToArgPosMem(v1, res.result, data.alloc, add_instr);
     if (a1.isImm()) {
       // then we gucci
     } else if (res_reg.ty != a1.ty) {
@@ -2275,7 +2345,8 @@ void base_binary_rules(RuleSet &rules) {
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
       auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
-      auto a1 = valueToArg(sub_instr->args[1], res.result, data.alloc);
+      auto a1 = valueToArgPosMem(sub_instr->args[1], res.result, data.alloc,
+                                 sub_instr);
       res.result.emplace_back(GVecSubtype::vsub, res_reg, a0, a1);
       return true;
     }
@@ -2289,8 +2360,9 @@ void base_binary_rules(RuleSet &rules) {
       a0 = helper_reg1;
     }
 
-    auto a1 = valueToArg(sub_instr->args[1], res.result, data.alloc);
-    if (a1.isImm()) {
+    auto a1 = valueToArgPosMem(sub_instr->args[1], res.result, data.alloc,
+                               sub_instr);
+    if (a1.isImm() || a1.isMem()) {
       // then we gucci
     } else if (res_reg.ty != a1.ty) {
       auto res_reg = data.alloc.get_new_register(res_ty);
@@ -2477,19 +2549,18 @@ void base_binary_rules(RuleSet &rules) {
       return true;
     }
 
+    const auto [v0, v1] = commutative_args(add_instr);
     if (res_reg.is_vec_reg()) {
       res.result.emplace_back(
-          GVecSubtype::vmul, res_reg,
-          valueToArg(add_instr->args[0], res.result, data.alloc),
-          valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                           add_instr));
+          GVecSubtype::vmul, res_reg, valueToArg(v0, res.result, data.alloc),
+          valueToArgPosMem(v1, res.result, data.alloc, add_instr));
     } else {
-      res.result.emplace_back(GBaseSubtype::mov, res_reg,
-                              valueToArgPosMem(add_instr->args[0], res.result,
-                                               data.alloc, add_instr));
-      res.result.emplace_back(GArithSubtype::mul2, res_reg,
-                              valueToArgPosMem(add_instr->args[1], res.result,
-                                               data.alloc, add_instr));
+      res.result.emplace_back(
+          GBaseSubtype::mov, res_reg,
+          valueToArgPosMem(v0, res.result, data.alloc, add_instr));
+      res.result.emplace_back(
+          GArithSubtype::mul2, res_reg,
+          valueToArgPosMem(v1, res.result, data.alloc, add_instr));
     }
     return true;
   });
@@ -2501,18 +2572,17 @@ void base_binary_rules(RuleSet &rules) {
       pm::Or, [](fir::Instr or_instr, MatchResult &res, ExtraMatchData &data) {
         auto res_reg = valueToArg(or_instr.result(), res.result, data.alloc);
 
+        const auto [v0, v1] = commutative_args(or_instr);
         if (res_reg.is_vec_reg()) {
           res.result.emplace_back(
-              GVecSubtype::vOr, res_reg,
-              valueToArg(or_instr->args[0], res.result, data.alloc),
-              valueToArg(or_instr->args[1], res.result, data.alloc));
+              GVecSubtype::vOr, res_reg, valueToArg(v0, res.result, data.alloc),
+              valueToArgPosMem(v1, res.result, data.alloc, or_instr));
         } else {
-          res.result.emplace_back(
-              GBaseSubtype::mov, res_reg,
-              valueToArg(or_instr->args[0], res.result, data.alloc));
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                  valueToArg(v0, res.result, data.alloc));
           res.result.emplace_back(
               GArithSubtype::lor2, res_reg,
-              valueToArg(or_instr->args[1], res.result, data.alloc));
+              valueToArgPosMem(v1, res.result, data.alloc, or_instr));
         }
         return true;
       });
@@ -2520,19 +2590,17 @@ void base_binary_rules(RuleSet &rules) {
                         ExtraMatchData &data) {
     auto res_reg = valueToArg(and_instr.result(), res.result, data.alloc);
 
+    const auto [v0, v1] = commutative_args(and_instr);
     if (res_reg.is_vec_reg()) {
       res.result.emplace_back(
-          GVecSubtype::vAnd, res_reg,
-          valueToArg(and_instr->args[0], res.result, data.alloc),
-          valueToArg(and_instr->args[1], res.result, data.alloc));
+          GVecSubtype::vAnd, res_reg, valueToArg(v0, res.result, data.alloc),
+          valueToArgPosMem(v1, res.result, data.alloc, and_instr));
     } else {
-      res.result.emplace_back(
-          GBaseSubtype::mov, res_reg,
-          valueToArg(and_instr->args[0], res.result, data.alloc));
+      res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                              valueToArg(v0, res.result, data.alloc));
       res.result.emplace_back(
           GArithSubtype::land2, res_reg,
-
-          valueToArg(and_instr->args[1], res.result, data.alloc));
+          valueToArgPosMem(v1, res.result, data.alloc, and_instr));
     }
     return true;
   });
@@ -2540,18 +2608,17 @@ void base_binary_rules(RuleSet &rules) {
                         ExtraMatchData &data) {
     auto res_reg = valueToArg(xor_instr.result(), res.result, data.alloc);
 
+    const auto [v0, v1] = commutative_args(xor_instr);
     if (res_reg.is_vec_reg()) {
       res.result.emplace_back(
-          GVecSubtype::vXor, res_reg,
-          valueToArg(xor_instr->args[0], res.result, data.alloc),
-          valueToArg(xor_instr->args[1], res.result, data.alloc));
+          GVecSubtype::vXor, res_reg, valueToArg(v0, res.result, data.alloc),
+          valueToArgPosMem(v1, res.result, data.alloc, xor_instr));
     } else {
-      res.result.emplace_back(
-          GBaseSubtype::mov, res_reg,
-          valueToArg(xor_instr->args[0], res.result, data.alloc));
+      res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                              valueToArg(v0, res.result, data.alloc));
       res.result.emplace_back(
           GArithSubtype::lxor2, res_reg,
-          valueToArg(xor_instr->args[1], res.result, data.alloc));
+          valueToArgPosMem(v1, res.result, data.alloc, xor_instr));
     }
     return true;
   });

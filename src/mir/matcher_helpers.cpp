@@ -91,6 +91,27 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
 namespace {
 MArgument setup_callargPosMem(fir::ValueR arg, MatchResult &res,
                               ExtraMatchData &data, fir::Instr user) {
+  // a pointer plus constant is computed right in front of the call, so the sum
+  // does not stay in a register from where it is defined and the lea can write
+  // the argument register in place
+  if (arg.is_instr()) {
+    auto add = arg.as_instr();
+    if (add->is(fir::BinaryInstrSubType::PtrAdd) &&
+        !add->args[0].is_constant() && add->args[1].is_constant() &&
+        add->args[1].as_constant()->is_int()) {
+      const i64 off = static_cast<i64>(add->args[1].as_constant()->as_int());
+      if (off == static_cast<i64>(static_cast<i32>(off))) {
+        auto base = valueToArg(add->args[0], res.result, data.alloc);
+        if (base.isReg() && base.reg.size() == 8) {
+          auto tmp = MArgument(data.alloc.get_new_register(Type::Int64),
+                               Type::Int64);
+          res.result.emplace_back(X86Subtype::lea, tmp,
+                                  MArgument::MemOB(off, base.reg, Type::Int64));
+          return tmp;
+        }
+      }
+    }
+  }
   return valueToArgPosMem(arg, res.result, data.alloc, user);
 }
 MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
@@ -361,28 +382,40 @@ bool no_memory_write_between(fir::Instr load, fir::Instr user) {
 }
 }  // namespace
 
+bool can_fold_load(fir::ValueR val, fir::Instr user) {
+  if (!val.is_instr()) {
+    return false;
+  }
+  auto load = val.as_instr();
+  // TODO: verify if this is ok for atomic/volatile
+  if (!load->is(fir::InstrType::LoadInstr) || load->Atomic || load->Volatile ||
+      load->args[0].get_type()->is_vec()) {
+    return false;
+  }
+  return !(load.result_type()->is_vec() &&
+           get_size(convert_type(load.result_type())) < 16) &&
+         user->get_parent() == load->get_parent() &&
+         no_memory_write_between(load, user);
+}
+
+bool prefer_load_second(fir::Instr instr) {
+  const auto a = instr->args[0];
+  const auto b = instr->args[1];
+  return !b.is_constant() && can_fold_load(a, instr) &&
+         !can_fold_load(b, instr);
+}
+
 MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
                            DumbRegAlloc &alloc, fir::Instr user) {
   if (val.is_constant()) {
     return valueToArgConst(val, res, alloc);
   }
-  if (val.is_instr()) {
+  if (can_fold_load(val, user)) {
     auto load = val.as_instr();
-    // TODO: verify if this is ok for atomic/volatile
-    if (load->is(fir::InstrType::LoadInstr) &&
-        !load->args[0].get_type()->is_vec() && !load->Atomic &&
-        !(load.result_type()->is_vec() &&
-          get_size(convert_type(load.result_type())) < 16)) {
-      if (user->get_parent() == load->get_parent() &&
-          no_memory_write_between(load, user)) {
-        auto ptr = valueToArgPtrSmart(
-            load->args[0], convert_type(load.result_type()), res, alloc);
-        return ptr;
-      }
-    }
+    return valueToArgPtrSmart(load->args[0], convert_type(load.result_type()),
+                              res, alloc);
   }
-  Type type_id = convert_type(val.get_type());
-  return {alloc.get_register(val), type_id};
+  return valueToArg(val, res, alloc);
 }
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
@@ -612,8 +645,17 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         return MArgument::MemBI(ensure_size(arg1.reg, Type::Int64),
                                 ensure_size(arg2.reg, Type::Int64), type_id);
       }
-      if (arg1.isReg() && arg2.isReg()) {
-        return MArgument::MemBI(ensure_size(arg1.reg, Type::Int64),
+      // a constant offset that fits the displacement
+      const auto fits_disp = [](const MArgument &a) {
+        return a.isImm() && static_cast<i64>(a.imm) ==
+                                static_cast<i64>(static_cast<i32>(a.imm));
+      };
+      if (arg1.isReg() && fits_disp(arg2)) {
+        return MArgument::MemOB(static_cast<i32>(arg2.imm),
+                                ensure_size(arg1.reg, Type::Int64), type_id);
+      }
+      if (arg2.isReg() && fits_disp(arg1)) {
+        return MArgument::MemOB(static_cast<i32>(arg1.imm),
                                 ensure_size(arg2.reg, Type::Int64), type_id);
       }
     }

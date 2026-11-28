@@ -46,8 +46,7 @@ define i32 @sum(ptr noundef %0, i32 noundef %1) #0 {
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 7
 ; CHECK-NEXT:  7:
-; CHECK-NEXT:    $ymm1: i32x8 = [$rdi + $rax *4]: i32x8
-; CHECK-NEXT:    $ymm1: i32x8 = $ymm1: i32x8 * $ymm2: i32x8
+; CHECK-NEXT:    $ymm1: i32x8 = $ymm2: i32x8 * [$rdi + $rax *4]: i32x8
 ; CHECK-NEXT:    $ymm0: i32x8 = $ymm1: i32x8 + $ymm0: i32x8
 ; CHECK-NEXT:    $rax: i64 += 8: i64
 ; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 7

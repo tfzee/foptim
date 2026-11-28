@@ -162,20 +162,19 @@ define void @uadd_v8i32(ptr noalias %d, ptr noalias %a, ptr noalias %b) {
 define void @sadd_v8i32(ptr noalias %d, ptr noalias %a, ptr noalias %b) {
 ; CHECK: func sadd_v8i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $ymm1: i32x8 = [$rsi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = [$rdx]: i32x8
-; CHECK-NEXT:    $ymm3: i32x8 = $ymm1: i32x8 + [$rdx]: i32x8
-; CHECK-NEXT:    $ymm2: i32x8 = $ymm1: i32x8 ^ $ymm3: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 ^ $ymm3: i32x8
-; CHECK-NEXT:    vAnd($ymm0: i32x8, $ymm2: i32x8, $ymm0: i32x8, )
-; CHECK-NEXT:    clear $ymm2: i32x8
-; CHECK-NEXT:    vpcmpgt($ymm4: i32x8, $ymm2: i32x8, $ymm0: i32x8, )
-; CHECK-NEXT:    clear $ymm0: i32x8
-; CHECK-NEXT:    vpcmpgt($ymm0: i32x8, $ymm0: i32x8, $ymm1: i32x8, )
-; CHECK-NEXT:    $ymm2: i32x8 = [const_legalizeVec_sadd_v8i32_2]: i32x8
-; CHECK-NEXT:    $ymm1: i32x8 = [const_legalizeVec_sadd_v8i32_3]: i32x8
-; CHECK-NEXT:    vblendv($ymm0: i32x8, $ymm1: i32x8, $ymm2: i32x8, $ymm0: i32x8, )
-; CHECK-NEXT:    vblendv($ymm0: i32x8, $ymm3: i32x8, $ymm0: i32x8, $ymm4: i32x8, )
+; CHECK-NEXT:    $ymm0: i32x8 = [$rsi]: i32x8
+; CHECK-NEXT:    $ymm4: i32x8 = $ymm0: i32x8 + [$rdx]: i32x8
+; CHECK-NEXT:    $ymm1: i32x8 = $ymm4: i32x8 ^ [$rsi]: i32x8
+; CHECK-NEXT:    $ymm2: i32x8 = $ymm4: i32x8 ^ [$rdx]: i32x8
+; CHECK-NEXT:    vAnd($ymm2: i32x8, $ymm1: i32x8, $ymm2: i32x8, )
+; CHECK-NEXT:    clear $ymm1: i32x8
+; CHECK-NEXT:    vpcmpgt($ymm3: i32x8, $ymm1: i32x8, $ymm2: i32x8, )
+; CHECK-NEXT:    clear $ymm1: i32x8
+; CHECK-NEXT:    vpcmpgt($ymm2: i32x8, $ymm1: i32x8, $ymm0: i32x8, )
+; CHECK-NEXT:    $ymm1: i32x8 = [const_legalizeVec_sadd_v8i32_2]: i32x8
+; CHECK-NEXT:    $ymm0: i32x8 = [const_legalizeVec_sadd_v8i32_3]: i32x8
+; CHECK-NEXT:    vblendv($ymm0: i32x8, $ymm0: i32x8, $ymm1: i32x8, $ymm2: i32x8, )
+; CHECK-NEXT:    vblendv($ymm0: i32x8, $ymm4: i32x8, $ymm0: i32x8, $ymm3: i32x8, )
 ; CHECK-NEXT:    [$rdi]: i32x8 = $ymm0: i32x8
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()

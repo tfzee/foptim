@@ -28,6 +28,11 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 // converts value to an operand argument but it also allows memory references
 // like [reg+reg]
 // (a load is only folded if nothing between it and `user` writes memory)
+// true if valueToArgPosMem would turn val into a memory operand of user
+bool can_fold_load(fir::ValueR val, fir::Instr user);
+// commutative op whose first operand is a foldable load and the second is not,
+// the operands should be swapped so the load becomes the memory operand
+bool prefer_load_second(fir::Instr instr);
 MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
                            DumbRegAlloc &alloc, fir::Instr user);
 MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,

@@ -21,8 +21,8 @@ define i8 @sum_add_i8(ptr %a, i32 %n, i8 %v) {
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($al: i8, )
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    mov_zx($ecx: i32, [$rdi + $rax]: i8, )
-; CHECK-NEXT:    $cl: i8 += $r9l: i8
+; CHECK-NEXT:    $cl: i8 = $r9l: i8
+; CHECK-NEXT:    $cl: i8 += [$rdi + $rax]: i8
 ; CHECK-NEXT:    $cl: i8 += $dl: i8
 ; CHECK-NEXT:    $rax: i64 += 1: i64
 ; CHECK-NEXT:    $dl: i8 = $cl: i8
@@ -33,19 +33,19 @@ define i8 @sum_add_i8(ptr %a, i32 %n, i8 %v) {
 ; CHECK-NEXT:  5:
 ; CHECK-NEXT:    $rsi: i64 = $r10: i64
 ; CHECK-NEXT:    land2($rsi: i64, -32: i64, )
-; CHECK-NEXT:    clear $ymm0: i8x32
-; CHECK-NEXT:    $mm1: f32 = $r9d: i32
-; CHECK-NEXT:    vbroadcast($ymm2: i8x32, $mm1: f32, )
+; CHECK-NEXT:    clear $ymm1: i8x32
+; CHECK-NEXT:    $mm0: f32 = $r9d: i32
+; CHECK-NEXT:    vbroadcast($ymm2: i8x32, $mm0: f32, )
 ; CHECK-NEXT:    clear $dl: i8
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    cjmp_int_eq($rsi: i64, 0: i64, ) -> 3
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
+; CHECK-NEXT:    $ymm0: i8x32 = $ymm1: i8x32
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 7
 ; CHECK-NEXT:  7:
-; CHECK-NEXT:    $ymm1: i8x32 = [$rdi + $rax]: i8x32
-; CHECK-NEXT:    $ymm1: i8x32 = $ymm1: i8x32 + $ymm2: i8x32
+; CHECK-NEXT:    $ymm1: i8x32 = $ymm2: i8x32 + [$rdi + $rax]: i8x32
 ; CHECK-NEXT:    $ymm0: i8x32 = $ymm1: i8x32 + $ymm0: i8x32
 ; CHECK-NEXT:    $rax: i64 += 32: i64
 ; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rsi: i64, ) -> 7
@@ -89,23 +89,23 @@ end:
 define i16 @sum_i16_const_trip(ptr %a) {
 ; CHECK: func sum_i16_const_trip ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    clear $ymm1: i16x16
+; CHECK-NEXT:    clear $ymm0: i16x16
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    $rdx: i64 = $rax: i64
 ; CHECK-NEXT:    lea($rax: i64, [$rax*2 + 0]: i64, )
-; CHECK-NEXT:    $ymm0: i16x16 = [$rdi + $rcx *2]: i16x16
-; CHECK-NEXT:    $ymm1: i16x16 = $ymm0: i16x16 + $ymm1: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = [$rdi + $rax + 32]: i16x16
-; CHECK-NEXT:    $ymm1: i16x16 = $ymm0: i16x16 + $ymm1: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = [$rdi + $rax + 64]: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 + $ymm1: i16x16
-; CHECK-NEXT:    $ymm1: i16x16 = [$rdi + $rax + 96]: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = $ymm1: i16x16 + $ymm0: i16x16
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 + [$rdi + $rdx *2]: i16x16
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    $rcx: i64 += 32: i64
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 + [$rdi + $rcx]: i16x16
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    $rcx: i64 += 64: i64
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 + [$rdi + $rcx]: i16x16
+; CHECK-NEXT:    $rax: i64 += 96: i64
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 + [$rdi + $rax]: i16x16
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
 ; CHECK-NEXT:    $rax: i64 += 64: i64
-; CHECK-NEXT:    $ymm1: i16x16 = $ymm0: i16x16
 ; CHECK-NEXT:    cjmp_int_ne($rax: i64, 8000: i64, ) -> 1
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:

@@ -4,8 +4,7 @@
 ; vectorized reduction loop: 8 x i32 accumulator, halving horizontal add of an i32x8
 define i32 @f(ptr %a, i64 %n) {
 ; CHECK-LABEL: func f
-; CHECK: {{\$ymm[0-9]+}}: i32x8 = [{{.*}}]: i32x8
-; CHECK: i32x8 + {{.*}}: i32x8
+; CHECK: {{\$ymm[0-9]+}}: i32x8 = {{\$ymm[0-9]+}}: i32x8 + [{{.*}}]: i32x8
 ; CHECK: vextract128({{.*}}, 1: i8,
 ; CHECK: i32x4 + {{.*}}: i32x4
 ; CHECK: vpshuf({{.*}}, 238: i8,

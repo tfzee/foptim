@@ -16,9 +16,8 @@ define i64 @callee_s(i32 %p1, ptr byval(%struct.S) align 8 %s, i32 %p2) {
 ; CHECK: func callee_s ($2: i32, $3: i64, $4: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    lea($rcx: i64, [$rbp + 16]: i64, )
-; CHECK-NEXT:    lea($rdx: i64, [$rcx + 16]: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rcx]: i64
-; CHECK-NEXT:    $rax: i64 += [$rdx]: i64
+; CHECK-NEXT:    $rax: i64 += [$rcx + 16]: i64
 ; CHECK-NEXT:    $rdx: i64 = 7: i64
 ; CHECK-NEXT:    [$rcx]: i64 = $rdx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
@@ -85,11 +84,10 @@ define i64 @callee_a(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e, i64 %f, i64 %g, ptr
 ; CHECK: func callee_a ($2: i64, $3: i64, $4: i64, $5: i64, $6: i64, $7: i64, $8: i64, $9: i64, $10: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $r11: i64 = [$rbp + 56]: i64
-; CHECK-NEXT:    lea($rax: i64, [$rbp + 32]: i64, )
-; CHECK-NEXT:    $r10: i64 = [$rbp + 16]: i64
-; CHECK-NEXT:    $rax: i64 += 16: i64
-; CHECK-NEXT:    $rax: i64 = [$rax]: i64
-; CHECK-NEXT:    $rax: i64 += $r11: i64
+; CHECK-NEXT:    lea($r10: i64, [$rbp + 32]: i64, )
+; CHECK-NEXT:    $rax: i64 = [$rbp + 16]: i64
+; CHECK-NEXT:    $r11: i64 += [$r10 + 16]: i64
+; CHECK-NEXT:    $rax: i64 = $r11: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %pc = getelementptr inbounds %struct.A, ptr %s, i32 0, i32 2
   %x = load i64, ptr %pc

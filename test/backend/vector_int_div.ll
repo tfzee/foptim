@@ -94,41 +94,35 @@ define void @sdiv_i32(ptr %p, ptr %q, ptr %o) {
 define void @udiv_i32(ptr %p, ptr %q, ptr %o) {
 ; CHECK: func udiv_i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm4: i32x8 = [$rsi]: i32x8
-; CHECK-NEXT:    $xmm1: i32x4 = $ymm0: i32x8
-; CHECK-NEXT:    $xmm3: i32x4 = $ymm4: i32x8
-; CHECK-NEXT:    $xmm2: i32x4 = [const_legalizeVec_udiv_i32_23]: i32x4
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 ^ $xmm2: i32x4
-; CHECK-NEXT:    SI2FL($ymm1: f64x4, $xmm1: i32x4, )
-; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 + [const_legalizeVec_udiv_i32_22]: f64x4
-; CHECK-NEXT:    $xmm2: i32x4 = [const_legalizeVec_udiv_i32_21]: i32x4
-; CHECK-NEXT:    $xmm2: i32x4 = $xmm3: i32x4 ^ $xmm2: i32x4
-; CHECK-NEXT:    SI2FL($ymm2: f64x4, $xmm2: i32x4, )
-; CHECK-NEXT:    $ymm2: f64x4 = $ymm2: f64x4 + [const_legalizeVec_udiv_i32_20]: f64x4
-; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 / $ymm2: f64x4
-; CHECK-NEXT:    vround($ymm1: f64x4, $ymm1: f64x4, $ymm1: f64x4, 3: i8, )
-; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 - [const_legalizeVec_udiv_i32_19]: f64x4
-; CHECK-NEXT:    FL2SI($xmm1: i32x4, $ymm1: f64x4, )
-; CHECK-NEXT:    $xmm2: i32x4 = [const_legalizeVec_udiv_i32_18]: i32x4
-; CHECK-NEXT:    $xmm3: i32x4 = $xmm1: i32x4 ^ $xmm2: i32x4
-; CHECK-NEXT:    vextract128($xmm2: i32x4, $ymm0: i32x8, 1: i8, )
-; CHECK-NEXT:    vextract128($xmm1: i32x4, $ymm4: i32x8, 1: i8, )
-; CHECK-NEXT:    $xmm0: i32x4 = [const_legalizeVec_udiv_i32_17]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm2: i32x4 ^ $xmm0: i32x4
+; CHECK-NEXT:    $ymm3: i32x8 = [$rdi]: i32x8
+; CHECK-NEXT:    $ymm2: i32x8 = [$rsi]: i32x8
+; CHECK-NEXT:    $xmm0: i32x4 = $ymm3: i32x8
+; CHECK-NEXT:    $xmm1: i32x4 = $ymm2: i32x8
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 ^ [const_legalizeVec_udiv_i32_23]: i32x4
 ; CHECK-NEXT:    SI2FL($ymm0: f64x4, $xmm0: i32x4, )
-; CHECK-NEXT:    $ymm0: f64x4 = $ymm0: f64x4 + [const_legalizeVec_udiv_i32_16]: f64x4
-; CHECK-NEXT:    $xmm2: i32x4 = [const_legalizeVec_udiv_i32_15]: i32x4
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 ^ $xmm2: i32x4
+; CHECK-NEXT:    $ymm0: f64x4 = $ymm0: f64x4 + [const_legalizeVec_udiv_i32_22]: f64x4
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 ^ [const_legalizeVec_udiv_i32_21]: i32x4
 ; CHECK-NEXT:    SI2FL($ymm1: f64x4, $xmm1: i32x4, )
-; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 + [const_legalizeVec_udiv_i32_14]: f64x4
+; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 + [const_legalizeVec_udiv_i32_20]: f64x4
 ; CHECK-NEXT:    $ymm0: f64x4 = $ymm0: f64x4 / $ymm1: f64x4
 ; CHECK-NEXT:    vround($ymm0: f64x4, $ymm0: f64x4, $ymm0: f64x4, 3: i8, )
-; CHECK-NEXT:    $ymm0: f64x4 = $ymm0: f64x4 - [const_legalizeVec_udiv_i32_13]: f64x4
-; CHECK-NEXT:    FL2SI($xmm1: i32x4, $ymm0: f64x4, )
-; CHECK-NEXT:    $xmm0: i32x4 = [const_legalizeVec_udiv_i32_12]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 ^ $xmm0: i32x4
-; CHECK-NEXT:    vinsert128($ymm0: i32x8, $ymm3: i32x8, $xmm0: i32x4, 1: i8, )
+; CHECK-NEXT:    $ymm0: f64x4 = $ymm0: f64x4 - [const_legalizeVec_udiv_i32_19]: f64x4
+; CHECK-NEXT:    FL2SI($xmm0: i32x4, $ymm0: f64x4, )
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 ^ [const_legalizeVec_udiv_i32_18]: i32x4
+; CHECK-NEXT:    vextract128($xmm1: i32x4, $ymm3: i32x8, 1: i8, )
+; CHECK-NEXT:    vextract128($xmm2: i32x4, $ymm2: i32x8, 1: i8, )
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 ^ [const_legalizeVec_udiv_i32_17]: i32x4
+; CHECK-NEXT:    SI2FL($ymm1: f64x4, $xmm1: i32x4, )
+; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 + [const_legalizeVec_udiv_i32_16]: f64x4
+; CHECK-NEXT:    $xmm2: i32x4 = $xmm2: i32x4 ^ [const_legalizeVec_udiv_i32_15]: i32x4
+; CHECK-NEXT:    SI2FL($ymm2: f64x4, $xmm2: i32x4, )
+; CHECK-NEXT:    $ymm2: f64x4 = $ymm2: f64x4 + [const_legalizeVec_udiv_i32_14]: f64x4
+; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 / $ymm2: f64x4
+; CHECK-NEXT:    vround($ymm1: f64x4, $ymm1: f64x4, $ymm1: f64x4, 3: i8, )
+; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 - [const_legalizeVec_udiv_i32_13]: f64x4
+; CHECK-NEXT:    FL2SI($xmm1: i32x4, $ymm1: f64x4, )
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 ^ [const_legalizeVec_udiv_i32_12]: i32x4
+; CHECK-NEXT:    vinsert128($ymm0: i32x8, $ymm0: i32x8, $xmm1: i32x4, 1: i8, )
 ; CHECK-NEXT:    [$rdx]: i32x8 = $ymm0: i32x8
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()

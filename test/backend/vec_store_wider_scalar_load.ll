@@ -7,9 +7,8 @@
 define i64 @f(ptr %x, ptr %y) {
 ; CHECK: func f ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm1: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = [$rsi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 - $xmm0: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 - [$rsi]: i32x4
 ; CHECK-NEXT:    $xmm0: i64x2 = $xmm0: i32x4
 ; CHECK-NEXT:    $rax: i64 = $xmm0: i64x2
 ; CHECK-NEXT:    ret($rax: i64, )
