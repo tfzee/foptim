@@ -36,7 +36,13 @@ namespace foptim::codegen {
 // after the destination. Plain avx512 forms (zmm without masking) get k0, so do
 // the instructions that only exist as evex (vpabsq) on smaller registers.
 inline void add_zmm_mask_operand(ZydisEncoderRequest *req) {
-  bool has_zmm = req->mnemonic == ZYDIS_MNEMONIC_VPABSQ;
+  bool has_zmm = req->mnemonic == ZYDIS_MNEMONIC_VPABSQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPMULLQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPSRAVQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPMINSQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPMAXSQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPMINUQ ||
+                 req->mnemonic == ZYDIS_MNEMONIC_VPMAXUQ;
   for (u8 i = 0; i < req->operand_count; i++) {
     const auto &op = req->operands[i];
     if (op.type == ZYDIS_OPERAND_TYPE_REGISTER &&

@@ -680,9 +680,6 @@ MArgument move_shift_count(fir::Instr shift_instr, MArgument b,
   const auto shift_reg_arg = MArgument(VReg::CL(), Type::Int8);
   if (b.ty == Type::Int8) {
     res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
-  } else if (b.isReg()) {
-    res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg,
-                            MArgument(b.reg.retype(Type::Int8), Type::Int8));
   } else {
     res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
   }
@@ -2408,6 +2405,13 @@ void base_binary_rules(RuleSet &rules) {
           res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
           return true;
         case 64: {
+          // vpsravq is evex only, the xmm and ymm forms also need avx512vl
+          if (data.config.target.features.avx512f &&
+              (get_size(res_reg.ty) == 64 ||
+               data.config.target.features.avx512vl)) {
+            res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
+            return true;
+          }
           // no 64 bit lane arithmetic shift before avx512: for negative
           // lanes shift the complement instead, ~((~x) >>l n)
           auto ty = res_reg.ty;
@@ -3486,6 +3490,13 @@ void base_rules(RuleSet &rules) {
         res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
                                 MArgument(static_cast<u8>(1)));
         break;
+      case Type::Int64x8:
+      case Type::Float64x8:
+      case Type::Int32x16:
+      case Type::Float32x16:
+        res.result.emplace_back(X86Subtype::vextractf64x4, res_reg, a1,
+                                MArgument(static_cast<u8>(1)));
+        break;
       case Type::Int8x16:
       case Type::Int16x8:
       case Type::Int8x8:
@@ -3534,6 +3545,15 @@ void base_rules(RuleSet &rules) {
       case Type::Int16x4:
       case Type::Int32x2:
         res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+        break;
+      case Type::Int64x8:
+      case Type::Float64x8:
+      case Type::Int32x16:
+      case Type::Float32x16:
+        // the low half is the ymm of the same register
+        res.result.emplace_back(
+            GBaseSubtype::mov, res_reg,
+            MArgument{a1.reg.retype(res_reg.ty), res_reg.ty});
         break;
       case Type::Float32x2:
         fmt::println("{:cd}", extract_instr->args[0].get_type());
@@ -3761,6 +3781,8 @@ void base_rules(RuleSet &rules) {
         break;
       case Type::Int32x8:
       case Type::Float32x8:
+      case Type::Int32x16:
+      case Type::Float32x16:
         // vpshufd only shuffles inside each 128 bit lane
         can_vbroadcast = true;
         res_reg_smoll.ty = Type::Float32;
