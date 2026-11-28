@@ -1,10 +1,10 @@
 ; RUN: %foffcc %s --print-mir --no-reorder-funcs | FileCheck %s
 ; Handwritten CHECKs: only the order at the exit of checkTreePage (from sqlite)
 ; is pinned. The function is shrink wrapped and has static allocas, so the pops
-; go in front of the add rsp of the allocas. The return value lives in rbx and
-; has to be moved to eax before rbx is popped.
+; go in front of the add rsp of the allocas. The return value lives in a saved register (a saved register) and
+; has to be moved to eax before its register is popped.
 ; CHECK-LABEL: func checkTreePage
-; CHECK: $eax: i32 = $ebx: i32
+; CHECK: $eax: i32 = ${{(r1[0-5]d|ebx)}}: i32
 ; CHECK-NEXT: pop($r12: i64, )
 ; CHECK-NEXT: pop($r13: i64, )
 ; CHECK-NEXT: pop($r14: i64, )

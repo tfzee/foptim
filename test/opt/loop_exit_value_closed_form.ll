@@ -121,3 +121,128 @@ loop:
 exit:
   ret i8 %i.n
 }
+
+; A symbolic != exit stepping by one counts like < when the step add must not
+; wrap (nsw: signed, nuw: unsigned), the loop folds to its closed form.
+define i32 @ne_sym_nsw(i32 %n) {
+; CHECK-LABEL: func ne_sym_nsw<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: i32 = INTRIN:SMax(%0, 1:i32){} NUses:1
+; CHECK-NEXT:    %2: i32 = IntMul(%1, 3:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = Return(%2){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %i = phi i32 [ 0, %entry ], [ %i.n, %loop ]
+  %acc.n = add i32 %acc, 3
+  %i.n = add nsw i32 %i, 1
+  %c = icmp ne i32 %i.n, %n
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+define i32 @ne_sym_nuw(i32 %n) {
+; CHECK-LABEL: func ne_sym_nuw<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: i32 = INTRIN:UMax(%0, 1:i32){} NUses:1
+; CHECK-NEXT:    %2: i32 = IntMul(%1, 3:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = Return(%2){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %i = phi i32 [ 0, %entry ], [ %i.n, %loop ]
+  %acc.n = add i32 %acc, 3
+  %i.n = add nuw i32 %i, 1
+  %c = icmp ne i32 %i.n, %n
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+define i32 @ne_sym_down_nsw(i32 %n) {
+; CHECK-LABEL: func ne_sym_down_nsw<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: i32 = IntAdd(%0, -1:i32){} NUses:1
+; CHECK-NEXT:    %2: i32 = INTRIN:SMax(%1, 0:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = IntMul(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %4: i32 = IntAdd(%3, 3:i32){} NUses:1
+; CHECK-NEXT:    %5: i32 = Return(%4){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %i = phi i32 [ %n, %entry ], [ %i.n, %loop ]
+  %acc.n = add i32 %acc, 3
+  %i.n = add nsw i32 %i, -1
+  %c = icmp ne i32 %i.n, 0
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+; Without a no wrap flag i + 1 != n wraps around for n <= 0 and runs, so there is
+; no closed form and the loop stays.
+define i32 @ne_sym_wrap(i32 %n) {
+; CHECK-LABEL: func ne_sym_wrap<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
+; CHECK-NEXT:  bb1(%2{}: i32, %3{}: i32):
+; CHECK-NEXT:    %4: i32 = IntAdd(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %5: i32 = IntAdd(%3, 1:i32){} NUses:2
+; CHECK-NEXT:    %6: i1 = IntNE(%5, %0){} NUses:1
+; CHECK-NEXT:    %7: () = CondBranch<bb1(%4, %5), bb2()>(%6){} NUses:0
+; CHECK-NEXT:  bb2():
+; CHECK-NEXT:    %8: i32 = IntAdd(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %i = phi i32 [ 0, %entry ], [ %i.n, %loop ]
+  %acc.n = add i32 %acc, 3
+  %i.n = add i32 %i, 1
+  %c = icmp ne i32 %i.n, %n
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+; nuw on a step of -1 only says the counter is 0, it does not bound the walk
+; down, so this stays a loop too.
+define i32 @ne_sym_down_nuw(i32 %n) {
+; CHECK-LABEL: func ne_sym_down_nuw<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: () = Branch<bb1(0:i32, %0)>(){} NUses:0
+; CHECK-NEXT:  bb1(%2{}: i32, %3{}: i32):
+; CHECK-NEXT:    %4: i32 = IntAdd(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %5: i32 = IntAdd(%3, -1:i32){NUW; } NUses:2
+; CHECK-NEXT:    %6: i1 = IntNE(%5, 0:i32){} NUses:1
+; CHECK-NEXT:    %7: () = CondBranch<bb1(%4, %5), bb2()>(%6){} NUses:0
+; CHECK-NEXT:  bb2():
+; CHECK-NEXT:    %8: i32 = IntAdd(%2, 3:i32){} NUses:1
+; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %i = phi i32 [ %n, %entry ], [ %i.n, %loop ]
+  %acc.n = add i32 %acc, 3
+  %i.n = add nuw i32 %i, -1
+  %c = icmp ne i32 %i.n, 0
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}

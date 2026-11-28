@@ -25,6 +25,7 @@
 #include "optim/func_passes/narrow_ints.hpp"
 #include "optim/func_passes/widen_accum.hpp"
 #include "optim/func_passes/widen_iv.hpp"
+#include "optim/func_passes/split_cond_branch.hpp"
 #include "optim/func_passes/loop_hoist.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/loop_simplify.hpp"
@@ -502,6 +503,12 @@ struct WidenAccumConf : public FunctionPassConf<WidenAccumConf> {
 struct WidenIVConf : public FunctionPassConf<WidenIVConf> {
   static constexpr const char *BaseName = "WidenIV";
   using Pass = optim::WidenIV;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct SplitCondBranchConf : public FunctionPassConf<SplitCondBranchConf> {
+  static constexpr const char *BaseName = "SplitCondBranch";
+  using Pass = optim::SplitCondBranch;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

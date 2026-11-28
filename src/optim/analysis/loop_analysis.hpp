@@ -327,6 +327,11 @@ class TripCountAnalysis {
   SCEVRef cmp_limit = InvalidSCEV;
   bool cmp_signed = false;
   bool cmp_unsigned = false;
+  // exit_iter is the modular distance of a != exit of a counter that steps by
+  // one without a no wrap flag. exit_iter + 1 may wrap to zero and the counter
+  // may run through the whole type, so only a user that copes with that
+  // (allow_modular) gets such a count
+  bool modular = false;
 
   TripCountAnalysis() = default;
   // loops around other loops are only accepted if the exit test is not part of
@@ -335,7 +340,8 @@ class TripCountAnalysis {
   // enclosing loop that provably stays below the type maximum
   bool update(CFG &cfg, Dominators &dom, LoopInfo &info, ScalarEvo &evo,
               bool allow_inner_loops = false,
-              const TVec<LoopInfo> *outer_loops = nullptr);
+              const TVec<LoopInfo> *outer_loops = nullptr,
+              bool allow_modular = false);
 };
 
 // Values of the loop's values when the loop is left through the trip count

@@ -500,12 +500,11 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
           }
           Parts res;
           for (u32 d = 0; d < n_parts; d++) {
-            fir::ValueR v = sp[d];
-            if (spl != lanes) {
-              const u32 ratio = spl / lanes;
-              v = slice(sp[d / ratio], spl, (d % ratio) * lanes, lanes,
-                        n.op_type);
-            }
+            const u32 ratio = spl > lanes ? spl / lanes : 1;
+            const fir::ValueR v =
+                spl != lanes ? slice(sp[d / ratio], spl, (d % ratio) * lanes,
+                                     lanes, n.op_type)
+                             : sp[d];
             const fir::ValueR ops[] = {v};
             res.push_back(emit_node(ctx, b, n, lanes, ops));
           }

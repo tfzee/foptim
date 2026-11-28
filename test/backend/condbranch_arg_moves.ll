@@ -4,11 +4,12 @@
 ; needed the old value of %n (this is __unguarded_linear_insert).
 ; CHECK-LABEL: func shift
 ; CHECK: $mm0: f64 = [{{.*}}]: f64
-; CHECK: cjmp_flt_ogt({{.*}}) -> {{[0-9]+}}
+; CHECK: cjmp_flt_ogt({{.*}}) -> [[LOOP:[0-9]+]]
+; CHECK: [[LOOP]]:
 ; CHECK: cjmp_flt_ogt({{.*}}) -> [[MOVES:[0-9]+]]
 ; CHECK: [[MOVES]]:
 ; CHECK-NEXT: $rax: i64 = $rcx: i64
-; CHECK-NEXT: jmp()
+; CHECK-NEXT: jmp() -> [[LOOP]]
 define void @shift(ptr %last, double %val) {
 entry:
   %n0 = getelementptr inbounds double, ptr %last, i64 -1

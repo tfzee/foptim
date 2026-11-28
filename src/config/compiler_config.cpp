@@ -182,6 +182,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new WidenAccumConf{};
     } else if (name == "WidenIV") {
       pass = new WidenIVConf{};
+    } else if (name == "SplitCondBranch") {
+      pass = new SplitCondBranchConf{};
     } else if (name == "LoopHoist") {
       pass = new LoopHoistConf{};
     } else if (name == "LoopUnroll") {

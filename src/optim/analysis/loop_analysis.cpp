@@ -971,6 +971,22 @@ void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed,
       }
     }
   }
+  // q < limit with a limit that fits w bits: q never leaves w bits either, so
+  // the truncated counter is the counter and its sext is a wide recurrence
+  if (limit != InvalidSCEV && is_signed && is_const(eq.b) &&
+      exprs[eq.b].cval_i() == 1 && eq.bw > 32 &&
+      (is_non_negative(eq.a) ||
+       (is_const(eq.a) && exprs[eq.a].cval_i() >= 0))) {
+    const u32 w = signed_fit_bits(limit);
+    for (u32 t = w; w != 0 && t <= 32; t *= 2) {
+      for (const SCEVRef r : {q, pre}) {
+        const SCEVRef narrow = mk_trunc(r, t);
+        if (is_addrec(narrow)) {
+          no_wrap.push_back({narrow, true});
+        }
+      }
+    }
+  }
   // with a constant start, k steps earlier is q minus a constant
   if (is_const(eq.a) && eq.bw <= 64) {
     const i128 step = exprs[eq.b].cval_i();
@@ -996,6 +1012,20 @@ void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed,
             mk_addrec(mk_const(start + (k * step), eq.bw), eq.b);
         if (is_addrec(ahead)) {
           no_wrap.push_back({.rec = ahead, .is_signed = is_signed});
+        }
+      }
+    }
+    // k steps ahead of the counter, still inside the type at the last
+    // iteration
+    if (step > 0 && last_iter && *last_iter >= 0) {
+      const i128 highest = is_signed ? (static_cast<i128>(1) << (eq.bw - 1)) - 1
+                                     : (static_cast<i128>(1) << eq.bw) - 1;
+      for (i128 k = 1; k <= 4 && start + (*last_iter + k) * step <= highest;
+           k++) {
+        const SCEVRef ahead =
+            mk_addrec(mk_const(start + k * step, eq.bw), eq.b);
+        if (is_addrec(ahead)) {
+          no_wrap.push_back({ahead, is_signed});
         }
       }
     }
@@ -2707,7 +2737,9 @@ SCEVRef two_recurrence_exit_iteration(CFG &cfg, const LoopInfo &linfo,
 
 bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
                                ScalarEvo &evo, bool allow_inner_loops,
-                               const TVec<LoopInfo> *outer_loops) {
+                               const TVec<LoopInfo> *outer_loops,
+                               bool allow_modular) {
+  modular = false;
   exit_iter = InvalidSCEV;
   const_exit_iter = std::nullopt;
   cmp_rec = InvalidSCEV;
@@ -2883,21 +2915,22 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     if (!nw.nsw && !nw.nuw) {
       // the counter hits the limit exactly after (limit - start) * step
       // iterations modulo the type, however it wraps on the way
-      return false;
-      // const SCEVRef diff =
-      //     step == 1 ? evo.mk_add(limit_ref,
-      //                            evo.mk_mul(start_ref, evo.mk_const(-1, bw)))
-      //               : evo.mk_add(start_ref,
-      //                            evo.mk_mul(limit_ref, evo.mk_const(-1,
-      //                            bw)));
-      // if (evo.expr(diff).t == SCEVExpr::Type::Unknown) {
-      //   return false;
-      // }
-      // exit_iter = diff;
-      // from_bb = cfg.bbrs[leaving].bb;
-      // to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
-      // mark as speschial
-      // return true;
+      if (!allow_modular) {
+        return false;
+      }
+      const SCEVRef diff =
+          step == 1 ? evo.mk_add(limit_ref,
+                                 evo.mk_mul(start_ref, evo.mk_const(-1, bw)))
+                    : evo.mk_add(start_ref,
+                                 evo.mk_mul(limit_ref, evo.mk_const(-1, bw)));
+      if (evo.expr(diff).t == SCEVExpr::Type::Unknown) {
+        return false;
+      }
+      exit_iter = diff;
+      modular = true;
+      from_bb = cfg.bbrs[leaving].bb;
+      to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+      return true;
     }
     if (nw.nsw) {
       pred = step == 1 ? ICmpSub::SLT : ICmpSub::SGT;

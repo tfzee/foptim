@@ -10,7 +10,19 @@
     flake-utils.lib.eachDefaultSystem
       (system:
         let
-          overlays = [];
+          overlays = [
+(final: prev:
+  let
+    # the nixpkgs cc wrapper forces frame pointers on every compile, drop that for clang (gcc at O1 and up turns them off again)
+    noFP = cc: cc.override (old: {
+      extraBuildCommands = (old.extraBuildCommands or "") + ''
+        sed -i '/omit-frame-pointer/d' $out/nix-support/cc-cflags-before
+      '';
+    });
+  in {
+    llvmPackages_22 = prev.llvmPackages_22 // { clang = noFP prev.llvmPackages_22.clang; };
+  })
+          ];
           pkgs = import nixpkgs {
             inherit system overlays;
           };
@@ -59,6 +71,7 @@
         {
           devShells.default = mkShell {
             inherit buildInputs nativeBuildInputs;
+            hardeningDisable = [ "all" ];
             shellHook = ''
                 export TRACY_NO_EXIT=1
                 export QT_QPA_PLATFORM=xcb
