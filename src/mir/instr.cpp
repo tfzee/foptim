@@ -432,8 +432,6 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
-        case X86Subtype::vgatherq:
-        case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vpack:
         case X86Subtype::vpacks:
@@ -451,6 +449,12 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
           out.push_back({0, instr.args[0]});
+          return;
+        case X86Subtype::vgatherq:
+        case X86Subtype::vgather:
+          // the hardware clears the mask
+          out.push_back({0, instr.args[0]});
+          out.push_back({2, instr.args[2]});
           return;
         case X86Subtype::LockXAdd2:
         case X86Subtype::Xchg2:

@@ -28,7 +28,7 @@ define void @inc(ptr noalias %first, ptr noalias %last, ptr noalias %out) {
 ; CHECK-NEXT:    %24: i64 = IntMul(%23, 4:i64){} NUses:1
 ; CHECK-NEXT:    %25: ptr = PtrAdd(%21, %24){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %26: i1 = IntEQ(%23, 0:i64){} NUses:1
-; CHECK-NEXT:    %27: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %27: 8@i32 = Load(G(const_legalizeVec_inc_0)){} NUses:1
 ; CHECK-NEXT:    %28: () = CondBranch<bb3(%21, %22), bb4(%21, %22)>(%26){} NUses:0
 ; CHECK-NEXT:  bb4(%29{}: ptr, %30{}: ptr):
 ; CHECK-NEXT:    %31: 8@i32 = Load(%29){} NUses:1

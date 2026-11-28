@@ -390,14 +390,25 @@ class SORA final : public FunctionPass {
         }
       }
     }
-    if (cutoff == 0 || ress.size() <= 1) {
+    if (cutoff == 0 || ress.empty()) {
       return false;
     }
     std::erase_if(ress, [cutoff](const auto &x) {
       return (x.first + x.second.size) > cutoff || x.second.size == 0;
     });
-    if (ress.size() <= 1) {
+    if (ress.empty()) {
       return false;
+    }
+    if (ress.size() == 1) {
+      // a single field only needs a new alloca when it is reached through
+      // constant offsets, a direct access is what Mem2Reg wants already
+      bool indirect = false;
+      for (auto u : ress.begin()->second.uses) {
+        indirect |= u.user->args[0] != alloca.result();
+      }
+      if (!indirect) {
+        return false;
+      }
     }
 
     // fmt::println("For alloca {} cutoff {}", alloca, cutoff);

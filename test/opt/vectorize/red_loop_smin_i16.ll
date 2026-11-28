@@ -25,7 +25,7 @@ define i16 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %20: i64 = And(%5, -16:i64){} NUses:3
 ; CHECK-NEXT:    %21: i64 = IntAdd(%20, %18){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %22: i1 = IntEQ(%20, 0:i64){} NUses:1
-; CHECK-NEXT:    %23: 16@i16 = V.Broadcast(32767:i16){} NUses:1
+; CHECK-NEXT:    %23: 16@i16 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb3(%18, %19), bb4(%18, %23)>(%22){} NUses:0
 ; CHECK-NEXT:  bb4(%25{}: i64, %26{}: 16@i16):
 ; CHECK-NEXT:    %27: i64 = IntMul(%25, 2:i64){NSW; NUW; } NUses:1

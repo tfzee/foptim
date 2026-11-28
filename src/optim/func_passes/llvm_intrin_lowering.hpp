@@ -994,6 +994,32 @@ class LLVMInstrinsicLowering final : public FunctionPass {
   // a lowered call counts as modified
   bool modified = false;
 
+  // a thread local used directly (the init guard, the constructor call of a
+  // function local one) is only reachable through TlsAddress
+  void wrap_thread_local_args(fir::Instr instr) {
+    if (instr->is(fir::IntrinsicSubType::TlsAddress)) {
+      return;
+    }
+    const bool is_tls_call =
+        instr->is(fir::InstrType::CallInstr) && instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_func() &&
+        instr->args[0].as_constant()->as_func().func->name.starts_with(
+            "llvm.threadlocal.address");
+    if (is_tls_call) {
+      return;
+    }
+    for (u16 a = 0; a < instr->get_n_args(); a++) {
+      const auto arg = instr->args[a];
+      if (arg.is_constant() && arg.as_constant()->is_global() &&
+          arg.as_constant()->as_global()->is_thread_local) {
+        fir::Builder bb{instr};
+        auto tls = bb.build_intrinsic(arg, fir::IntrinsicSubType::TlsAddress);
+        instr.replace_arg(a, tls);
+        modified = true;
+      }
+    }
+  }
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     // annoying copy
     //
@@ -1004,6 +1030,10 @@ class LLVMInstrinsicLowering final : public FunctionPass {
       auto instr = bb->instructions[i];
       if (!instr.is_valid()) {
         // instruction might have been deleted in a prior iteration
+        continue;
+      }
+      wrap_thread_local_args(instr);
+      if (!instr.is_valid()) {
         continue;
       }
       if (instr->is(fir::InstrType::CallInstr)) {

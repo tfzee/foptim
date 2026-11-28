@@ -5,21 +5,17 @@
 define double @spill_fops(double %x, double %y) {
 ; CHECK: func spill_fops ($2: f64, $3: f64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 64: i64
+; CHECK-NEXT:    $rsp: i64 -= 48: i64
 ; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * [const_legalizeVec_spill_fops_59]: f64
 ; CHECK-NEXT:    [$rbp + -16]: f64 = $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * [const_legalizeVec_spill_fops_58]: f64
 ; CHECK-NEXT:    [$rbp + -24]: f64 = $mm2: f64
-; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_spill_fops_57]: f64
-; CHECK-NEXT:    [$rbp + -32]: f64 = $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * [const_legalizeVec_spill_fops_56]: f64
-; CHECK-NEXT:    [$rbp + -40]: f64 = $mm2: f64
+; CHECK-NEXT:    [$rbp + -32]: f64 = $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * [const_legalizeVec_spill_fops_55]: f64
-; CHECK-NEXT:    [$rbp + -48]: f64 = $mm2: f64
+; CHECK-NEXT:    [$rbp + -40]: f64 = $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * [const_legalizeVec_spill_fops_54]: f64
-; CHECK-NEXT:    [$rbp + -56]: f64 = $mm2: f64
-; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_spill_fops_53]: f64
-; CHECK-NEXT:    [$rbp + -64]: f64 = $mm2: f64
+; CHECK-NEXT:    [$rbp + -48]: f64 = $mm2: f64
 ; CHECK-NEXT:    $mm15: f64 = $mm0: f64 * [const_legalizeVec_spill_fops_52]: f64
 ; CHECK-NEXT:    $mm14: f64 = $mm1: f64 * [const_legalizeVec_spill_fops_51]: f64
 ; CHECK-NEXT:    $mm13: f64 = $mm0: f64 * [const_legalizeVec_spill_fops_50]: f64
@@ -36,12 +32,14 @@ define double @spill_fops(double %x, double %y) {
 ; CHECK-NEXT:    $mm2: f64 = [$rbp + -16]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm2: f64 * $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 / [$rbp + -24]: f64
-; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * [$rbp + -32]: f64
+; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_spill_fops_57]: f64
+; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = $mm2: f64 - [$rbp + -40]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rbp + -48]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 / [$rbp + -56]: f64
-; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * [$rbp + -64]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm2: f64 - [$rbp + -32]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rbp + -40]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 / [$rbp + -48]: f64
+; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_spill_fops_53]: f64
+; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * $mm2: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm2: f64 - $mm15: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * $mm14: f64
@@ -74,17 +72,19 @@ define double @spill_fops(double %x, double %y) {
 ; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm2: f64 - $mm13: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * $mm14: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 / $mm15: f64
-; CHECK-NEXT:    $mm2: f64 = $mm1: f64 * [$rbp + -64]: f64
-; CHECK-NEXT:    $mm2: f64 = $mm2: f64 + $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = $mm2: f64 - [$rbp + -56]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rbp + -48]: f64
-; CHECK-NEXT:    $mm2: f64 = $mm0: f64 / [$rbp + -40]: f64
-; CHECK-NEXT:    $mm0: f64 = $mm1: f64 * [$rbp + -32]: f64
+; CHECK-NEXT:    $mm2: f64 = $mm0: f64 / $mm15: f64
+; CHECK-NEXT:    $mm0: f64 = [const_legalizeVec_spill_fops_53]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm1: f64 * $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm2: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - [$rbp + -24]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - [$rbp + -48]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rbp + -40]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 / [$rbp + -32]: f64
+; CHECK-NEXT:    $mm2: f64 = [const_legalizeVec_spill_fops_57]: f64
+; CHECK-NEXT:    $mm1: f64 = $mm1: f64 * $mm2: f64
+; CHECK-NEXT:    $mm1: f64 = $mm1: f64 + $mm0: f64
+; CHECK-NEXT:    $mm0: f64 = $mm1: f64 - [$rbp + -24]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rbp + -16]: f64
-; CHECK-NEXT:    $rsp: i64 += 64: i64
+; CHECK-NEXT:    $rsp: i64 += 48: i64
 ; CHECK-NEXT:    ret($mm0: f64, )
   %v0 = fmul double %y, 2.5
   %v1 = fmul double %x, 3.5

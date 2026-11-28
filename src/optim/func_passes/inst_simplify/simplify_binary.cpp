@@ -643,6 +643,98 @@ void promote_constant_type(fir::Context &ctx, fir::Instr instr, u32 arg_id,
       break;
   }
 }
+// the all ones or zero mask of an i1 compare, as -zext(c) or sext(c)
+fir::ValueR mask_of_icmp(fir::ValueR v) {
+  if (!v.is_instr()) {
+    return {};
+  }
+  auto m = v.as_instr();
+  fir::ValueR cond;
+  if (m->is(fir::InstrType::SExt)) {
+    cond = m->args[0];
+  } else if (m->is(fir::BinaryInstrSubType::IntSub) &&
+             m->args[0].is_constant_int() &&
+             m->args[0].as_constant()->as_int_sat() == 0 &&
+             m->args[1].is_instr() &&
+             m->args[1].as_instr()->is(fir::InstrType::ZExt)) {
+    cond = m->args[1].as_instr()->args[0];
+  } else {
+    return {};
+  }
+  if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp)) {
+    return {};
+  }
+  return cond;
+}
+
+// with c = a < b, b + ((a - b) & mask(c)) and b ^ ((a ^ b) & mask(c)) are
+// select(c, a, b), a - ((a - b) & mask(c)) and a ^ ((a ^ b) & mask(c)) are
+// select(c, b, a), which the select simplification turns into min / max
+bool simplify_branchless_select(fir::Instr instr, WorkList &worklist) {
+  const bool is_add = instr->is(fir::BinaryInstrSubType::IntAdd);
+  const bool is_sub = instr->is(fir::BinaryInstrSubType::IntSub);
+  const bool is_xor = instr->is(fir::BinaryInstrSubType::Xor);
+  if (!is_add && !is_sub && !is_xor) {
+    return false;
+  }
+  if (!instr->result_type()->is_int()) {
+    return false;
+  }
+  // a sub only has the and as its second operand
+  for (u32 bi = 0; bi < (is_sub ? 1U : 2U); bi++) {
+    const auto base = instr->args[bi];
+    if (!instr->args[1 - bi].is_instr()) {
+      continue;
+    }
+    auto land = instr->args[1 - bi].as_instr();
+    if (!land->is(fir::BinaryInstrSubType::And)) {
+      continue;
+    }
+    for (u32 mi = 0; mi < 2; mi++) {
+      const auto cmp_val = mask_of_icmp(land->args[mi]);
+      if (cmp_val.is_invalid() || !land->args[1 - mi].is_instr()) {
+        continue;
+      }
+      auto diff = land->args[1 - mi].as_instr();
+      if (!diff->is(is_xor ? fir::BinaryInstrSubType::Xor
+                           : fir::BinaryInstrSubType::IntSub)) {
+        continue;
+      }
+      auto icmp = cmp_val.as_instr();
+      const auto a = icmp->args[0];
+      const auto b = icmp->args[1];
+      if (a.get_type() != b.get_type() ||
+          a.get_type() != instr->result_type()) {
+        continue;
+      }
+      const bool diff_ok = diff->args[0] == a && diff->args[1] == b;
+      const bool diff_ok_swapped =
+          is_xor && diff->args[0] == b && diff->args[1] == a;
+      if (!diff_ok && !diff_ok_swapped) {
+        continue;
+      }
+      fir::ValueR if_true;
+      fir::ValueR if_false;
+      if (base == b && !is_sub) {
+        if_true = a;
+        if_false = b;
+      } else if (base == a && !is_add) {
+        if_true = b;
+        if_false = a;
+      } else {
+        continue;
+      }
+      fir::Builder bld(instr);
+      auto sel = bld.build_select(instr->result_type(), icmp.result(), if_true,
+                                  if_false);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(sel);
+      instr.destroy();
+      return true;
+    }
+  }
+  return false;
+}
 }  // namespace
 
 // `normalized` is set when the instruction was edited in place (operands
@@ -716,7 +808,6 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
 
   if (add_like && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
-    auto no_wrap = instr->NUW && inner->NUW && instr->NSW && inner->NSW;
     // ptradd(ptradd(p, c1), c2) -> ptradd(p, c1 + c2)
     if (instr->is(fir::BinaryInstrSubType::PtrAdd) &&
         inner->is(fir::BinaryInstrSubType::PtrAdd) &&
@@ -738,13 +829,13 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr.destroy();
       return true;
     }
-    if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
+    // (x + c) - c is x, the result only loses possible poison so no flags needed
+    if (inner->subtype == instr->subtype && inner->is(instr->instr_type) &&
         inner->args[1].is_constant_int() && instr->args[1].is_constant_int() &&
         inner->args[1].as_constant()->as_apint_resized(
             inner->result_type()->get_bitwidth()) ==
             -instr->args[1].as_constant()->as_apint_resized(
-                inner->result_type()->get_bitwidth()) &&
-        no_wrap) {
+                inner->result_type()->get_bitwidth())) {
       instr->replace_all_uses(inner->args[0]);
       instr.destroy();
       return true;
@@ -1720,7 +1811,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  if (simplify_range_and(instr, ctx, worklist) ||
+  if (simplify_branchless_select(instr, worklist) ||
+      simplify_range_and(instr, ctx, worklist) ||
       simplify_bitop_reduction(instr, ctx, worklist) ||
       simplify_linear(instr, ctx, worklist)) {
     return true;

@@ -29,6 +29,11 @@ struct EscapeOptions {
   i32 returned_as = -1;
   // a block argument that gets the address carries it on instead of escaping
   bool through_block_args = false;
+  // a call that passes the address to a nocapture parameter or to free is no
+  // escape even when it writes through it. the address is not kept, but other
+  // code can no longer assume the memory is untouched, so this is only for
+  // questions about who can reach the object
+  bool nocapture_calls = false;
 };
 
 namespace {
@@ -168,7 +173,10 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val,
           case fir::InstrType::CallInstr: {
             // a callee that neither keeps the address nor writes through it
             // only reads the alloca
-            if (!call_arg_nocapture_readonly(user, use.argId)) {
+            const bool kept_out =
+                opts.nocapture_calls && (call_arg_nocapture(user, use.argId) ||
+                                         call_is_free(user, use.argId));
+            if (!kept_out && !call_arg_nocapture_readonly(user, use.argId)) {
               escape();
               return info;
             }

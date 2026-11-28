@@ -67,6 +67,12 @@ void generate_memmove(foptim::fir::Context &fctx) {
                          fctx->get_int_type(64)}));
 }
 
+void generate_strlen(foptim::fir::Context &fctx) {
+  declare_external(fctx, LibFunc::Strlen,
+                   fctx->get_func_ty(fctx->get_int_type(64),
+                                     {fctx->get_ptr_type()}));
+}
+
 void generate_memcmp(foptim::fir::Context &fctx) {
   declare_external(
       fctx, LibFunc::Memcmp,

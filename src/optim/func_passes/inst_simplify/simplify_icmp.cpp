@@ -222,6 +222,69 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
 
+    // a three way compare (operator<=>) tested against zero is the compare
+    // itself: select(a == b, 0, select(a < b, -1, 1)), maybe sign extended
+    if (c_val == 0 && instr->args[0].is_instr()) {
+      auto three = instr->args[0].as_instr();
+      if (three->is(InstrType::SExt) && three->args[0].is_instr()) {
+        three = three->args[0].as_instr();
+      }
+      const auto cmp_of = [](fir::ValueR v) -> std::optional<fir::Instr> {
+        if (v.is_instr() && v.as_instr()->is(InstrType::ICmp)) {
+          return v.as_instr();
+        }
+        return std::nullopt;
+      };
+      if (three->is(InstrType::SelectInstr) && three->args[2].is_instr() &&
+          three->args[1].is_constant_int(0) &&
+          three->args[2].as_instr()->is(InstrType::SelectInstr)) {
+        const auto inner = three->args[2].as_instr();
+        const auto eq = cmp_of(three->args[0]);
+        const auto lt = cmp_of(inner->args[0]);
+        const auto inner_pred =
+            lt ? static_cast<ICmpInstrSubType>((*lt)->subtype)
+               : ICmpInstrSubType::INVALID;
+        if (eq && lt &&
+            (*eq)->subtype == static_cast<u32>(ICmpInstrSubType::EQ) &&
+            (inner_pred == ICmpInstrSubType::ULT ||
+             inner_pred == ICmpInstrSubType::SLT) &&
+            inner->args[1].is_constant_int(-1) && inner->args[2].is_constant_int(1) &&
+            (*eq)->args[0] == (*lt)->args[0] &&
+            (*eq)->args[1] == (*lt)->args[1]) {
+          const bool sgn = inner_pred == ICmpInstrSubType::SLT;
+          auto np = ICmpInstrSubType::INVALID;
+          switch (sub_type) {
+            case ICmpInstrSubType::SLT:
+              np = sgn ? ICmpInstrSubType::SLT : ICmpInstrSubType::ULT;
+              break;
+            case ICmpInstrSubType::SLE:
+              np = sgn ? ICmpInstrSubType::SLE : ICmpInstrSubType::ULE;
+              break;
+            case ICmpInstrSubType::SGT:
+              np = sgn ? ICmpInstrSubType::SGT : ICmpInstrSubType::UGT;
+              break;
+            case ICmpInstrSubType::SGE:
+              np = sgn ? ICmpInstrSubType::SGE : ICmpInstrSubType::UGE;
+              break;
+            case ICmpInstrSubType::EQ:
+            case ICmpInstrSubType::NE:
+              np = sub_type;
+              break;
+            default:
+              break;
+          }
+          if (np != ICmpInstrSubType::INVALID) {
+            Builder bb{instr};
+            auto res = bb.build_int_cmp((*eq)->args[0], (*eq)->args[1], np);
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(ValueR(res));
+            instr.destroy();
+            return true;
+          }
+        }
+      }
+    }
+
     if (c_val == 0 && (sub_type == ICmpInstrSubType::UGT ||
                        sub_type == ICmpInstrSubType::ULE)) {
       Builder bb{instr};

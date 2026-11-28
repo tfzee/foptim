@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -270,6 +271,44 @@ void vector_icmp(fir::Instr cmp_instr, MArgument dst, MArgument a, MArgument b,
     case Sub::INVALID:
       UNREACH();
   }
+}
+
+// Integer vector min and max. 64 bit lanes have no instruction before
+// avx512vl, they are a signed compare and a blend, unsigned ones flip the sign
+// bit of both sides first.
+void vec_int_minmax(GVecSubtype sub, MArgument dst, MArgument a, MArgument b,
+                    MatchResult &res, ExtraMatchData &data) {
+  const bool wide = a.ty == Type::Int64x2 || a.ty == Type::Int64x4;
+  const auto &features = data.config.target.features;
+  if (!wide || (features.avx512f && features.avx512vl)) {
+    res.result.emplace_back(sub, dst, a, b);
+    return;
+  }
+  const bool is_unsigned =
+      sub == GVecSubtype::vUMin || sub == GVecSubtype::vUMax;
+  const bool is_max = sub == GVecSubtype::vSMax || sub == GVecSubtype::vUMax;
+  auto fresh = [&]() {
+    return MArgument(data.alloc.get_new_register(a.ty), a.ty);
+  };
+  auto x = a;
+  auto y = b;
+  if (is_unsigned) {
+    auto sign = fresh();
+    res.result.emplace_back(X86Subtype::psll, sign, vec_all_ones(a, res, data),
+                            MArgument(u8{63}));
+    x = fresh();
+    y = fresh();
+    res.result.emplace_back(GVecSubtype::vXor, x, a, sign);
+    res.result.emplace_back(GVecSubtype::vXor, y, b, sign);
+  }
+  // the mask is set where a is the result
+  auto mask = fresh();
+  if (is_max) {
+    res.result.emplace_back(X86Subtype::vpcmpgt, mask, x, y);
+  } else {
+    res.result.emplace_back(X86Subtype::vpcmpgt, mask, y, x);
+  }
+  res.result.emplace_back(X86Subtype::vblendv, dst, b, a, mask);
 }
 
 // Inserts the scalar input as lane lane of the vector input_vec. The lane is
@@ -557,9 +596,101 @@ void move_rules(RuleSet &rules) {
 // that is already clamped to the unsigned range of the result (lanes of 16 or
 // 32 bits) needs no mask, the saturating packs do the clamp (signed ones until
 // the last step, which is the unsigned one).
-static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
-                                MArgument dst, MArgument src,
-                                bool clamped = false) {
+// a scalar i1 that is a clean 0 / 1 byte without a mask of its own: a compare,
+// a constant, an and with one clean operand, or / xor of two clean ones
+bool is_clean_bit(fir::ValueR v, u32 depth = 0) {
+  if (v.is_constant_int()) {
+    return true;
+  }
+  if (!v.is_instr() || depth > 4 || !v.get_type()->is_int() ||
+      v.get_type()->as_int() != 1) {
+    return false;
+  }
+  const auto i = v.as_instr();
+  if (i->is(fir::InstrType::ICmp) || i->is(fir::InstrType::FCmp)) {
+    return true;
+  }
+  if (i->is(fir::BinaryInstrSubType::And)) {
+    return is_clean_bit(i->args[0], depth + 1) ||
+           is_clean_bit(i->args[1], depth + 1);
+  }
+  if (i->is(fir::BinaryInstrSubType::Or) ||
+      i->is(fir::BinaryInstrSubType::Xor)) {
+    return is_clean_bit(i->args[0], depth + 1) &&
+           is_clean_bit(i->args[1], depth + 1);
+  }
+  return false;
+}
+
+// the only user of the trunc is an and whose other operand is a clean bit
+bool only_user_is_and_with_clean_bit(fir::Instr trunc) {
+  if (trunc.result().get_n_uses() != 1) {
+    return false;
+  }
+  const auto user = trunc->uses[0].user;
+  if (!user.is_valid() || !user->is(fir::BinaryInstrSubType::And)) {
+    return false;
+  }
+  const auto other =
+      user->args[0] == trunc.result() ? user->args[1] : user->args[0];
+  return is_clean_bit(other);
+}
+
+namespace {
+// The count of a shift goes to cl and the hardware only looks at its low bits:
+// 6 for a 64 bit operand, 5 for 32 bit. So a mask that keeps those bits and
+// the zext of a narrower count do not change the shift and are looked through,
+// and the low byte of the count register is moved without the mask of an
+// itrunc.
+MArgument move_shift_count(fir::Instr shift_instr, MArgument b,
+                           MatchResult &res, ExtraMatchData &data) {
+  const auto bits = shift_instr->result_type()->as_int();
+  fir::ValueR count = shift_instr->args[1];
+  bool looked = false;
+  while (count.is_instr()) {
+    const auto c = count.as_instr();
+    if (bits >= 32 && c->is(fir::BinaryInstrSubType::And)) {
+      const i128 hw_mask = bits == 64 ? 63 : 31;
+      const auto lhs = c->args[0];
+      const auto rhs = c->args[1];
+      if (rhs.is_constant_int() &&
+          (rhs.as_constant()->as_int() & hw_mask) == hw_mask) {
+        count = lhs;
+        looked = true;
+        continue;
+      }
+      if (lhs.is_constant_int() &&
+          (lhs.as_constant()->as_int() & hw_mask) == hw_mask) {
+        count = rhs;
+        looked = true;
+        continue;
+      }
+    }
+    if (c->is(fir::InstrType::ZExt) && c->args[0].get_type()->is_int() &&
+        c->args[0].get_type()->as_int() >= 8) {
+      count = c->args[0];
+      looked = true;
+      continue;
+    }
+    break;
+  }
+  if (looked) {
+    b = valueToArg(count, res.result, data.alloc);
+  }
+  const auto shift_reg_arg = MArgument(VReg::CL(), Type::Int8);
+  if (b.ty == Type::Int8) {
+    res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
+  } else if (b.isReg()) {
+    res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg,
+                            MArgument(b.reg.retype(Type::Int8), Type::Int8));
+  } else {
+    res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
+  }
+  return shift_reg_arg;
+}
+
+void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data, MArgument dst,
+                         MArgument src, bool clamped = false) {
   auto int_vec = [](u32 bits, bool wide) {
     switch (bits) {
       case 8:
@@ -635,6 +766,7 @@ static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
     bits /= 2;
   }
 }
+}  // namespace
 
 // poison or all lanes zero, the value of the lanes a masked load skips
 bool is_zero_or_poison(fir::ValueR v) {
@@ -711,17 +843,16 @@ void memory_rules(RuleSet &rules) {
   });
   auto inline_asm_rule = [](fir::Instr asm_instr, MatchResult &res,
                             ExtraMatchData &data) {
-    const auto id = static_cast<u32>(asm_instr->args[0].as_constant()->as_int());
+    const auto id =
+        static_cast<u32>(asm_instr->args[0].as_constant()->as_int());
     const auto &info = asm_instr->get_parent()->get_parent()->ctx->asm_info(id);
-    const auto op_i32 = [](size_t i) {
-      return MArgument::Int(i, Type::Int32);
-    };
+    const auto op_i32 = [](size_t i) { return MArgument::Int(i, Type::Int32); };
 
     TVec<MInstr> ins;
     for (size_t op_id = 0; op_id < info.operands.size(); op_id++) {
       const auto &op = info.operands[op_id];
       if (op.kind != fir::AsmOperandKind::Input &&
-          !(op.kind == fir::AsmOperandKind::Output && op.indirect)) {
+          (op.kind != fir::AsmOperandKind::Output || !op.indirect)) {
         continue;
       }
       auto val = asm_instr->args[static_cast<size_t>(op.arg) + 1];
@@ -761,7 +892,8 @@ void memory_rules(RuleSet &rules) {
         continue;
       }
       ASSERT(result_id < asm_instr.n_results());
-      auto out = valueToArg(asm_instr.result(result_id), res.result, data.alloc);
+      auto out =
+          valueToArg(asm_instr.result(result_id), res.result, data.alloc);
       res.result.emplace_back(GBaseSubtype::asm_out, out, op_i32(op_id));
       result_id++;
     }
@@ -780,8 +912,9 @@ void memory_rules(RuleSet &rules) {
     auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
     auto off = MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
     if (global->init_value == nullptr) {
-      res.result.emplace_back(GBaseSubtype::mov, off,
-                              MArgument::MemL(global->name.c_str(), Type::Int64));
+      res.result.emplace_back(
+          GBaseSubtype::mov, off,
+          MArgument::MemL(global->name.c_str(), Type::Int64));
     } else {
       res.result.emplace_back(GBaseSubtype::mov, off,
                               MArgument(global->name.c_str()));
@@ -791,13 +924,13 @@ void memory_rules(RuleSet &rules) {
     return true;
   });
   // reading rbp makes the backend emit the full prologue that sets it up
-  rules.add(pm::FrameAddress, [](fir::Instr instr, MatchResult &res,
-                                 ExtraMatchData &data) {
-    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-    res.result.emplace_back(GBaseSubtype::mov, res_reg,
-                            MArgument{VReg::RBP(), Type::Int64});
-    return true;
-  });
+  rules.add(pm::FrameAddress,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                      MArgument{VReg::RBP(), Type::Int64});
+              return true;
+            });
   rules.add(pm::Gather, [](fir::Instr gather_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);
@@ -1014,6 +1147,72 @@ void memory_rules(RuleSet &rules) {
                 is_scalar,
                 pm::commutative(pm::PtrAdd, pm::PtrAdd(RegV(base), RegV(indx)),
                                 ImmV(disp)))))) {
+      return false;
+    }
+    auto store_ty = convert_type(store_instr.result_type());
+    auto base_arg = valueToArg(base, res.result, data.alloc);
+    auto indx_arg = valueToArg(indx, res.result, data.alloc);
+    auto disp_arg = valueToArg(disp, res.result, data.alloc);
+    auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+    res.result.emplace_back(
+        GBaseSubtype::mov,
+        MArgument::MemOBI(disp_arg.imm, base_arg.reg, indx_arg.reg, store_ty),
+        value);
+    return true;
+  });
+
+  // base + (index + displacement) with a 64 bit index add, the same address
+  // as base + index + displacement
+  rules.add(pm::Load, [](fir::Instr load_instr, MatchResult &res,
+                         ExtraMatchData &data) {
+    fir::ValueR base;
+    fir::ValueR indx;
+    fir::ValueR disp;
+    fir::Instr idx_add;
+    if (!pm::match(
+            load_instr,
+            pm::Load(pm::of_type(
+                is_scalar,
+                pm::PtrAdd(
+                    RegV(base),
+                    pm::capture(idx_add, pm::commutative(pm::IntAdd, RegV(indx),
+                                                         ImmV(disp)))))))) {
+      return false;
+    }
+    if (idx_add.result_type()->get_bitwidth() != 64 ||
+        !disp.is_constant_int() ||
+        !fits_disp32(disp.as_constant()->as_int_sat())) {
+      return false;
+    }
+    auto load_ty = convert_type(load_instr.result_type());
+    auto base_arg = valueToArg(base, res.result, data.alloc);
+    auto indx_arg = valueToArg(indx, res.result, data.alloc);
+    auto disp_arg = valueToArg(disp, res.result, data.alloc);
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
+    res.result.emplace_back(
+        GBaseSubtype::mov, res_reg,
+        MArgument::MemOBI(disp_arg.imm, base_arg.reg, indx_arg.reg, load_ty));
+    return true;
+  });
+  rules.add(pm::Store, [](fir::Instr store_instr, MatchResult &res,
+                          ExtraMatchData &data) {
+    fir::ValueR base;
+    fir::ValueR indx;
+    fir::ValueR disp;
+    fir::Instr idx_add;
+    if (!pm::match(
+            store_instr,
+            pm::Store(pm::of_type(
+                is_scalar,
+                pm::PtrAdd(
+                    RegV(base),
+                    pm::capture(idx_add, pm::commutative(pm::IntAdd, RegV(indx),
+                                                         ImmV(disp)))))))) {
+      return false;
+    }
+    if (idx_add.result_type()->get_bitwidth() != 64 ||
+        !disp.is_constant_int() ||
+        !fits_disp32(disp.as_constant()->as_int_sat())) {
       return false;
     }
     auto store_ty = convert_type(store_instr.result_type());
@@ -1325,8 +1524,8 @@ void cjmp_rules(RuleSet &rules) {
     auto &bb_with_args = branch_instr->bbs[0];
     auto target_bb = branch_instr->bbs[0].bb;
     const bool flipped = flip_scalar_fcmp(sub_type);
-    auto v1 = valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result,
-                         data.alloc);
+    auto v1 =
+        valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result, data.alloc);
     auto v2 = valueToArgPosMem(cmp_instr->args[flipped ? 0 : 1], res.result,
                                data.alloc, cmp_instr);
 
@@ -1471,17 +1670,44 @@ void arith_rules(RuleSet &rules) {
                           cpy_b, res_ty));
     return true;
   });
-  rules.add(pm::Fma, [](fir::Instr instr, MatchResult &res,
-                        ExtraMatchData &data) {
-    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-    auto a = valueToArg(instr->args[0], res.result, data.alloc);
-    auto b = valueToArg(instr->args[1], res.result, data.alloc);
-    auto c = valueToArg(instr->args[2], res.result, data.alloc);
-    // res = a * b + res
-    res.result.emplace_back(GBaseSubtype::mov, res_reg, c);
-    res.result.emplace_back(X86Subtype::ffmadd231, res_reg, a, b);
+  rules.add(pm::PtrAdd, [](fir::Instr add_instr, MatchResult &res,
+                           ExtraMatchData &data) {
+    // base + c where base is used elsewhere: a lea writes the result without
+    // the copy in front of the two address add
+    i128 disp;
+    if (!pm::match(add_instr,
+                   pm::PtrAdd(Reg, pm::const_int(disp, fits_disp32))) ||
+        add_instr->args[0].get_n_uses() < 2) {
+      return false;
+    }
+    const auto res_ty = convert_type(add_instr.result_type());
+    if (res_ty >= Type::Float32 || get_size(res_ty) != 8) {
+      return false;
+    }
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
+    auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+    if (!base.isReg()) {
+      return false;
+    }
+    auto base_reg = base.reg;
+    base_reg.ty = res_ty;
+    res.result.emplace_back(
+        X86Subtype::lea, res_reg,
+        MArgument::MemOB(static_cast<u64>(static_cast<i64>(disp)), base_reg,
+                         res_ty));
     return true;
   });
+  rules.add(pm::Fma,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto a = valueToArg(instr->args[0], res.result, data.alloc);
+              auto b = valueToArg(instr->args[1], res.result, data.alloc);
+              auto c = valueToArg(instr->args[2], res.result, data.alloc);
+              // res = a * b + res
+              res.result.emplace_back(GBaseSubtype::mov, res_reg, c);
+              res.result.emplace_back(X86Subtype::ffmadd231, res_reg, a, b);
+              return true;
+            });
   rules.add(pm::PackSS, three_op_rule<X86Subtype::vpacks>);
   rules.add(pm::PackUS, three_op_rule<X86Subtype::vpack>);
   rules.add(pm::PMulHW, three_op_rule<X86Subtype::vpmulhw>);
@@ -1506,35 +1732,35 @@ void arith_rules(RuleSet &rules) {
         res.result.emplace_back(X86Subtype::pext, res_reg, args[0], args[1]);
         return true;
       });
-  rules.add(pm::PermD, [](fir::Instr instr, MatchResult &res,
-                          ExtraMatchData &data) {
-    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-    auto src = valueToArg(instr->args[0], res.result, data.alloc);
-    auto idx = valueToArg(instr->args[1], res.result, data.alloc);
-    res.result.emplace_back(X86Subtype::vpermd, res_reg, idx, src);
-    return true;
-  });
-  rules.add(pm::MoveMask, [](fir::Instr instr, MatchResult &res,
-                             ExtraMatchData &data) {
-    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-    auto src = valueToArg(instr->args[0], res.result, data.alloc);
-    res.result.emplace_back(X86Subtype::vmovmsk, res_reg, src);
-    return true;
-  });
-  rules.add(pm::Clmul, [](fir::Instr instr, MatchResult &res,
-                          ExtraMatchData &data) {
-    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-    auto a = valueToArg(instr->args[0], res.result, data.alloc);
-    auto b = valueToArg(instr->args[1], res.result, data.alloc);
-    auto imm = valueToArg(instr->args[2], res.result, data.alloc);
-    ASSERT_M(imm.isImm(), "clmul selector has to be a constant");
-    const auto as = [](MArgument v) {
-      return MArgument{v.reg.retype(Type::Int64x2), Type::Int64x2};
-    };
-    res.result.emplace_back(X86Subtype::vpclmul, as(res_reg), as(a), as(b),
-                            MArgument(static_cast<u8>(imm.imm)));
-    return true;
-  });
+  rules.add(pm::PermD,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto src = valueToArg(instr->args[0], res.result, data.alloc);
+              auto idx = valueToArg(instr->args[1], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vpermd, res_reg, idx, src);
+              return true;
+            });
+  rules.add(pm::MoveMask,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto src = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vmovmsk, res_reg, src);
+              return true;
+            });
+  rules.add(
+      pm::Clmul, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+        auto a = valueToArg(instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        auto imm = valueToArg(instr->args[2], res.result, data.alloc);
+        ASSERT_M(imm.isImm(), "clmul selector has to be a constant");
+        const auto as = [](MArgument v) {
+          return MArgument{v.reg.retype(Type::Int64x2), Type::Int64x2};
+        };
+        res.result.emplace_back(X86Subtype::vpclmul, as(res_reg), as(a), as(b),
+                                MArgument(static_cast<u8>(imm.imm)));
+        return true;
+      });
   rules.add(pm::IntMul, [](fir::Instr mul_instr, MatchResult &res,
                            ExtraMatchData &data) {
     // x*c where c is either 2 4 8  or 3 5 9
@@ -1743,7 +1969,8 @@ void arith_rules(RuleSet &rules) {
   });
 }
 
-static std::optional<i128> splat_int_value(fir::ValueR v) {
+namespace {
+std::optional<i128> splat_int_value(fir::ValueR v) {
   if (v.is_instr() && v.as_instr()->is(fir::VectorISubType::Broadcast)) {
     v = v.as_instr()->args[0];
   }
@@ -1762,7 +1989,9 @@ static std::optional<i128> splat_int_value(fir::ValueR v) {
     std::optional<i128> first;
     for (u32 lane = 0; lane < vec.member_number; lane++) {
       u64 raw = 0;
-      std::memcpy(&raw, global->init_value + (lane * bytes), bytes);
+      std::memcpy(&raw,
+                  global->init_value + (static_cast<size_t>(lane * bytes)),
+                  bytes);
       const i128 val =
           static_cast<i64>(raw << (64 - vec.bitwidth)) >> (64 - vec.bitwidth);
       if (first && *first != val) {
@@ -1797,7 +2026,7 @@ static std::optional<i128> splat_int_value(fir::ValueR v) {
 
 // immediate shift amount of a vector shift when every lane shifts by the same
 // constant
-static std::optional<u8> splat_shift_amount(fir::ValueR v) {
+std::optional<u8> splat_shift_amount(fir::ValueR v) {
   if (v.is_instr() && v.as_instr()->is(fir::VectorISubType::Broadcast)) {
     v = v.as_instr()->args[0];
   }
@@ -1809,9 +2038,9 @@ static std::optional<u8> splat_shift_amount(fir::ValueR v) {
 
 // every lane shifts by the same value of a register, vpsllw and friends take
 // the count from the low 64 bits of an xmm register
-static bool word_shift_by_scalar(fir::Instr shift_instr, X86Subtype op,
-                                 const MArgument &res_reg, const MArgument &a,
-                                 MatchResult &res, ExtraMatchData &data) {
+bool word_shift_by_scalar(fir::Instr shift_instr, X86Subtype op,
+                          const MArgument &res_reg, const MArgument &a,
+                          MatchResult &res, ExtraMatchData &data) {
   const auto amount = shift_instr->args[1];
   if (!amount.is_instr() ||
       !amount.as_instr()->is(fir::VectorISubType::Broadcast)) {
@@ -1840,17 +2069,17 @@ static bool word_shift_by_scalar(fir::Instr shift_instr, X86Subtype op,
 // (x << c) | (x >> (bits - c)), or with + instead of |, is a rotate: rol by
 // the smaller side's constant, or ror if the shr side is smaller.
 template <class Combinator>
-static bool match_rotate(Combinator combinator, fir::Instr instr,
-                         MatchResult &res, ExtraMatchData &data) {
+bool match_rotate(Combinator combinator, fir::Instr instr, MatchResult &res,
+                  ExtraMatchData &data) {
   fir::ValueR x1;
   fir::ValueR x2;
   i128 c1 = 0;
   i128 c2 = 0;
   if (!instr->result_type()->is_int() ||
-      !pm::match(instr,
-                 pm::commutative(combinator,
-                                 pm::Shl(pm::value(x1), pm::const_int(c1)),
-                                 pm::Shr(pm::value(x2), pm::const_int(c2)))) ||
+      !pm::match(
+          instr,
+          pm::commutative(combinator, pm::Shl(pm::value(x1), pm::const_int(c1)),
+                          pm::Shr(pm::value(x2), pm::const_int(c2)))) ||
       !(x1 == x2)) {
     return false;
   }
@@ -1892,6 +2121,7 @@ void vec_rules(RuleSet &rules) {
     return true;
   });
 }
+}  // namespace
 
 void base_binary_rules(RuleSet &rules) {
   rules.add(pm::FloatAdd, [](fir::Instr f_add_instr, MatchResult &res,
@@ -1946,10 +2176,10 @@ void base_binary_rules(RuleSet &rules) {
                             valueToArg(instr->args[1], res.result, data.alloc));
     return true;
   };
-  rules.add(pm::IntAdd, [](fir::Instr instr, MatchResult &res,
-                           ExtraMatchData &data) {
-    return match_rotate(pm::IntAdd, instr, res, data);
-  });
+  rules.add(pm::IntAdd,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              return match_rotate(pm::IntAdd, instr, res, data);
+            });
   rules.add(pm::IntAdd, i1_add_sub);
   rules.add(pm::IntSub, i1_add_sub);
   rules.add(pm::IntAdd, [](fir::Instr add_instr, MatchResult &res,
@@ -2110,13 +2340,7 @@ void base_binary_rules(RuleSet &rules) {
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::shl2, res_reg, b);
     } else {
-      auto shift_reg = VReg::CL();
-      auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
-      if (b.ty == Type::Int8) {
-        res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
-      } else {
-        res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
-      }
+      const auto shift_reg_arg = move_shift_count(shift_instr, b, res, data);
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::shl2, res_reg, shift_reg_arg);
     }
@@ -2155,13 +2379,7 @@ void base_binary_rules(RuleSet &rules) {
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::shr2, res_reg, b);
     } else {
-      auto shift_reg = VReg::CL();
-      auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
-      if (b.ty == Type::Int8) {
-        res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
-      } else {
-        res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
-      }
+      const auto shift_reg_arg = move_shift_count(shift_instr, b, res, data);
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::shr2, res_reg, shift_reg_arg);
     }
@@ -2219,13 +2437,7 @@ void base_binary_rules(RuleSet &rules) {
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::sar2, res_reg, b);
     } else {
-      auto shift_reg = VReg::CL();
-      auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
-      if (b.ty == Type::Int8) {
-        res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
-      } else {
-        res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
-      }
+      const auto shift_reg_arg = move_shift_count(shift_instr, b, res, data);
       res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
       res.result.emplace_back(GArithSubtype::sar2, res_reg, shift_reg_arg);
     }
@@ -2277,10 +2489,10 @@ void base_binary_rules(RuleSet &rules) {
     }
     return true;
   });
-  rules.add(pm::Or, [](fir::Instr instr, MatchResult &res,
-                       ExtraMatchData &data) {
-    return match_rotate(pm::Or, instr, res, data);
-  });
+  rules.add(pm::Or,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              return match_rotate(pm::Or, instr, res, data);
+            });
   rules.add(
       pm::Or, [](fir::Instr or_instr, MatchResult &res, ExtraMatchData &data) {
         auto res_reg = valueToArg(or_instr.result(), res.result, data.alloc);
@@ -2468,9 +2680,8 @@ bool match_jump_table(fir::Instr sw, MatchResult &res, ExtraMatchData &data) {
   const VReg off = data.alloc.get_new_register(Type::Int64);
   res.result.emplace_back(X86Subtype::lea, MArgument(base, Type::Int64),
                           MArgument::MemL(label, Type::Int64));
-  res.result.emplace_back(
-      GConvSubtype::mov_sx, MArgument(off, Type::Int64),
-      MArgument::MemBIS(base, idx_reg, 2, Type::Int32));
+  res.result.emplace_back(GConvSubtype::mov_sx, MArgument(off, Type::Int64),
+                          MArgument::MemBIS(base, idx_reg, 2, Type::Int32));
   res.result.emplace_back(GArithSubtype::add2, MArgument(base, Type::Int64),
                           MArgument(off, Type::Int64));
   res.result.push_back(
@@ -2482,16 +2693,16 @@ bool match_jump_table(fir::Instr sw, MatchResult &res, ExtraMatchData &data) {
 void base_rules(RuleSet &rules) {
   base_binary_rules(rules);
 
-  rules.add(pm::Fence, [](fir::Instr fence_instr, MatchResult &res,
-                          ExtraMatchData &) {
-    // x86 TSO only reorders a store with a later load, which only a seq_cst
-    // fence forbids
-    if (static_cast<fir::Ordering>(fence_instr->Ordering) ==
-        fir::Ordering::Seq_Cst) {
-      res.result.emplace_back(X86Subtype::mfence);
-    }
-    return true;
-  });
+  rules.add(pm::Fence,
+            [](fir::Instr fence_instr, MatchResult &res, ExtraMatchData &) {
+              // x86 TSO only reorders a store with a later load, which only a
+              // seq_cst fence forbids
+              if (static_cast<fir::Ordering>(fence_instr->Ordering) ==
+                  fir::Ordering::Seq_Cst) {
+                res.result.emplace_back(X86Subtype::mfence);
+              }
+              return true;
+            });
 
   rules.add(pm::AtomicRMW, [](fir::Instr atomic_instr, MatchResult &res,
                               ExtraMatchData &data) {
@@ -2811,8 +3022,8 @@ void base_rules(RuleSet &rules) {
                               Type::Float32x4};
         res.result.emplace_back(X86Subtype::movhlps, pair, pair, quad);
         res.result.emplace_back(GVecSubtype::vmul, pair, pair, quad);
-        auto pair_64 = MArgument{pair.reg.retype(Type::Float32x2),
-                                 Type::Float32x2};
+        auto pair_64 =
+            MArgument{pair.reg.retype(Type::Float32x2), Type::Float32x2};
         res.result.emplace_back(X86Subtype::vmovshdup, res_reg, pair_64);
         res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, pair_64);
         break;
@@ -3080,16 +3291,16 @@ void base_rules(RuleSet &rules) {
           res.result.emplace_back(GVecSubtype::vXor, dst, a, b);
           break;
         case fir::ReduceInstrSubType::SMin:
-          res.result.emplace_back(GVecSubtype::vSMin, dst, a, b);
+          vec_int_minmax(GVecSubtype::vSMin, dst, a, b, res, data);
           break;
         case fir::ReduceInstrSubType::SMax:
-          res.result.emplace_back(GVecSubtype::vSMax, dst, a, b);
+          vec_int_minmax(GVecSubtype::vSMax, dst, a, b, res, data);
           break;
         case fir::ReduceInstrSubType::UMin:
-          res.result.emplace_back(GVecSubtype::vUMin, dst, a, b);
+          vec_int_minmax(GVecSubtype::vUMin, dst, a, b, res, data);
           break;
         case fir::ReduceInstrSubType::UMax:
-          res.result.emplace_back(GVecSubtype::vUMax, dst, a, b);
+          vec_int_minmax(GVecSubtype::vUMax, dst, a, b, res, data);
           break;
         case fir::ReduceInstrSubType::FMin:
           res.result.emplace_back(GVecSubtype::fMin, dst, a, b);
@@ -3388,7 +3599,7 @@ void base_rules(RuleSet &rules) {
     TVec<u32> dm;
     for (u32 m : mask) {
       for (u32 k = 0; k < elem_bytes / 4; k++) {
-        dm.push_back(m * (elem_bytes / 4) + k);
+        dm.push_back((m * (elem_bytes / 4)) + k);
       }
     }
     const u32 nd = dm.size();
@@ -3461,6 +3672,12 @@ void base_rules(RuleSet &rules) {
         res.result.emplace_back(X86Subtype::vpcmpeq, ones, ones, ones);
         return true;
       }
+    }
+    if (res_reg.ty == Type::Int8x8 || res_reg.ty == Type::Int16x4) {
+      // the upper lanes of the xmm are unused, broadcast into all of them
+      const Type wide =
+          res_reg.ty == Type::Int8x8 ? Type::Int8x16 : Type::Int16x8;
+      res_reg = MArgument{res_reg.reg.retype(wide), wide};
     }
     if (res_reg.ty == Type::Int8x16 || res_reg.ty == Type::Int8x32 ||
         res_reg.ty == Type::Int16x8 || res_reg.ty == Type::Int16x16) {
@@ -3595,8 +3812,8 @@ void base_rules(RuleSet &rules) {
     auto sub_type =
         static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype());
     const bool flipped = flip_scalar_fcmp(sub_type);
-    auto arg1 = valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result,
-                           data.alloc);
+    auto arg1 =
+        valueToArg(cmp_instr->args[flipped ? 1 : 0], res.result, data.alloc);
     auto arg2 = valueToArgPosMem(cmp_instr->args[flipped ? 0 : 1], res.result,
                                  data.alloc, cmp_instr);
 
@@ -3873,10 +4090,9 @@ void base_rules(RuleSet &rules) {
           res_reg.ty == Type::Int64x2 || res_reg.ty == Type::Int64x4;
       const bool dword =
           res_reg.ty == Type::Int32x4 || res_reg.ty == Type::Int32x8;
-      const bool narrow = res_reg.ty == Type::Int8x16 ||
-                          res_reg.ty == Type::Int8x32 ||
-                          res_reg.ty == Type::Int16x8 ||
-                          res_reg.ty == Type::Int16x16;
+      const bool narrow =
+          res_reg.ty == Type::Int8x16 || res_reg.ty == Type::Int8x32 ||
+          res_reg.ty == Type::Int16x8 || res_reg.ty == Type::Int16x16;
       if (get_size(val.ty) != get_size(res_reg.ty) ||
           !(wide || dword || narrow)) {
         fmt::println("{:cd}", zext_instr);
@@ -4004,9 +4220,11 @@ void base_rules(RuleSet &rules) {
       return true;
     }
     res.result.emplace_back(GConvSubtype::itrunc, res_reg, val);
-    // i1 lives in a byte that consumers (cjmp, zext) assume to be 0/1
+    // i1 lives in a byte that consumers (cjmp, zext) assume to be 0/1, an and
+    // with a clean bit makes the result clean on its own
     if (itrunc_instr.result_type()->is_int() &&
-        itrunc_instr.result_type()->as_int() == 1) {
+        itrunc_instr.result_type()->as_int() == 1 &&
+        !only_user_is_and_with_clean_bit(itrunc_instr)) {
       res.result.emplace_back(GArithSubtype::land2, res_reg,
                               MArgument::Int(1, res_reg.ty));
     }
@@ -4022,8 +4240,8 @@ void base_rules(RuleSet &rules) {
       calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result,
                             data.alloc);
       const auto callee_const = call_instr->args[0].as_constant();
-      is_var_arg = callee_const->is_func() &&
-                   callee_const->as_func()->attribs.variadic;
+      is_var_arg =
+          callee_const->is_func() && callee_const->as_func()->attribs.variadic;
     } else {
       calee = valueToArg(call_instr->args[0], res.result, data.alloc);
     }
@@ -4034,7 +4252,7 @@ void base_rules(RuleSet &rules) {
     if (call_instr.is_multi_result()) {
       // result i is the next return register of its class, an unused result
       // still gets its ret_setup to keep the positions
-      for (u8 i = 0; i < call_instr.n_results(); i++) {
+      for (u32 i = 0; i < call_instr.n_results(); i++) {
         auto res_reg = valueToArg(call_instr.result(i), res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::ret_setup, res_reg);
       }
@@ -4480,7 +4698,7 @@ void intrin_rules(RuleSet &rules) {
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
-          res.result.emplace_back(GVecSubtype::vSMax, res_reg, a, b);
+          vec_int_minmax(GVecSubtype::vSMax, res_reg, a, b, res, data);
           return true;
         }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -4493,7 +4711,7 @@ void intrin_rules(RuleSet &rules) {
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
-          res.result.emplace_back(GVecSubtype::vUMax, res_reg, a, b);
+          vec_int_minmax(GVecSubtype::vUMax, res_reg, a, b, res, data);
           return true;
         }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -4506,7 +4724,7 @@ void intrin_rules(RuleSet &rules) {
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
-          res.result.emplace_back(GVecSubtype::vSMin, res_reg, a, b);
+          vec_int_minmax(GVecSubtype::vSMin, res_reg, a, b, res, data);
           return true;
         }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -4519,7 +4737,7 @@ void intrin_rules(RuleSet &rules) {
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
-          res.result.emplace_back(GVecSubtype::vUMin, res_reg, a, b);
+          vec_int_minmax(GVecSubtype::vUMin, res_reg, a, b, res, data);
           return true;
         }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);

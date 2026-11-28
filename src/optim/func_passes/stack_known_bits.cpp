@@ -311,6 +311,34 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
     return true;
   }
 
+  // a constant integer vector, little endian lanes (the folded load of an
+  // expanded memcpy of a literal)
+  if (result == StackOffsetResult::KnownLocal && instr->args[1].is_constant() &&
+      instr->args[1].as_constant()->is_vec()) {
+    const auto &members = instr->args[1].as_constant()->as_vec().members;
+    bool all_int = !members.empty();
+    u64 n_bytes = 0;
+    for (const auto &m : members) {
+      all_int = all_int && m->is_int() && m->type->get_bitwidth() % 8 == 0 &&
+                m->type->get_bitwidth() <= 64;
+      n_bytes += all_int ? m->type->get_bitwidth() / 8 : 0;
+    }
+    if (all_int && (offset + n_bytes) * 8 <= new_in_one.bit_size()) {
+      u64 pos = offset;
+      for (const auto &m : members) {
+        const u64 lane_bytes = m->type->get_bitwidth() / 8;
+        const u64 val = static_cast<u64>(m->as_int());
+        for (u64 i = 0; i < lane_bytes; i++) {
+          const u8 byte = static_cast<u8>(val >> (8 * i));
+          new_in_one.set((pos + i) * 8, 8, byte);
+          new_in_zero.set((pos + i) * 8, 8, static_cast<u8>(~byte));
+        }
+        pos += lane_bytes;
+      }
+      return true;
+    }
+  }
+
   // storing what was loaded from a constant global (an expanded memcpy)
   if (result == StackOffsetResult::KnownLocal) {
     const auto bytes = constant_load_bytes(instr->args[1]);

@@ -29,7 +29,7 @@ define void @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %21: i64 = And(%4, -8:i64){} NUses:3
 ; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
-; CHECK-NEXT:    %24: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %24: 8@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %25: 8@f32 = V.Broadcast(3F800000:f32){} NUses:1
 ; CHECK-NEXT:    %26: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%27{}: i64):

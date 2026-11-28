@@ -6,42 +6,40 @@
 define void @fill(ptr noalias %p, i32 %x, i32 %n) {
 ; CHECK: func fill ($2: i64, $3: i32, $4: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r8d: i32 = $esi: i32
-; CHECK-NEXT:    mov_sx($rsi: i64, $edx: i32, )
-; CHECK-NEXT:    $r9: i64 = 1: i64
-; CHECK-NEXT:    cmov_slt($r9: i64, $rsi: i64, $r9: i64, $rsi: i64, )
-; CHECK-NEXT:    cjmp_int_sgt($edx: i32, 0: i32, ) -> 3
+; CHECK-NEXT:    $eax: i32 = $edx: i32
+; CHECK-NEXT:    mov_sx($rdx: i64, $eax: i32, )
+; CHECK-NEXT:    $r8: i64 = 1: i64
+; CHECK-NEXT:    cmov_slt($r8: i64, $rdx: i64, $r8: i64, $rdx: i64, )
+; CHECK-NEXT:    cjmp_int_sgt($eax: i32, 0: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    [$rdi + $rcx *4]: i32 = $r8d: i32
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    [$rdi + $rax *4]: i32 = $esi: i32
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rcx: i64 += 1: i64
-; CHECK-NEXT:    cjmp_int_slt($rax: i64, $rsi: i64, ) -> 2
+; CHECK-NEXT:    $rax: i64 += 1: i64
+; CHECK-NEXT:    cjmp_int_slt($rcx: i64, $rdx: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $rdx: i64 = $r9: i64
-; CHECK-NEXT:    land2($rdx: i64, -8: i64, )
-; CHECK-NEXT:    $mm0: f32 = $r8d: i32
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    land2($rcx: i64, -8: i64, )
+; CHECK-NEXT:    $mm0: f32 = $esi: i32
 ; CHECK-NEXT:    vbroadcast($ymm0: i32x8, $mm0: f32, )
-; CHECK-NEXT:    clear $rcx: i64
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, 0: i64, ) -> 2
+; CHECK-NEXT:    clear $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, 0: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $rcx: i64 = $rax: i64
-; CHECK-NEXT:    [$rdi + $rcx *4]: i32x8 = $ymm0: i32x8
-; CHECK-NEXT:    $rcx: i64 += 8: i64
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    cjmp_int_ne($rcx: i64, $rdx: i64, ) -> 5
+; CHECK-NEXT:    [$rdi + $rax *4]: i32x8 = $ymm0: i32x8
+; CHECK-NEXT:    $rax: i64 += 8: i64
+; CHECK-NEXT:    cjmp_int_ne($rax: i64, $rcx: i64, ) -> 5
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
-; CHECK-NEXT:    cjmp_int_eq($rdx: i64, $r9: i64, ) -> 1
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 1
 ; CHECK-NEXT:    jmp() -> 7
 ; CHECK-NEXT:  7:
 ; CHECK-NEXT:    jmp() -> 2

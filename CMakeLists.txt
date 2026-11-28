@@ -224,6 +224,7 @@ add_library (foptim OBJECT
                 ./src/optim/cost_model/aggregators.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
+                ./src/optim/func_passes/flag_annotator.cpp
                 ./src/optim/func_passes/narrow_ints.cpp
                 ./src/optim/func_passes/widen_accum.cpp
                 ./src/optim/func_passes/widen_iv.cpp

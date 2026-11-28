@@ -25,7 +25,7 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %18: i64 = And(%4, -8:i64){} NUses:3
 ; CHECK-NEXT:    %19: i64 = IntAdd(%18, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
-; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(2147483647:i32){} NUses:1
+; CHECK-NEXT:    %21: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%17), bb4(%17)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%23{}: i64):
 ; CHECK-NEXT:    %24: i64 = IntMul(%23, 4:i64){NSW; NUW; } NUses:2

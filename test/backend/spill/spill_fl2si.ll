@@ -7,7 +7,7 @@ define i64 @spill_fl2si(ptr %p) {
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rsp: i64 -= 80: i64
 ; CHECK-NEXT:    $mm2: f64 = [$rdi]: f64
-; CHECK-NEXT:    $mm1: f64 = [$rdi + 8]: f64
+; CHECK-NEXT:    $mm0: f64 = [$rdi + 8]: f64
 ; CHECK-NEXT:    $mm4: f64 = [$rdi + 16]: f64
 ; CHECK-NEXT:    $mm3: f64 = [$rdi + 24]: f64
 ; CHECK-NEXT:    $mm7: f64 = [$rdi + 32]: f64
@@ -18,29 +18,29 @@ define i64 @spill_fl2si(ptr %p) {
 ; CHECK-NEXT:    $mm8: f64 = [$rdi + 72]: f64
 ; CHECK-NEXT:    $mm15: f64 = [$rdi + 80]: f64
 ; CHECK-NEXT:    $mm9: f64 = [$rdi + 88]: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 96]: f64
-; CHECK-NEXT:    [$rbp + -80]: f64 = $mm0: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 96]: f64
+; CHECK-NEXT:    [$rbp + -80]: f64 = $mm1: f64
 ; CHECK-NEXT:    $mm11: f64 = [$rdi + 104]: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 112]: f64
-; CHECK-NEXT:    [$rbp + -56]: f64 = $mm0: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 112]: f64
+; CHECK-NEXT:    [$rbp + -56]: f64 = $mm1: f64
 ; CHECK-NEXT:    $mm12: f64 = [$rdi + 120]: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 128]: f64
-; CHECK-NEXT:    [$rbp + -48]: f64 = $mm0: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 128]: f64
+; CHECK-NEXT:    [$rbp + -48]: f64 = $mm1: f64
 ; CHECK-NEXT:    $mm14: f64 = [$rdi + 136]: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 144]: f64
-; CHECK-NEXT:    [$rbp + -40]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 152]: f64
-; CHECK-NEXT:    [$rbp + -16]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 160]: f64
-; CHECK-NEXT:    [$rbp + -32]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 168]: f64
-; CHECK-NEXT:    [$rbp + -72]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 176]: f64
-; CHECK-NEXT:    [$rbp + -24]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 184]: f64
-; CHECK-NEXT:    [$rbp + -64]: f64 = $mm0: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 144]: f64
+; CHECK-NEXT:    [$rbp + -40]: f64 = $mm1: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 152]: f64
+; CHECK-NEXT:    [$rbp + -16]: f64 = $mm1: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 160]: f64
+; CHECK-NEXT:    [$rbp + -32]: f64 = $mm1: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 168]: f64
+; CHECK-NEXT:    [$rbp + -72]: f64 = $mm1: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 176]: f64
+; CHECK-NEXT:    [$rbp + -24]: f64 = $mm1: f64
+; CHECK-NEXT:    $mm1: f64 = [$rdi + 184]: f64
+; CHECK-NEXT:    [$rbp + -64]: f64 = $mm1: f64
 ; CHECK-NEXT:    $rsp: i64 -= 8: i32
-; CHECK-NEXT:    push($mm1: f64, )
+; CHECK-NEXT:    push($mm0: f64, )
 ; CHECK-NEXT:    push($mm2: f64, )
 ; CHECK-NEXT:    push($mm3: f64, )
 ; CHECK-NEXT:    push($mm4: f64, )
@@ -70,37 +70,10 @@ define i64 @spill_fl2si(ptr %p) {
 ; CHECK-NEXT:    pop($mm4: f64, )
 ; CHECK-NEXT:    pop($mm3: f64, )
 ; CHECK-NEXT:    pop($mm2: f64, )
-; CHECK-NEXT:    pop($mm1: f64, )
+; CHECK-NEXT:    pop($mm0: f64, )
 ; CHECK-NEXT:    $rsp: i64 += 8: i32
 ; CHECK-NEXT:    FL2SI($rsi: i64, $mm2: f64, )
-; CHECK-NEXT:    $mm0: f64 = $mm1: f64
-; CHECK-NEXT:    FL2SI($rcx: i64, $mm1: f64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 = 1593835520d
-; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
-; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
-; CHECK-NEXT:    $rsi: i64 += $rdx: i64
-; CHECK-NEXT:    FL2SI($rax: i64, $mm4: f64, )
-; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm3: f64
-; CHECK-NEXT:    FL2SI($rcx: i64, $mm3: f64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 = 1593835520d
-; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
-; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
-; CHECK-NEXT:    $rsi: i64 += $rdx: i64
-; CHECK-NEXT:    FL2SI($rax: i64, $mm7: f64, )
-; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm5: f64
-; CHECK-NEXT:    FL2SI($rax: i64, $mm5: f64, )
+; CHECK-NEXT:    FL2SI($rax: i64, $mm0: f64, )
 ; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
@@ -110,83 +83,101 @@ define i64 @spill_fl2si(ptr %p) {
 ; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
 ; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm4: f64, )
+; CHECK-NEXT:    $rsi: i64 += $rax: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm3: f64, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    $rdx: i64 = 1593835520d
+; CHECK-NEXT:    $mm1: f64 = $rdx: i64
+; CHECK-NEXT:    $mm3: f64 = $mm3: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm3: f64, )
+; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
+; CHECK-NEXT:    $rsi: i64 += $rdx: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm7: f64, )
+; CHECK-NEXT:    $rsi: i64 += $rax: i64
+; CHECK-NEXT:    FL2SI($rcx: i64, $mm5: f64, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $rdx: i64 = 1593835520d
+; CHECK-NEXT:    $mm1: f64 = $rdx: i64
+; CHECK-NEXT:    $mm5: f64 = $mm5: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm5: f64, )
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
+; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, $mm10: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm6: f64
 ; CHECK-NEXT:    FL2SI($rax: i64, $mm6: f64, )
 ; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
+; CHECK-NEXT:    $mm6: f64 = $mm6: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm6: f64, )
 ; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
 ; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
 ; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, $mm13: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm8: f64
-; CHECK-NEXT:    FL2SI($rcx: i64, $mm8: f64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm8: f64, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
-; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    $mm8: f64 = $mm8: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm8: f64, )
+; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, $mm15: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm9: f64
 ; CHECK-NEXT:    FL2SI($rax: i64, $mm9: f64, )
 ; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
+; CHECK-NEXT:    $mm9: f64 = $mm9: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm9: f64, )
 ; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
 ; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
 ; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -80]: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm11: f64
 ; CHECK-NEXT:    FL2SI($rcx: i64, $mm11: f64, )
 ; CHECK-NEXT:    $rax: i64 = $rcx: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
+; CHECK-NEXT:    $mm11: f64 = $mm11: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm11: f64, )
 ; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
 ; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -56]: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm12: f64
-; CHECK-NEXT:    FL2SI($rcx: i64, $mm12: f64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm12: f64, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
-; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    $mm12: f64 = $mm12: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm12: f64, )
+; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -48]: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
-; CHECK-NEXT:    $mm0: f64 = $mm14: f64
-; CHECK-NEXT:    FL2SI($rcx: i64, $mm14: f64, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    FL2SI($rax: i64, $mm14: f64, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    $rdx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rdx: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
-; CHECK-NEXT:    FL2SI($rdx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    land2($rdx: i64, $rax: i64, )
-; CHECK-NEXT:    lor2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    $mm14: f64 = $mm14: f64 - $mm1: f64
+; CHECK-NEXT:    FL2SI($rdx: i64, $mm14: f64, )
+; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    land2($rdx: i64, $rcx: i64, )
+; CHECK-NEXT:    lor2($rdx: i64, $rax: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rdx: i64
 ; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -40]: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
@@ -217,19 +208,21 @@ define i64 @spill_fl2si(ptr %p) {
 ; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -24]: f64, )
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rbp + -64]: f64
-; CHECK-NEXT:    FL2SI($rax: i64, [$rbp + -64]: f64, )
-; CHECK-NEXT:    $rdx: i64 = $rax: i64
+; CHECK-NEXT:    FL2SI($rdx: i64, [$rbp + -64]: f64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
 ; CHECK-NEXT:    $rcx: i64 = 1593835520d
 ; CHECK-NEXT:    $mm1: f64 = $rcx: i64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 - $mm1: f64
 ; CHECK-NEXT:    FL2SI($rcx: i64, $mm0: f64, )
-; CHECK-NEXT:    sar2($rdx: i64, 63: i8, )
-; CHECK-NEXT:    land2($rcx: i64, $rdx: i64, )
-; CHECK-NEXT:    lor2($rcx: i64, $rax: i64, )
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    land2($rcx: i64, $rax: i64, )
+; CHECK-NEXT:    lor2($rcx: i64, $rdx: i64, )
 ; CHECK-NEXT:    $rsi: i64 += $rcx: i64
 ; CHECK-NEXT:    $rax: i64 = $rsi: i64
 ; CHECK-NEXT:    $rsp: i64 += 80: i64
 ; CHECK-NEXT:    ret($rax: i64, )
+; CHECK-EMPTY:
+; CHECK-NEXT:clobber
   %g0 = getelementptr double, ptr %p, i64 0
   %v0 = load double, ptr %g0
   %g1 = getelementptr double, ptr %p, i64 1

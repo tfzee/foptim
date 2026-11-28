@@ -36,7 +36,7 @@ define i64 @big(ptr noundef %0, i64 noundef %1, ptr noundef %2) #0 {
 ; CHECK-NEXT:    %23: i64 = IntSub(%14, %22){} NUses:1
 ; CHECK-NEXT:    %24: () = Branch<bb5(%23)>(){} NUses:0
 ; CHECK-NEXT:  bb5(%25{}: i64):
-; CHECK-NEXT:    %26: i64 = IntAdd(%7, 1:i64){} NUses:2
+; CHECK-NEXT:    %26: i64 = IntAdd(%7, 1:i64){NSW; } NUses:2
 ; CHECK-NEXT:    %27: i1 = IntSLT(%26, %1){} NUses:1
 ; CHECK-NEXT:    %28: () = CondBranch<bb3(%25, %26), bb6(%25)>(%27){} NUses:0
 ; CHECK-NEXT:  bb2():

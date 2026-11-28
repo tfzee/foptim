@@ -151,6 +151,13 @@ bool check_match(fir::Function *f1, fir::Function *f2,
       if (bb1->args[i]->get_type() != bb2->args[i]->get_type()) {
         return false;
       }
+      // a call of the one function would get the promises of the other
+      if (bb1->args[i]->noalias != bb2->args[i]->noalias ||
+          bb1->args[i]->nonnull != bb2->args[i]->nonnull ||
+          bb1->args[i]->nocapture != bb2->args[i]->nocapture ||
+          bb1->args[i]->readonly != bb2->args[i]->readonly) {
+        return false;
+      }
     }
     for (size_t instr_id = 0; instr_id < bb1->instructions.size(); instr_id++) {
       auto i1 = bb1->instructions[instr_id];

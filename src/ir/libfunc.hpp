@@ -31,6 +31,8 @@ enum class LibFunc : u8 {
   MemcpyChk,
   MemsetChk,
   StrcpyChk,
+  Strcpy,
+  Strcat,
   // the loader turns calls into calls of PosixMemalignHelper
   PosixMemalign,
   Malloc,
@@ -86,6 +88,8 @@ inline constexpr LibFuncName LibFuncNames[] = {
     {"__memcpy_chk", LibFunc::MemcpyChk, 4, true},
     {"__memset_chk", LibFunc::MemsetChk, 4, true},
     {"__strcpy_chk", LibFunc::StrcpyChk, 3, true},
+    {"strcpy", LibFunc::Strcpy, 2, true},
+    {"strcat", LibFunc::Strcat, 2, true},
     {"posix_memalign", LibFunc::PosixMemalign, 3, true},
     {"malloc", LibFunc::Malloc, 1, true},
     {"free", LibFunc::Free, 1, true},

@@ -21,6 +21,7 @@
 #include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
+#include "optim/func_passes/flag_annotator.hpp"
 #include "optim/func_passes/narrow_ints.hpp"
 #include "optim/func_passes/widen_accum.hpp"
 #include "optim/func_passes/widen_iv.hpp"
@@ -477,6 +478,12 @@ struct LegalizeVecsConf : public FunctionPassConf<LegalizeVecsConf> {
 struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
   static constexpr const char *BaseName = "LoopUnswitch";
   using Pass = optim::LoopUnswitch;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct FlagAnnotatorConf : public FunctionPassConf<FlagAnnotatorConf> {
+  static constexpr const char *BaseName = "FlagAnnotator";
+  using Pass = optim::FlagAnnotator;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

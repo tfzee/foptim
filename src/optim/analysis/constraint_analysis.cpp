@@ -320,6 +320,55 @@ void ConstraintAnalysis::add_condition_facts(fir::ValueR cond, bool holds,
   }
 }
 
+bool ConstraintAnalysis::dominates_strictly(u32 a, u32 b) const {
+  for (u32 x = dom_parent[b]; x != ~0U; x = dom_parent[x]) {
+    if (x == a) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ConstraintAnalysis::entered_only_from(u32 header, u32 from) const {
+  if (dominates_strictly(header, from)) {
+    return false;
+  }
+  for (const u32 p : cfg.bbrs[header].pred) {
+    if (p != from && !dominates_strictly(header, p) && p != header) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ConstraintAnalysis::invariant_above(fir::ValueR v, u32 header,
+                                         u32 depth) const {
+  if (v.is_constant()) {
+    return true;
+  }
+  fir::BasicBlock def{fir::BasicBlock::invalid()};
+  if (v.is_bb_arg()) {
+    def = v.as_bb_arg()->get_parent();
+  } else if (v.is_instr()) {
+    def = v.as_instr()->get_parent();
+  } else {
+    return true;
+  }
+  if (dominates_strictly(cfg.get_bb_id(def), header)) {
+    return true;
+  }
+  // computed from such values, as the compare and the and of a guard
+  if (!v.is_instr() || depth > 4 || v.as_instr()->pot_reads_mem()) {
+    return false;
+  }
+  for (const auto &a : v.as_instr()->args) {
+    if (!invariant_above(a, header, depth + 1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void ConstraintAnalysis::setup_direct_constraints() {
   for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     auto &bbr = cfg.bbrs[bb_id];
@@ -338,11 +387,17 @@ void ConstraintAnalysis::setup_direct_constraints() {
       }
     }
     // only a target with this edge as its single entry can assume it, a
-    // loop header would see the condition of the previous iteration
+    // loop header would see the condition of the previous iteration, unless
+    // the condition does not change inside the loop (the guard of a rotated
+    // loop)
     for (u32 edge = 0; edge < 2; edge++) {
       const auto target = cfg.get_bb_id(term->bbs[edge].bb);
-      if (cfg.bbrs[target].pred.size() == 1 &&
-          term->bbs[0].bb != term->bbs[1].bb) {
+      if (term->bbs[0].bb == term->bbs[1].bb) {
+        continue;
+      }
+      if (cfg.bbrs[target].pred.size() == 1 ||
+          (entered_only_from(target, bb_id) &&
+           invariant_above(term->args[0], target, 0))) {
         add_condition_facts(term->args[0], edge == 0, target, 0);
       }
     }

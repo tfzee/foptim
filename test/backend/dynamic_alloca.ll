@@ -25,8 +25,7 @@ define i64 @dyn(i64 %n) {
 ; CHECK-NEXT:    call(use, )
 ; CHECK-NEXT:    pop($rdi: i64, )
 ; CHECK-NEXT:    $rsp: i64 += 8: i32
-; CHECK-NEXT:    $al: i32 = [$rdi + 1]: i8
-; CHECK-NEXT:    mov_zx($rax: i64, $al: i8, )
+; CHECK-NEXT:    mov_zx($rax: i64, [$rdi + 1]: i8, )
 ; CHECK-NEXT:    $rsp: i64 = $rbx: i64
 ; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )

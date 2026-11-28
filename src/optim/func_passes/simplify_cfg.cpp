@@ -23,6 +23,7 @@
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/constraint_analysis.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/cost_model/branch_cost.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/inline.hpp"
 #include "optim/helper/switch_slots.hpp"
@@ -1538,7 +1539,20 @@ bool safe_to_speculate(fir::Instr instr) {
 }
 }  // namespace
 
-bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
+namespace {
+// number of selects by kind for the values of type
+void count_select_kinds(fir::TypeR ty, cost_model::IfConvertInput &in) {
+  if (ty->is_float() || ty->is_vec()) {
+    in.n_float_selects++;
+  } else {
+    in.n_int_selects++;
+  }
+}
+}  // namespace
+
+bool SimplifyCFG::conditional_to_cmove(CFG &cfg, Dominators &dom,
+                                       CFG::Node &curr,
+                                       const cost_model::Machine &machine) {
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 &&
       terminator->is(fir::InstrType::CondBranchInstr) &&
@@ -1589,6 +1603,16 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
         }
         extra_bb = 0;
       }
+    }
+    if (matched && !extra_instrs.empty()) {
+      cost_model::IfConvertInput in;
+      const auto extra = cost_model::arm_cost(extra_instrs, machine);
+      (extra_bb == 0 ? in.arm0 : in.arm1) = extra;
+      in.p0 = cost_model::edge_probability(cfg, dom, curr.bb, 0);
+      for (const auto &v : t1->get_terminator()->args) {
+        count_select_kinds(v.get_type(), in);
+      }
+      matched = cost_model::cost_if_convert(in, machine).prefer_select();
     }
     if (matched) {
       fir::Builder bb{terminator};
@@ -1652,18 +1676,47 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   }
   if (curr.succ.size() == 2 &&
       terminator->is(fir::InstrType::CondBranchInstr)) {
-    return if_convert_arms(curr);
+    return if_convert_arms(cfg, dom, curr, machine);
   }
   return false;
 }
 
 namespace {
-// most instructions that get executed on both paths by an if conversion
-constexpr size_t IfConvMaxInstrs = 6;
+// most instructions that get executed on both paths by an if conversion, a
+// bound on code growth, the cost model decides below it
+constexpr size_t IfConvMaxInstrs = 16;
 
 // a shared arm stays for its other predecessors, so the copy is only worth it
 // for very short ones
 constexpr size_t IfConvMaxSharedArmInstrs = 2;
+
+// the value flows into an argument of a block that dominates at, so it is
+// carried around a loop containing at. looks through a few operations only
+bool feeds_loop_carry(fir::ValueR start, fir::BasicBlock at, const CFG &cfg,
+                      const Dominators &dom) {
+  constexpr size_t MaxVisited = 24;
+  const u32 at_id = cfg.get_bb_id(at);
+  TVec<fir::ValueR> work{start};
+  for (size_t i = 0; i < work.size() && i < MaxVisited; i++) {
+    const auto *uses = work[i].get_uses();
+    if (uses == nullptr) {
+      continue;
+    }
+    for (const auto &use : *uses) {
+      if (use.type == fir::UseType::BBArg) {
+        const auto target = use.user->bbs[use.argId].bb;
+        if (dom.dominates(cfg.get_bb_id(target), at_id)) {
+          return true;
+        }
+        work.push_back(fir::ValueR{target->args[use.bbArgId]});
+      } else if (use.type == fir::UseType::NormalArg &&
+                 use.user->has_one_result()) {
+        work.push_back(use.user.result());
+      }
+    }
+  }
+  return false;
+}
 
 // a block entered from the branch that jumps on to the join block after a few
 // instructions that are fine to run unconditionally
@@ -1879,7 +1932,8 @@ bool SimplifyCFG::sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
   return changed;
 }
 
-bool SimplifyCFG::if_convert_arms(CFG::Node &curr) {
+bool SimplifyCFG::if_convert_arms(CFG &cfg, Dominators &dom, CFG::Node &curr,
+                                  const cost_model::Machine &machine) {
   ZoneScopedN("cond to cmove3");
   auto terminator = curr.bb->get_terminator();
   auto &edge0 = terminator->bbs[0];
@@ -1921,6 +1975,36 @@ bool SimplifyCFG::if_convert_arms(CFG::Node &curr) {
   if (n_args == 0 || incoming(use_arm0, t0, edge0).size() != n_args ||
       incoming(use_arm1, t1, edge1).size() != n_args) {
     return false;
+  }
+
+  {
+    cost_model::IfConvertInput in;
+    TVec<fir::Instr> body0;
+    TVec<fir::Instr> body1;
+    const auto collect = [](fir::BasicBlock arm, TVec<fir::Instr> &out) {
+      for (auto instr : arm->get_instrs()) {
+        if (!instr->is(fir::InstrType::BranchInstr)) {
+          out.push_back(instr);
+        }
+      }
+    };
+    if (use_arm0) {
+      collect(t0, body0);
+    }
+    if (use_arm1) {
+      collect(t1, body1);
+    }
+    in.arm0 = cost_model::arm_cost(body0, machine);
+    in.arm1 = cost_model::arm_cost(body1, machine);
+    in.p0 = cost_model::edge_probability(cfg, dom, curr.bb, 0);
+    for (size_t k = 0; k < n_args; k++) {
+      count_select_kinds(join->args[k]->get_type(), in);
+      in.carried = in.carried || feeds_loop_carry(fir::ValueR{join->args[k]},
+                                                  curr.bb, cfg, dom);
+    }
+    if (!cost_model::cost_if_convert(in, machine).prefer_select()) {
+      return false;
+    }
   }
 
   fir::Builder bb{terminator};
@@ -2414,19 +2498,19 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
         continue;
       }
     }
-    term1.replace_bb(ti, term2->bbs[ti].bb, false, false);
+    // replace_bb drops the old args, so the substitution has to be built first
+    TVec<fir::ValueR> new_args;
     for (auto arg : term2->bbs[ti].args) {
-      // need to substitute bb args
-      if (arg.is_bb_arg()) {
-        auto a = arg.as_bb_arg();
-        if (a->_parent == target) {
-          term1.add_bb_arg(ti, term1->bbs[ti].args[target->get_arg_id(a)]);
-        } else {
-          term1.add_bb_arg(ti, arg);
-        }
+      if (arg.is_bb_arg() && arg.as_bb_arg()->_parent == target) {
+        new_args.push_back(
+            term1->bbs[ti].args[target->get_arg_id(arg.as_bb_arg())]);
       } else {
-        term1.add_bb_arg(ti, arg);
+        new_args.push_back(arg);
       }
+    }
+    term1.replace_bb(ti, term2->bbs[ti].bb, false, false);
+    for (auto arg : new_args) {
+      term1.add_bb_arg(ti, arg);
     }
     return true;
   }
@@ -2568,7 +2652,8 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
 
 SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
                                            fir::Function &func, size_t bb_id,
-                                           bool bmi2) {
+                                           bool bmi2,
+                                           const cost_model::Machine &machine) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
 
@@ -2626,7 +2711,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     return Res::Changed;
   }
 
-  if (conditional_to_cmove(curr)) {
+  if (conditional_to_cmove(cfg, dom, curr, machine)) {
     if constexpr (debug_print) {
       fmt::println("11");
     }
@@ -2697,6 +2782,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
   }
   CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
+  const auto machine = cost_model::Machine::from_target(ctx.config->target);
 
   auto iter = 0;
   bool modified = true;
@@ -2754,7 +2840,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
     if (!needs_update) {
       for (size_t bb_id = start_id + 1; bb_id <= cfg.bbrs.size(); bb_id++) {
         auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1,
-                               ctx.config->target.features.bmi2);
+                               ctx.config->target.features.bmi2, machine);
         modified |= (r2 == Res::Changed || r2 == Res::NeedUpdate);
         if (r2 == Res::NeedUpdate) {
           needs_update = true;

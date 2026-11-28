@@ -33,9 +33,23 @@ class ConstraintProp final : public FunctionPass {
 
     TVec<fir::Instr> always_false;
     TVec<fir::Instr> always_true;
+    TVec<std::pair<fir::Instr, bool>> decided_branches;
     constr.walk_with_facts([&](u32 bb_id, std::span<const u32> facts) {
       if (facts.empty()) {
         return;
+      }
+      const auto term = cfg.bbrs[bb_id].bb->get_terminator();
+      if (term->is(fir::InstrType::CondBranchInstr) &&
+          term->args[0].is_instr() &&
+          term->args[0].as_instr()->instr_type == fir::InstrType::ICmp &&
+          term->args[0].as_instr()->get_parent() != cfg.bbrs[bb_id].bb) {
+        const auto cmp = term->args[0].as_instr();
+        const auto cond = constr.get_constraint(cmp);
+        if (cond.has_value() && constr.contradicts(cond.value(), facts)) {
+          decided_branches.emplace_back(term, false);
+        } else if (cond.has_value() && constr.implied(cond.value(), facts)) {
+          decided_branches.emplace_back(term, true);
+        }
       }
       for (auto instr : cfg.bbrs[bb_id].bb->get_instrs()) {
         if (instr->instr_type != fir::InstrType::ICmp ||
@@ -57,8 +71,12 @@ class ConstraintProp final : public FunctionPass {
     for (auto instr : always_true) {
       instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(1, 1)});
     }
+    for (auto [term, value] : decided_branches) {
+      term.replace_arg(0, fir::ValueR{ctx->get_constant_int(value ? 1 : 0, 1)});
+    }
     // only uses get replaced by constants
-    return always_false.empty() && always_true.empty()
+    return always_false.empty() && always_true.empty() &&
+                   decided_branches.empty()
                ? PreservedAnalysis::all()
                : PreservedAnalysis::cfg_only();
   }

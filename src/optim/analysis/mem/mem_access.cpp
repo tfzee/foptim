@@ -81,8 +81,22 @@ bool linearize(fir::ValueR v, i64 mult, Linear &lin, u32 depth) {
     auto i = v.as_instr();
     i64 k = 0;
     if (i->is(fir::BinaryInstrSubType::IntAdd)) {
-      return linearize(i->args[0], mult, lin, depth + 1) &&
-             linearize(i->args[1], mult, lin, depth + 1);
+      const Linear saved = lin;
+      if (linearize(i->args[0], mult, lin, depth + 1) &&
+          linearize(i->args[1], mult, lin, depth + 1)) {
+        return true;
+      }
+      // too many terms: the sum without its constant is one opaque term, so
+      // two addresses that differ by constants still compare by their offsets
+      lin = saved;
+      for (u32 side = 0; side < 2; side++) {
+        i64 m = 0;
+        if (const_i64(i->args[side], k) && mul_i64(k, mult, m) &&
+            add_i64(lin.offset, m, lin.offset)) {
+          return add_term(lin.terms, lin.n, i->args[1 - side], mult);
+        }
+      }
+      return false;
     }
     if (i->is(fir::BinaryInstrSubType::IntSub) && mult != INT64_MIN) {
       return linearize(i->args[0], mult, lin, depth + 1) &&

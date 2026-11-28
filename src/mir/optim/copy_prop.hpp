@@ -11,6 +11,7 @@ namespace foptim::fmir {
 class CopyPropagation : public FunctionPass {
   void apply_impl(MFunc &func) {
     CFG cfg{func};
+    LiveVariables live{cfg, func};
     TVec<ArgData> w_args;
     TVec<ArgData> helper;
     helper.reserve(4);
@@ -33,13 +34,12 @@ class CopyPropagation : public FunctionPass {
         auto output_arg = bb.instrs[instr_id].args[0];
         auto input_arg = bb.instrs[instr_id].args[1];
         const auto target_uid = reg_to_uid(output_arg.reg);
-        // const auto input_uid = reg_to_uid(input_arg.reg);
-        // if (!live._liveOut[bb_id][input_uid]) {
-        // we only do it if the argument was live anyway so its free since
-        //  we dont extend its lifetime
-        // TODO: would also check other lifetime extensions stuff
-        // continue;
-        // }
+        // the copy has to stay when the destination is alive out of the block,
+        // reading the source then only keeps it alive longer (LifetimeShortening
+        // does the reverse and shortens the source)
+        if (live._liveOut[bb_id][target_uid]) {
+          continue;
+        }
 
         while (true) {
           // if we have some move we check each next use if we can propagate our

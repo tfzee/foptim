@@ -273,104 +273,81 @@ define i64 @spill_fcmp(ptr %p) {
 ; CHECK-NEXT:    $mm0: f64 = [$rdi]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rdi]: f64
 ; CHECK-NEXT:    [$rbp + -24]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 16: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 16]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 16]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -32]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 32: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 32]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 32]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -40]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 48: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 48]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 48]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -48]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 64: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 64]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 64]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -56]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 80: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 80]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 80]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -64]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 96: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 96]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 96]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -72]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 112: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 112]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 112]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -80]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 128: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 128]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 128]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    [$rbp + -16]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 144: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 144]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 144]: f64
 ; CHECK-NEXT:    $mm15: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 160: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 160]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 160]: f64
 ; CHECK-NEXT:    $mm10: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 176: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 176]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 176]: f64
 ; CHECK-NEXT:    $mm4: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 192: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 192]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 192]: f64
 ; CHECK-NEXT:    $mm1: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 208: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 208]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 208]: f64
 ; CHECK-NEXT:    $mm3: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 224: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 224]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 224]: f64
 ; CHECK-NEXT:    $mm5: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 240: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 240]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 240]: f64
 ; CHECK-NEXT:    $mm6: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 256: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 256]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 256]: f64
 ; CHECK-NEXT:    $mm7: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 272: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 272]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 272]: f64
 ; CHECK-NEXT:    $mm8: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 288: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 288]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 288]: f64
 ; CHECK-NEXT:    $mm9: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 304: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 304]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 304]: f64
 ; CHECK-NEXT:    $mm11: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 320: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 320]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 320]: f64
 ; CHECK-NEXT:    $mm12: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 336: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 336]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 336]: f64
 ; CHECK-NEXT:    $mm13: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 352: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 352]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 352]: f64
 ; CHECK-NEXT:    $mm14: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 368: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 368]: i64, )
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 368]: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * [$rax]: f64
 ; CHECK-NEXT:    $mm0: f64 = [$rbp + -24]: f64

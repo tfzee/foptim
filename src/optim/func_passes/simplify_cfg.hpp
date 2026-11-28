@@ -2,6 +2,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/cost_model/machine.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::fir {
@@ -108,7 +109,8 @@ class SimplifyCFG final : public FunctionPass {
                             fir::Function &func, size_t bb_id);
   // If we got a conditionalbrach with both taking the same target
   // then we can cmove the bbargs and then do a simple branch
-  bool conditional_to_cmove(CFG::Node &curr);
+  bool conditional_to_cmove(CFG &cfg, Dominators &dom, CFG::Node &curr,
+                            const cost_model::Machine &machine);
   // a join that is entered from two blocks with a single jump each, which pass
   // the same integer operation on at most one different operand for one block
   // argument: the operation is done once behind the join on a new block
@@ -116,7 +118,9 @@ class SimplifyCFG final : public FunctionPass {
   bool hoist_common_front(CFG::Node &curr);
   bool sink_into_join(fir::Function &func, CFG &cfg, Dominators &dom,
                       CFG::Node &curr, bool is_entry);
-  bool if_convert_arms(CFG::Node &curr);
+  // only when the cost model says the select beats the branch
+  bool if_convert_arms(CFG &cfg, Dominators &dom, CFG::Node &curr,
+                       const cost_model::Machine &machine);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
   // NOTE: moved to function handling it all for perofmance reasons
@@ -145,7 +149,7 @@ class SimplifyCFG final : public FunctionPass {
   Res simplify_bb_args(fir::Context &ctx, CFG &cfg, Dominators &dom,
                        fir::Function &func, size_t bb_id, LiveBBArgs &live);
   Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func, size_t bb_id,
-                   bool bmi2);
+                   bool bmi2, const cost_model::Machine &machine);
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 

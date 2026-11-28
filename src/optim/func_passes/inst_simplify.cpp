@@ -307,7 +307,8 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
   // select(c, a + x, a) is a + select(c, x, 0), with x = 1 that is a + zext(c)
-  if (instr->result_type()->is_int() && instr->result_type()->get_bitwidth() > 1) {
+  if (instr->result_type()->is_int() &&
+      instr->result_type()->get_bitwidth() > 1) {
     using BS = fir::BinaryInstrSubType;
     for (int arm = 1; arm <= 2; arm++) {
       const auto other = instr->args[3 - arm];
@@ -320,8 +321,7 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         continue;
       }
       const auto sub = static_cast<BS>(op->subtype);
-      const bool comm =
-          sub == BS::IntAdd || sub == BS::Or || sub == BS::Xor;
+      const bool comm = sub == BS::IntAdd || sub == BS::Or || sub == BS::Xor;
       int common = -1;
       if (op->args[0] == other) {
         common = 0;
@@ -332,8 +332,8 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         continue;
       }
       fir::Builder b(instr);
-      const auto zero = fir::ValueR{
-          ctx->get_constant_value(0, instr->result_type())};
+      const auto zero =
+          fir::ValueR{ctx->get_constant_value(0, instr->result_type())};
       auto sel = arm == 1 ? b.build_select(instr->result_type(), instr->args[0],
                                            op->args[1 - common], zero)
                           : b.build_select(instr->result_type(), instr->args[0],
@@ -358,8 +358,8 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         t != f && t.result().get_n_uses() == 1 &&
         f.result().get_n_uses() == 1) {
       const auto sub = static_cast<BS>(t->subtype);
-      const bool comm =
-          sub == BS::IntAdd || sub == BS::And || sub == BS::Or || sub == BS::Xor;
+      const bool comm = sub == BS::IntAdd || sub == BS::And || sub == BS::Or ||
+                        sub == BS::Xor;
       if (comm || sub == BS::IntSub) {
         // index of the common operand in t and f
         int ti = -1;
@@ -1714,7 +1714,8 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         const auto src = constant_c_string(instr->args[2]);
         if (src) {
           const auto len = ctx->get_constant_value(
-              static_cast<i128>(src->size() + 1), ctx->get_int_type(64));
+              static_cast<i128>(static_cast<u128>(src->size() + 1)),
+              ctx->get_int_type(64));
           if (chk_len_fits(fir::ValueR{len}, instr->args[3])) {
             fir::Builder buh{instr};
             auto memcpy_instr = buh.build_intrinsic(
@@ -1725,6 +1726,58 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             instr.destroy();
             return true;
           }
+        }
+      }
+
+      // strcpy with a literal source
+      if (funci->attribs.libfunc == fir::LibFunc::Strcpy &&
+          instr->args.size() == 3 && instr->has_one_result()) {
+        const auto src = constant_c_string(instr->args[2]);
+        if (src) {
+          const auto len = ctx->get_constant_value(
+              static_cast<i128>(static_cast<u128>(src->size() + 1)),
+              ctx->get_int_type(64));
+          fir::Builder buh{instr};
+          auto memcpy_instr = buh.build_intrinsic(
+              instr->args[1], instr->args[2], fir::ValueR{len},
+              fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+          memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+          memcpy_instr.as_instr()->Volatile = instr->Volatile;
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(instr->args[1]);
+          instr.destroy();
+          return true;
+        }
+      }
+
+      // strcat with a literal source
+      // becomes memcpy(dest + strlen(dest), src, len + 1)
+      if (funci->attribs.libfunc == fir::LibFunc::Strcat &&
+          instr->args.size() == 3 && instr->has_one_result() &&
+          ctx->has_function("strlen") &&
+          ctx->get_function("strlen")->attribs.libfunc ==
+              fir::LibFunc::Strlen) {
+        const auto src = constant_c_string(instr->args[2]);
+        if (src) {
+          auto strlen_func = ctx->get_function("strlen");
+          const auto len = ctx->get_constant_value(
+              static_cast<i128>(static_cast<u128>(src->size() + 1)),
+              ctx->get_int_type(64));
+          fir::Builder buh{instr};
+          fir::ValueR strlen_args[1] = {instr->args[1]};
+          auto dst_len = buh.build_call(
+              fir::ValueR{ctx->get_constant_value(strlen_func)},
+              strlen_func->func_ty, ctx->get_int_type(64), strlen_args);
+          auto end = buh.build_ptr_add(instr->args[1], dst_len);
+          auto memcpy_instr = buh.build_intrinsic(
+              end, instr->args[2], fir::ValueR{len},
+              fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+          memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+          memcpy_instr.as_instr()->Volatile = instr->Volatile;
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(instr->args[1]);
+          instr.destroy();
+          return true;
         }
       }
 
@@ -1867,7 +1920,7 @@ fir::ValueR propagate_load_through_select(fir::Instr select) {
   ASSERT(select->get_n_uses() == 1);
   ASSERT(select->uses[0].user->is(fir::InstrType::LoadInstr));
   auto load = select->uses[0];
-  fir::Builder bu{select};
+  fir::Builder bu{load.user};
   auto n_type = load.user.result_type();
   auto a = bu.build_load(n_type, select->args[1], false, false);
   auto b = bu.build_load(n_type, select->args[2], false, false);
@@ -2083,15 +2136,14 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
     fir::Builder bb{instr};
     auto in_val = instr->args[0];
     auto orig_v = bb.build_zext(in_val, out_type);
-    auto v = orig_v;
-    for (u32 i = 1; i < extend_to; i++) {
-      auto ext = bb.build_zext(in_val, out_type);
-      push_instr(worklist, ext);
-      auto add = bb.build_binary_op(
-          ext, fir::ValueR{ctx->get_constant_value(i * 8, out_type)},
-          fir::BinaryInstrSubType::Shl);
-      v = bb.build_binary_op(v, add, fir::BinaryInstrSubType::Or);
+    // every byte of the integer is the lane, one multiply by 0x0101..
+    u64 ones = 0;
+    for (u32 i = 0; i < extend_to; i++) {
+      ones |= u64{1} << (8 * i);
     }
+    auto v = bb.build_binary_op(
+        orig_v, fir::ValueR{ctx->get_constant_value(ones, out_type)},
+        fir::BinaryInstrSubType::IntMul);
     if (n_out_elems != 1) {
       v = bb.build_vbroadcast(v, ctx->get_vec_type(out_type, n_out_elems));
     }
@@ -2105,15 +2157,17 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
   }
   return false;
 }
+
+namespace {
 // the extract of a concat may have a different element type than the half
-static fir::ValueR same_type_or_bitcast(fir::Instr at, fir::ValueR v,
-                                        fir::TypeR ty) {
+fir::ValueR same_type_or_bitcast(fir::Instr at, fir::ValueR v, fir::TypeR ty) {
   if (v.get_type() == ty) {
     return v;
   }
   fir::Builder buh{at};
   return buh.build_conversion_op(v, ty, fir::ConversionSubType::BitCast);
 }
+}  // namespace
 
 // returns whether the instruction was changed
 bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -2199,6 +2253,50 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
         if (broad_cast->get_n_uses() == 0) {
           broad_cast.destroy();
         }
+        return true;
+      }
+    }
+  }
+  // Load(PtrAdd(Broadcast(p), Broadcast(x) + <o, o + s, ...>)) with s the
+  // element size is one vector load at p + x + o
+  if (instr->is(fir::InstrType::LoadInstr) &&
+      instr->args[0].get_type()->is_vec() && instr->args[0].is_instr()) {
+    auto argi = instr->args[0].as_instr();
+    if (argi->is(fir::BinaryInstrSubType::PtrAdd) && argi->args[0].is_instr() &&
+        argi->args[0].as_instr()->is(fir::VectorISubType::Broadcast) &&
+        argi->args[1].is_instr() &&
+        argi->args[1].as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+      auto sum = argi->args[1].as_instr();
+      for (u32 side = 0; side < 2; side++) {
+        if (!sum->args[side].is_instr() ||
+            !sum->args[side].as_instr()->is(fir::VectorISubType::Broadcast) ||
+            !sum->args[1 - side].is_constant() ||
+            !sum->args[1 - side].as_constant()->is_vec()) {
+          continue;
+        }
+        const auto &members =
+            sum->args[1 - side].as_constant()->as_vec().members;
+        const i64 spacing = instr->result_type()->as_vec().bitwidth / 8;
+        bool consecutive = members[0]->is_int();
+        for (size_t i = 1; i < members.size() && consecutive; i++) {
+          consecutive =
+              members[i]->is_int() &&
+              members[i]->as_int() - members[i - 1]->as_int() == spacing;
+        }
+        if (!consecutive) {
+          continue;
+        }
+        fir::Builder buh{instr};
+        auto base = buh.build_ptr_add(argi->args[0].as_instr()->args[0],
+                                      sum->args[side].as_instr()->args[0]);
+        auto ptr = buh.build_ptr_add(
+            base, fir::ValueR{ctx->get_constant_int(
+                      static_cast<i64>(members[0]->as_int()), 64)});
+        auto r = buh.build_load(instr->result_type(), ptr, instr->Atomic,
+                                instr->Volatile);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
         return true;
       }
     }

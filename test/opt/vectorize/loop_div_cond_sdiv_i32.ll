@@ -41,7 +41,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %33: 8@i1 = IntNE(%31, %32){} NUses:3
 ; CHECK-NEXT:    %34: ptr = PtrAdd(%1, %29){} NUses:1
 ; CHECK-NEXT:    %35: 8@i32 = INTRIN:MaskedLoad(%34, %33, <0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, >:8@i32){} NUses:2
-; CHECK-NEXT:    %36: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %36: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %37: 8@i32 = Select(%33, %31, %36){} NUses:2
 ; CHECK-NEXT:    %38: 4@i32 = V.ExtractLow(%35){} NUses:1
 ; CHECK-NEXT:    %39: 4@i32 = V.ExtractLow(%37){} NUses:1

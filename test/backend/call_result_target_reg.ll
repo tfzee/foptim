@@ -13,7 +13,7 @@ define i32 @f(ptr %s, i32 %x) {
 ; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    $ebx: i32 = $esi: i32
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $dl: i32 = [$rax]: i8
+; CHECK-NEXT:    mov_zx($edx: i32, [$rax]: i8, )
 ; CHECK-NEXT:    lea($rsi: i64, [fa]: i64, )
 ; CHECK-NEXT:    lea($rcx: i64, [fb]: i64, )
 ; CHECK-NEXT:    cmov_ne($rcx: i64, $rsi: i64, $dl: i8, 0: i8, )

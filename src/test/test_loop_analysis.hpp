@@ -216,6 +216,21 @@ TEST(ScalarEvoTest, FoldingAndMax) {
   EXPECT_EQ(evo.mk_select(evo.mk_const(0, 1), c3, c5), c5);
 }
 
+TEST(ScalarEvoTest, BuiltNodesShare) {
+  using foptim::fir::ICmpInstrSubType;
+  CountingLoop l{ICmpInstrSubType::SLT, 1, 10};
+  LoopSetup s{*l.func.func};
+  foptim::optim::ScalarEvo evo{s.cfg, s.loops.info[0]};
+
+  // nodes made by the builders carry no value, equal ones are still one node
+  auto n = evo.get(ValueR{l.func.func->get_entry()->args[0]});
+  ASSERT_TRUE(evo.is_invariant(n));
+  EXPECT_EQ(evo.mk_ext(n, true, 64), evo.mk_ext(n, true, 64));
+  EXPECT_NE(evo.mk_ext(n, true, 64), evo.mk_ext(n, false, 64));
+  const auto c3 = evo.mk_const(3, 32);
+  EXPECT_EQ(evo.mk_add(n, c3), evo.mk_add(n, c3));
+}
+
 TEST(ScalarEvoTest, DerivedRecurrence) {
   // the back edge passes (i + 1) * 8 = {8,+,8} and d starts at 0, so d is 8 * i
   DerivedLoop l{0, false};

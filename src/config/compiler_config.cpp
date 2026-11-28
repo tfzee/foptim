@@ -174,6 +174,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new FunctionDedupDiffConf{};
     } else if (name == "LoopUnswitch") {
       pass = new LoopUnswitchConf{};
+    } else if (name == "FlagAnnotator") {
+      pass = new FlagAnnotatorConf{};
     } else if (name == "NarrowInts") {
       pass = new NarrowIntsConf{};
     } else if (name == "WidenAccum") {

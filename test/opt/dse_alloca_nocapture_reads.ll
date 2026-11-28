@@ -13,7 +13,7 @@ declare i32 @memcmp(ptr, ptr, i64)
 define internal i32 @reader(ptr %p) {
 ; CHECK-LABEL: func reader<CC: C, LINK: internal, > Uses: 1
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; nocapture; readonly; }: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; nonnull; nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i32 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %2: i32 = Return(%1){} NUses:0
 ; CHECK-NEXT:}
@@ -35,7 +35,7 @@ define internal void @leaker(ptr %p) {
 define internal void @writer(ptr %p) {
 ; CHECK-LABEL: func writer<CC: C, LINK: internal, > Uses: 1
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; nocapture; }: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; nonnull; nocapture; }: ptr):
 ; CHECK-NEXT:    %1: i32 = Store(%0, 9:i32){} NUses:0
 ; CHECK-NEXT:    %2: () = Return(){} NUses:0
 ; CHECK-NEXT:}

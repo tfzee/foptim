@@ -7,10 +7,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr, %3{}: i64):
 ; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %6: 4@i64 = PtrAdd(%4, %5){} NUses:1
 ; CHECK-NEXT:    %7: 4@i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %8: 4@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %8: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %9: 4@i32 = IntAdd(%7, %8){} NUses:1
 ; CHECK-NEXT:    %10: 4@i32 = Store(%2, %9){} NUses:0
 ; CHECK-NEXT:    %11: i1 = IntSGT(%3, 0:i64){} NUses:1
@@ -32,7 +32,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %26: i64 = And(%12, -8:i64){} NUses:3
 ; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %28: i1 = IntEQ(%26, 0:i64){} NUses:1
-; CHECK-NEXT:    %29: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %29: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %30: () = CondBranch<bb3(%25), bb4(%25)>(%28){} NUses:0
 ; CHECK-NEXT:  bb4(%31{}: i64):
 ; CHECK-NEXT:    %32: i64 = IntMul(%31, 4:i64){NSW; NUW; } NUses:2

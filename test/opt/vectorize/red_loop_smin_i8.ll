@@ -24,7 +24,7 @@ define i8 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %19: i64 = And(%5, -32:i64){} NUses:3
 ; CHECK-NEXT:    %20: i64 = IntAdd(%19, %17){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %21: i1 = IntEQ(%19, 0:i64){} NUses:1
-; CHECK-NEXT:    %22: 32@i8 = V.Broadcast(127:i8){} NUses:1
+; CHECK-NEXT:    %22: 32@i8 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb3(%17, %18), bb4(%17, %22)>(%21){} NUses:0
 ; CHECK-NEXT:  bb4(%24{}: i64, %25{}: 32@i8):
 ; CHECK-NEXT:    %26: ptr = PtrAdd(%0, %24){} NUses:1

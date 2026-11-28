@@ -8,7 +8,7 @@
 define i8 @load_i8(ptr %p) {
 ; CHECK: func load_i8 ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $al: i32 = [$rdi]: i8
+; CHECK-NEXT:    mov_zx($eax: i32, [$rdi]: i8, )
 ; CHECK-NEXT:    ret($al: i8, )
   %v = load i8, ptr %p
   ret i8 %v
@@ -17,8 +17,7 @@ define i8 @load_i8(ptr %p) {
 define i32 @load_i16_zext(ptr %p) {
 ; CHECK: func load_i16_zext ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $ax: i32 = [$rdi]: i16
-; CHECK-NEXT:    mov_zx($eax: i32, $ax: i16, )
+; CHECK-NEXT:    mov_zx($eax: i32, [$rdi]: i16, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %v = load i16, ptr %p
   %z = zext i16 %v to i32
@@ -28,8 +27,7 @@ define i32 @load_i16_zext(ptr %p) {
 define i64 @load_i8_zext64(ptr %p) {
 ; CHECK: func load_i8_zext64 ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $al: i32 = [$rdi]: i8
-; CHECK-NEXT:    mov_zx($rax: i64, $al: i8, )
+; CHECK-NEXT:    mov_zx($rax: i64, [$rdi]: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %v = load i8, ptr %p
   %z = zext i8 %v to i64
@@ -39,7 +37,7 @@ define i64 @load_i8_zext64(ptr %p) {
 define i64 @load_i8_two_users(ptr %p, ptr %q) {
 ; CHECK: func load_i8_two_users ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $al: i32 = [$rdi]: i8
+; CHECK-NEXT:    mov_zx($eax: i32, [$rdi]: i8, )
 ; CHECK-NEXT:    [$rsi]: i8 = $al: i8
 ; CHECK-NEXT:    mov_zx($rax: i64, $al: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )

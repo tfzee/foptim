@@ -134,6 +134,13 @@ class ConstraintAnalysis {
   void dump();
   void update(const Dominators &dom);
   void reset_and_resize();
+  // a is a strict ancestor of b in the dominator tree
+  bool dominates_strictly(u32 a, u32 b) const;
+  // every entry of header but the back edges comes from block from
+  bool entered_only_from(u32 header, u32 from) const;
+  // v is computed outside the loop of header, from values defined in blocks
+  // that dominate it
+  bool invariant_above(fir::ValueR v, u32 header, u32 depth) const;
   void setup_direct_constraints();
   void setup_switch_constraints(fir::Instr term);
   // facts of cond being true (holds) or false on the edge into bb

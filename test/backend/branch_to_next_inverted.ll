@@ -9,47 +9,50 @@ target triple = "x86_64-unknown-linux-gnu"
 define void @ins(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK: func ins ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $r10: i64 = $rsi: i64
-; CHECK-NEXT:    $r8: i64 = $rdi: i64
-; CHECK-NEXT:    icmp_eq($dl: i8, $r8: i64, $r10: i64, )
-; CHECK-NEXT:    $rax: i64 = $r8: i64
-; CHECK-NEXT:    $rax: i64 += 4: i64
-; CHECK-NEXT:    icmp_eq($cl: i8, $rax: i64, $r10: i64, )
-; CHECK-NEXT:    cjmp_or($dl: i8, $cl: i8, ) -> 6
+; CHECK-NEXT:    $r9: i64 = $rsi: i64
+; CHECK-NEXT:    icmp_eq($cl: i8, $rdi: i64, $r9: i64, )
+; CHECK-NEXT:    lea($r8: i64, [$rdi + 4]: i64, )
+; CHECK-NEXT:    icmp_eq($al: i8, $r8: i64, $r9: i64, )
+; CHECK-NEXT:    cjmp_or($cl: i8, $al: i8, ) -> 5
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $r9: i64 = $rax: i64
-; CHECK-NEXT:    $edi: i32 = [$r9]: i32
-; CHECK-NEXT:    $rax: i64 = $r9: i64
-; CHECK-NEXT:    $rsi: i64 = $r9: i64
+; CHECK-NEXT:    $esi: i32 = [$r8]: i32
+; CHECK-NEXT:    cjmp_int_ne($r8: i64, $rdi: i64, ) -> 9
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $rdx: i64 = $rsi: i64
-; CHECK-NEXT:    $rcx: i64 = $rax: i64
-; CHECK-NEXT:    cjmp_int_eq($rax: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
-; CHECK-NEXT:    $rsi: i64 = $rdx: i64
-; CHECK-NEXT:    $rsi: i64 += -4: i64
-; CHECK-NEXT:    $eax: i32 = [$rdx + -4]: i32
-; CHECK-NEXT:    cjmp_int_sge($edi: i32, $eax: i32, ) -> 7
+; CHECK-NEXT:    [$rcx]: i32 = $esi: i32
+; CHECK-NEXT:    lea($r8: i64, [$r8 + 4]: i64, )
+; CHECK-NEXT:    cjmp_int_ne($r8: i64, $r9: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    [$rcx]: i32 = $eax: i32
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    $rax: i64 += -4: i64
-; CHECK-NEXT:    jmp() -> 3
-; CHECK-NEXT:  6:
 ; CHECK-NEXT:    ret()
+; CHECK-NEXT:  6:
+; CHECK-NEXT:    $rdx: i64 = $rcx: i64
+; CHECK-NEXT:    lea($rcx: i64, [$rdx + -4]: i64, )
+; CHECK-NEXT:    [$rdx]: i32 = $eax: i32
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $rdi: i64, ) -> 11
+; CHECK-NEXT:    jmp() -> 7
 ; CHECK-NEXT:  7:
-; CHECK-NEXT:    [$rcx]: i32 = $edi: i32
-; CHECK-NEXT:    $rcx: i64 = $r9: i64
-; CHECK-NEXT:    $rcx: i64 += 4: i64
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    cjmp_int_ne($rcx: i64, $r10: i64, ) -> 2
-; CHECK-NEXT:    jmp() -> 6
+; CHECK-NEXT:    $eax: i32 = [$rdx + -8]: i32
+; CHECK-NEXT:    cjmp_int_slt($esi: i32, $eax: i32, ) -> 6
+; CHECK-NEXT:    jmp() -> 8
+; CHECK-NEXT:  8:
+; CHECK-NEXT:    jmp() -> 4
+; CHECK-NEXT:  9:
+; CHECK-NEXT:    $eax: i32 = [$r8 + -4]: i32
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    cjmp_int_slt($esi: i32, $eax: i32, ) -> 6
+; CHECK-NEXT:    jmp() -> 10
+; CHECK-NEXT:  10:
+; CHECK-NEXT:    $rcx: i64 = $r8: i64
+; CHECK-NEXT:    jmp() -> 4
+; CHECK-NEXT:  11:
+; CHECK-NEXT:    jmp() -> 4
   %3 = alloca ptr, align 8
   %4 = alloca ptr, align 8
   %5 = alloca ptr, align 8

@@ -21,10 +21,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %16: i1 = IntSLT(%15, %3){} NUses:1
 ; CHECK-NEXT:    %17: () = CondBranch<bb3(%15), bb2()>(%16){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %18: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %18: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %19: 4@i64 = PtrAdd(%4, %18){} NUses:1
 ; CHECK-NEXT:    %20: 4@i32 = Load(%19){} NUses:1
-; CHECK-NEXT:    %21: 4@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %21: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %22: 4@i32 = IntAdd(%20, %21){} NUses:1
 ; CHECK-NEXT:    %23: 4@i32 = Store(%2, %22){} NUses:0
 ; CHECK-NEXT:    %24: () = Return(){} NUses:0
@@ -32,7 +32,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-NEXT:    %26: i64 = And(%6, -8:i64){} NUses:3
 ; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %28: i1 = IntEQ(%26, 0:i64){} NUses:1
-; CHECK-NEXT:    %29: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %29: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %30: () = CondBranch<bb3(%25), bb4(%25)>(%28){} NUses:0
 ; CHECK-NEXT:  bb4(%31{}: i64):
 ; CHECK-NEXT:    %32: i64 = IntMul(%31, 4:i64){NSW; NUW; } NUses:2

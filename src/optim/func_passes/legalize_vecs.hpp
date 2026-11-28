@@ -101,6 +101,48 @@ class LegalizeVecs final : public FunctionPass {
     return true;
   }
 
+  // A splat of an integer constant is one load from a constant global, the
+  // alternative is a move to a register, to an xmm and the broadcast. A load of
+  // a constant is rematerialized under register pressure, the three
+  // instructions are not. Zero and all ones are made in the register, and the
+  // shifts read their amount from the broadcast.
+  bool legalize_int_splat_constant(fir::Context &ctx, fir::Instr instr) {
+    if (!instr->args[0].is_constant() ||
+        !instr->args[0].as_constant()->is_int()) {
+      return false;
+    }
+    const auto ty = instr->result_type();
+    const u32 total_bits = ty->get_bitwidth();
+    if (!ty->is_vec() || (total_bits != 128 && total_bits != 256)) {
+      return false;
+    }
+    const auto vec = ty->as_vec();
+    const i128 value = instr->args[0].as_constant()->as_int();
+    const u32 bw = vec.bitwidth;
+    const i128 mask = bw >= 64 ? static_cast<i128>(~0ULL)
+                               : ((static_cast<i128>(1) << bw) - 1);
+    if ((value & mask) == 0 || (value & mask) == mask) {
+      return false;
+    }
+    for (auto u : instr->get_uses()) {
+      const auto user = u.user;
+      if (user->is(fir::BinaryInstrSubType::Shl) ||
+          user->is(fir::BinaryInstrSubType::Shr) ||
+          user->is(fir::BinaryInstrSubType::AShr)) {
+        return false;
+      }
+    }
+    IRVec<fir::ConstantValueR> members;
+    for (u32 i = 0; i < vec.member_number; i++) {
+      members.push_back(ctx->get_constant_int(value, bw));
+    }
+    const auto splat = ctx->get_constant_value(std::move(members), ty);
+    const auto load = load_constant_global(ctx, instr, splat);
+    instr->replace_all_uses(load);
+    instr.destroy();
+    return true;
+  }
+
   static void push_all_uses(TVec<fir::Instr> &worklist, fir::Instr instr) {
     for (auto u : instr->get_uses()) {
       worklist.push_back(u.user);
@@ -535,7 +577,8 @@ class LegalizeVecs final : public FunctionPass {
     if ((instr->is(fir::BinaryInstrSubType::FloatAdd) ||
          instr->is(fir::BinaryInstrSubType::FloatSub) ||
          instr->is(fir::BinaryInstrSubType::FloatMul) ||
-         instr->is(fir::BinaryInstrSubType::FloatDiv)) &&
+         instr->is(fir::BinaryInstrSubType::FloatDiv) ||
+         instr->is(fir::InstrType::FCmp)) &&
         !instr->result_type()->is_vec()) {
       for (u32 arg_indx = 0; arg_indx < 2; arg_indx++) {
         if (instr->args[arg_indx].is_constant_float()) {
@@ -632,6 +675,9 @@ class LegalizeVecs final : public FunctionPass {
         make_constant_global(ctx, instr, 0);
         return true;
       }
+      if (legalize_int_splat_constant(ctx, instr)) {
+        return true;
+      }
       if (!ctx.config->target.features.avx512f &&
           instr->result_type()->get_bitwidth() >= 512) {
         // auto funcy = instr->get_parent()->get_parent().func;
@@ -653,23 +699,56 @@ class LegalizeVecs final : public FunctionPass {
         return true;
       }
     }
-    // TODO: is this check for avx512 sufficient/correct?
+    // An integer add reduction of more than one register adds the registers as
+    // vectors and reduces the sum once, an extend feeding it is split along so
+    // the wide extend never exists. The float add keeps its order.
     if (instr->is(fir::ReduceInstrSubType::Add) &&
-        !ctx.config->target.features.avx512f &&
-        instr->args[0].get_type()->get_bitwidth() >= 512) {
+        instr->args[0].get_type()->get_bitwidth() >
+            (ctx.config->target.features.avx512f ? 512U : 256U)) {
       fir::Builder buh{instr};
-      auto out_type = instr->result_type();
-      auto old_type = instr->args[0].get_type()->as_vec();
-      auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
-                                        old_type.member_number / 2);
-      auto a_low = buh.build_vector_op(instr->args[0], new_type,
-                                       fir::VectorISubType::ExtractLow);
-      auto a_high = buh.build_vector_op(instr->args[0], new_type,
-                                        fir::VectorISubType::ExtractHigh);
-      auto a1 = buh.build_reduce(a_low, fir::ReduceInstrSubType::Add);
-      auto a2 = buh.build_reduce(a_high, fir::ReduceInstrSubType::Add);
-      auto r = out_type->is_float() ? buh.build_float_add(a1, a2)
-                                    : buh.build_int_add(a1, a2);
+      const u32 max_bits = ctx.config->target.features.avx512f ? 512U : 256U;
+      const auto src = instr->args[0];
+      auto half_ty = [&](fir::TypeR t) {
+        const auto v = t->as_vec();
+        return ctx->get_vec_type(v.type, v.bitwidth, v.member_number / 2);
+      };
+      auto halves = [&](fir::ValueR v) {
+        const auto ty = half_ty(v.get_type());
+        return std::pair{
+            buh.build_vector_op(v, ty, fir::VectorISubType::ExtractLow),
+            buh.build_vector_op(v, ty, fir::VectorISubType::ExtractHigh)};
+      };
+      fir::ValueR r;
+      if (instr->result_type()->is_float()) {
+        const auto [lo, hi] = halves(src);
+        r = buh.build_float_add(
+            buh.build_reduce(lo, fir::ReduceInstrSubType::Add),
+            buh.build_reduce(hi, fir::ReduceInstrSubType::Add));
+        worklist.push_back(r.as_instr()->args[0].as_instr());
+        worklist.push_back(r.as_instr()->args[1].as_instr());
+      } else {
+        const bool is_ext = src.is_instr() &&
+                            src.as_instr()->get_n_uses() == 1 &&
+                            (src.as_instr()->is(fir::InstrType::ZExt) ||
+                             src.as_instr()->is(fir::InstrType::SExt));
+        const bool sign = is_ext && src.as_instr()->is(fir::InstrType::SExt);
+        // the sum of the registers of v, or of the extend of v to wide
+        auto fold = [&](auto &&self, fir::ValueR v,
+                        fir::TypeR wide) -> fir::ValueR {
+          if (wide->get_bitwidth() <= max_bits) {
+            if (!is_ext) {
+              return v;
+            }
+            return sign ? buh.build_sext(v, wide) : buh.build_zext(v, wide);
+          }
+          const auto [lo, hi] = halves(v);
+          const auto wh = half_ty(wide);
+          return buh.build_int_add(self(self, lo, wh), self(self, hi, wh));
+        };
+        const auto inner = is_ext ? src.as_instr()->args[0] : src;
+        r = buh.build_reduce(fold(fold, inner, src.get_type()),
+                             fir::ReduceInstrSubType::Add);
+      }
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
       instr.destroy();

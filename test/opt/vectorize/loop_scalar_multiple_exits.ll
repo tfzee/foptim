@@ -6,24 +6,23 @@ define void @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: i64):
-; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
-; CHECK-NEXT:  bb1(%4{}: i64):
-; CHECK-NEXT:    %5: i1 = IntSLT(%4, %2){} NUses:1
-; CHECK-NEXT:    %6: () = CondBranch<bb2(), bb3()>(%5){} NUses:0
+; CHECK-NEXT:    %3: i1 = IntSGT(%2, 0:i64){} NUses:1
+; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64), bb2()>(%3){} NUses:0
+; CHECK-NEXT:  bb1(%5{}: i64):
+; CHECK-NEXT:    %6: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %6){} NUses:1
+; CHECK-NEXT:    %9: i32 = Load(%7){} NUses:2
+; CHECK-NEXT:    %10: i1 = IntEQ(%9, 0:i32){} NUses:1
+; CHECK-NEXT:    %11: () = CondBranch<bb2(), bb3()>(%10){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %7: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %7){} NUses:1
-; CHECK-NEXT:    %10: i32 = Load(%8){} NUses:2
-; CHECK-NEXT:    %11: i1 = IntEQ(%10, 0:i32){} NUses:1
-; CHECK-NEXT:    %12: () = CondBranch<bb3(), bb4()>(%11){} NUses:0
+; CHECK-NEXT:    %12: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %13: () = Return(){} NUses:0
-; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %14: i32 = IntAdd(%10, 1:i32){} NUses:1
-; CHECK-NEXT:    %15: i32 = Store(%9, %14){} NUses:0
-; CHECK-NEXT:    %16: i64 = IntAdd(%4, 1:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %17: () = Branch<bb1(%16)>(){} NUses:0
+; CHECK-NEXT:    %13: i32 = IntAdd(%9, 1:i32){} NUses:1
+; CHECK-NEXT:    %14: i32 = Store(%8, %13){} NUses:0
+; CHECK-NEXT:    %15: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %16: i1 = IntSLT(%15, %2){} NUses:1
+; CHECK-NEXT:    %17: () = CondBranch<bb1(%15), bb2()>(%16){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop

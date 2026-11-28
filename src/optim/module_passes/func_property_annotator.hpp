@@ -261,6 +261,82 @@ class FuncPropAnnotator final : public ModulePass {
     }
   }
 
+  // does operand idx of the call point into an object that nothing else the
+  // callee can reach points into. a fresh object (alloca or noalias result of a
+  // call) whose address is only passed to nocapture parameters, dereferenced
+  // or freed, and that no other pointer operand of the call is based on. the
+  // callee can only get to it through this operand
+  static bool passes_private_object(fir::Instr call, u32 idx) {
+    const auto root = decompose_ptr(call->args[idx]).base;
+    if (!root.is_instr()) {
+      return false;
+    }
+    const auto def = root.as_instr();
+    const bool fresh = def->is(fir::InstrType::AllocaInstr) ||
+                       (def->is(fir::InstrType::CallInstr) &&
+                        def->args[0].is_constant_func() &&
+                        def->args[0].as_constant()->as_func()->result_noalias(
+                            root.result_idx()));
+    if (!fresh) {
+      return false;
+    }
+    const auto info = analyze_alloca_escape(
+        root,
+        EscapeOptions{.through_block_args = true, .nocapture_calls = true});
+    if (info.escapes || !info.derived.contains(call->args[idx])) {
+      return false;
+    }
+    for (u32 j = 1; j < call->args.size(); j++) {
+      if (j != idx && call->args[j].get_type()->is_ptr() &&
+          info.derived.contains(call->args[j])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // A pointer parameter is noalias if every call passes a private object for
+  // internal functions that are only called directly.
+  static void deduce_noalias_args(fir::Context &ctx,
+                                  AnalysisManager &analyMan) {
+    const auto address_taken = functions_referenced_by_globals(ctx);
+    for (auto *f : ctx->storage.functions.all()) {
+      if (f->is_decl() || f->attribs.variadic ||
+          f->attribs.linkage != fir::Linkage::Internal ||
+          address_taken.contains(f) || f->get_n_uses() == 0) {
+        continue;
+      }
+      bool closed = true;
+      for (auto use : f->get_uses()) {
+        closed = closed && use.user->is(fir::InstrType::CallInstr) &&
+                 use.type == fir::UseType::NormalArg && use.argId == 0;
+      }
+      if (!closed) {
+        continue;
+      }
+      auto entry = f->get_entry();
+      bool modified = false;
+      for (u32 i = 0; i < entry->args.size(); i++) {
+        auto arg = entry->args[i];
+        if (arg->noalias || !arg->get_type()->is_ptr()) {
+          continue;
+        }
+        bool all_private = true;
+        for (auto use : f->get_uses()) {
+          all_private = all_private && use.user->args.size() > i + 1 &&
+                        passes_private_object(use.user, i + 1);
+        }
+        if (all_private) {
+          arg->noalias = true;
+          modified = true;
+        }
+      }
+      if (modified) {
+        analyMan.touched_interface(*f);
+      }
+    }
+  }
+
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
                           AnalysisManager &analyMan) override {
     ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
@@ -337,6 +413,7 @@ class FuncPropAnnotator final : public ModulePass {
       }
     }
     deduce_nonnull_args(ctx, call_graph, analyMan);
+    deduce_noalias_args(ctx, analyMan);
     return PreservedAnalysis::all();
   }
 };

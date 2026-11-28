@@ -15,28 +15,34 @@ define i32 @llex(ptr noundef %0) #0 {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i32 = Load(%0){} NUses:4
-; CHECK-NEXT:    %2: () = Switch<bb1(%1), bb1(%1), bb2(2:i32), bb2(0:i32)>(34:i32, 39:i32, 5:i32, %1){} NUses:0
-; CHECK-NEXT:  bb2(%3{}: i32):
-; CHECK-NEXT:    %4: i32 = Return(%3){} NUses:0
-; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %5: i32 = Load(%0){} NUses:4
-; CHECK-NEXT:    %6: i1 = IntNE(%5, %1){} NUses:1
-; CHECK-NEXT:    %7: () = CondBranch<bb4(), bb5()>(%6){} NUses:0
-; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %8: () = Switch<bb6(), bb1(92:i32), bb1(%5)>(-1:i32, 92:i32, %5){} NUses:0
+; CHECK-NEXT:    %2: () = Switch<bb1(), bb1(), bb2(2:i32), bb2(0:i32)>(34:i32, 39:i32, 5:i32, %1){} NUses:0
+; CHECK-NEXT:  bb1():
+; CHECK-NEXT:    %3: () = Call(save, %0, %1){extTy: ()(ptr i32 ); } NUses:0
+; CHECK-NEXT:    %4: i32 = Call(fill, %0){extTy: i32(ptr ); } NUses:4
+; CHECK-NEXT:    %5: i32 = Store(%0, %4){} NUses:0
+; CHECK-NEXT:    %6: i1 = IntNE(%4, %1){} NUses:1
+; CHECK-NEXT:    %7: () = CondBranch<bb3(%4), bb4(%4)>(%6){} NUses:0
+; CHECK-NEXT:  bb2(%8{}: i32):
+; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
+; CHECK-NEXT:  bb3(%10{}: i32):
+; CHECK-NEXT:    %11: () = Switch<bb5(), bb6(92:i32), bb6(%10)>(-1:i32, 92:i32, %10){} NUses:0
 ; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %9: () = Call(save, %0, %5){extTy: ()(ptr i32 ); } NUses:0
-; CHECK-NEXT:    %10: i32 = Call(fill, %0){extTy: i32(ptr ); } NUses:1
-; CHECK-NEXT:    %11: i32 = Store(%0, %10){} NUses:0
-; CHECK-NEXT:    %12: i32 = Return(1:i32){} NUses:0
-; CHECK-NEXT:  bb6():
-; CHECK-NEXT:    %13: () = Call(err, %0){extTy: ()(ptr ); } NUses:0
-; CHECK-NEXT:    %14: () = Branch<bb3()>(){} NUses:0
-; CHECK-NEXT:  bb1(%15{}: i32):
-; CHECK-NEXT:    %16: () = Call(save, %0, %15){extTy: ()(ptr i32 ); } NUses:0
-; CHECK-NEXT:    %17: i32 = Call(fill, %0){extTy: i32(ptr ); } NUses:1
-; CHECK-NEXT:    %18: i32 = Store(%0, %17){} NUses:0
-; CHECK-NEXT:    %19: () = Branch<bb3()>(){} NUses:0
+; CHECK-NEXT:    %12: () = Call(err, %0){extTy: ()(ptr ); } NUses:0
+; CHECK-NEXT:    %13: () = Branch<bb7()>(){} NUses:0
+; CHECK-NEXT:  bb6(%14{}: i32):
+; CHECK-NEXT:    %15: () = Call(save, %0, %14){extTy: ()(ptr i32 ); } NUses:0
+; CHECK-NEXT:    %16: i32 = Call(fill, %0){extTy: i32(ptr ); } NUses:1
+; CHECK-NEXT:    %17: i32 = Store(%0, %16){} NUses:0
+; CHECK-NEXT:    %18: () = Branch<bb7()>(){} NUses:0
+; CHECK-NEXT:  bb7():
+; CHECK-NEXT:    %19: i32 = Load(%0){} NUses:3
+; CHECK-NEXT:    %20: i1 = IntNE(%19, %1){} NUses:1
+; CHECK-NEXT:    %21: () = CondBranch<bb3(%19), bb4(%19)>(%20){} NUses:0
+; CHECK-NEXT:  bb4(%22{}: i32):
+; CHECK-NEXT:    %23: () = Call(save, %0, %22){extTy: ()(ptr i32 ); } NUses:0
+; CHECK-NEXT:    %24: i32 = Call(fill, %0){extTy: i32(ptr ); } NUses:1
+; CHECK-NEXT:    %25: i32 = Store(%0, %24){} NUses:0
+; CHECK-NEXT:    %26: i32 = Return(1:i32){} NUses:0
 ; CHECK-NEXT:}
   %2 = alloca i32, align 4
   %3 = alloca ptr, align 8

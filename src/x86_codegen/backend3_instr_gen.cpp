@@ -1981,10 +1981,12 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VMULPD;
           break;
+        case fmir::Type::Int16x4:
         case fmir::Type::Int16x8:
         case fmir::Type::Int16x16:
           req.mnemonic = ZYDIS_MNEMONIC_VPMULLW;
           break;
+        case fmir::Type::Int32x2:
         case fmir::Type::Int32x4:
         case fmir::Type::Int32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPMULLD;
@@ -2243,11 +2245,13 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         default:
           fmt::println("{}", instr);
           TODO("Impl");
+        case fmir::Type::Int8x8:
         case fmir::Type::Int8x16:
         case fmir::Type::Int8x32:
           req.mnemonic = pick(ZYDIS_MNEMONIC_VPMINSB, ZYDIS_MNEMONIC_VPMAXSB,
                               ZYDIS_MNEMONIC_VPMINUB, ZYDIS_MNEMONIC_VPMAXUB);
           break;
+        case fmir::Type::Int16x4:
         case fmir::Type::Int16x8:
         case fmir::Type::Int16x16:
           req.mnemonic = pick(ZYDIS_MNEMONIC_VPMINSW, ZYDIS_MNEMONIC_VPMAXSW,
@@ -3069,14 +3073,18 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         ASSERT(instr.args[3].isImm());
         // the byte and word forms read a 32 bit register
         switch (instr.args[0].ty) {
+          case fmir::Type::Int8x4:
+          case fmir::Type::Int8x8:
           case fmir::Type::Int8x16:
           case fmir::Type::Int8x32:
             req.mnemonic = ZYDIS_MNEMONIC_VPINSRB;
             break;
+          case fmir::Type::Int16x4:
           case fmir::Type::Int16x8:
           case fmir::Type::Int16x16:
             req.mnemonic = ZYDIS_MNEMONIC_VPINSRW;
             break;
+          case fmir::Type::Int32x2:
           case fmir::Type::Int32x4:
           case fmir::Type::Int32x8:
             req.mnemonic = ZYDIS_MNEMONIC_VPINSRD;
@@ -3301,10 +3309,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
             req.operands[1].reg.value = ZYDIS_REGISTER_K0;
           }
           break;
+        case fmir::Type::Int8x8:
         case fmir::Type::Int8x16:
         case fmir::Type::Int8x32:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTB;
           break;
+        case fmir::Type::Int16x4:
         case fmir::Type::Int16x8:
         case fmir::Type::Int16x16:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTW;

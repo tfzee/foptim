@@ -657,10 +657,12 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     }
     case fir::InstrType::UnaryInstr: {
       auto a = eval(instr->get_arg(0));
-      ASSERT(a.vals.size() <= 1);
-
       if (a.is_bottom()) {
         return ConstantValue::Bottom();
+      }
+      // a constant vector is not folded
+      if (a.vals.size() > 1) {
+        return ConstantValue::Top();
       }
       if (!a.is_const()) {
         return ConstantValue::Top();
@@ -1209,7 +1211,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       if (a.is_top()) {
         return ConstantValue::Top();
       }
-      if (a.is_const() && a.is_global()) {
+      if (a.is_const() && (a.is_global() || a.type == ConstantValue::ValueType::Fptr)) {
         return ConstantValue::Bottom();
       }
       if (a.is_const() && a.is_poison()) {
@@ -1669,6 +1671,16 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       if (!a.is_int()) {
         failure({.reason = "Impl icmp on non ints", .loc = instr});
         return ConstantValue::Bottom();
+      }
+
+      if (a.vals.size() > 1) {
+        IRVec<fir::ConstantValueR> args;
+        for (const auto &v : a.vals) {
+          args.push_back(ctx->get_constant_int(
+              v.i.zext_or_trunc(instr->result_type()->as_vec().bitwidth)));
+        }
+        return ConstantValue::Constant(
+            ctx->get_constant_value(args, instr.result_type()));
       }
 
       const u32 res_type_width = instr->result_type()->get_bitwidth();

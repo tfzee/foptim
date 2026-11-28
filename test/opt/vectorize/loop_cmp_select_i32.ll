@@ -30,8 +30,8 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %24: i64 = And(%5, -8:i64){} NUses:3
 ; CHECK-NEXT:    %25: i64 = IntAdd(%24, %23){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %26: i1 = IntEQ(%24, 0:i64){} NUses:1
-; CHECK-NEXT:    %27: 8@i32 = V.Broadcast(3:i32){} NUses:1
-; CHECK-NEXT:    %28: 8@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %27: 8@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
+; CHECK-NEXT:    %28: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %29: () = CondBranch<bb3(%23), bb4(%23)>(%26){} NUses:0
 ; CHECK-NEXT:  bb4(%30{}: i64):
 ; CHECK-NEXT:    %31: i64 = IntMul(%30, 4:i64){NSW; NUW; } NUses:3

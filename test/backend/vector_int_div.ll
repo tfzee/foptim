@@ -204,17 +204,15 @@ define void @sdiv_i64(ptr %p, ptr %q, ptr %o) {
 ; CHECK-NEXT:    vpextr($rax: i64, $xmm2: i64x2, 1: i8, )
 ; CHECK-NEXT:    vpextr($rcx: i64, $xmm3: i64x2, 1: i8, )
 ; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
-; CHECK-NEXT:    $ymm1: i64x4 = $ymm0: i64x4
-; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm0: i64x4, 0: i8, )
-; CHECK-NEXT:    vpinsr($xmm0: i64x2, $xmm0: i64x2, $rax: i64, 1: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: i64x4, $ymm1: i64x4, $xmm0: i64x2, 0: i8, )
-; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm2: i64x4, 1: i8, )
-; CHECK-NEXT:    $rax: i64 = $xmm0: i64x2
-; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm3: i64x4, 1: i8, )
-; CHECK-NEXT:    $rcx: i64 = $xmm0: i64x2
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm0: i64x4, 0: i8, )
+; CHECK-NEXT:    vpinsr($xmm1: i64x2, $xmm1: i64x2, $rax: i64, 1: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: i64x4, $ymm0: i64x4, $xmm1: i64x2, 0: i8, )
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm2: i64x4, 1: i8, )
+; CHECK-NEXT:    $rax: i64 = $xmm1: i64x2
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm3: i64x4, 1: i8, )
+; CHECK-NEXT:    $rcx: i64 = $xmm1: i64x2
 ; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
-; CHECK-NEXT:    $ymm0: i64x4 = $ymm1: i64x4
-; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm1: i64x4, 1: i8, )
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm0: i64x4, 1: i8, )
 ; CHECK-NEXT:    vpinsr($xmm1: i64x2, $xmm1: i64x2, $rax: i64, 0: i8, )
 ; CHECK-NEXT:    vinsert128($ymm0: i64x4, $ymm0: i64x4, $xmm1: i64x2, 1: i8, )
 ; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm2: i64x4, 1: i8, )
@@ -222,11 +220,10 @@ define void @sdiv_i64(ptr %p, ptr %q, ptr %o) {
 ; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm3: i64x4, 1: i8, )
 ; CHECK-NEXT:    vpextr($rcx: i64, $xmm1: i64x2, 1: i8, )
 ; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
-; CHECK-NEXT:    $ymm1: i64x4 = $ymm0: i64x4
-; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm0: i64x4, 1: i8, )
-; CHECK-NEXT:    vpinsr($xmm0: i64x2, $xmm0: i64x2, $rax: i64, 1: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: i64x4, $ymm1: i64x4, $xmm0: i64x2, 1: i8, )
-; CHECK-NEXT:    [$r8]: i64x4 = $ymm1: i64x4
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm0: i64x4, 1: i8, )
+; CHECK-NEXT:    vpinsr($xmm1: i64x2, $xmm1: i64x2, $rax: i64, 1: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: i64x4, $ymm0: i64x4, $xmm1: i64x2, 1: i8, )
+; CHECK-NEXT:    [$r8]: i64x4 = $ymm0: i64x4
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
   %a = load <4 x i64>, ptr %p

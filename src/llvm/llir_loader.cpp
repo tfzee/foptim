@@ -299,6 +299,9 @@ static bool libfunc_shape_matches(foptim::fir::LibFunc f,
       return sig(ptr, {ptr, i32, i64, i64});
     case LibFunc::StrcpyChk:
       return sig(ptr, {ptr, ptr, i64});
+    case LibFunc::Strcpy:
+    case LibFunc::Strcat:
+      return sig(ptr, {ptr, ptr});
     case LibFunc::PosixMemalign:
       return sig(i32, {ptr, i64, i64});
     case LibFunc::Malloc:
@@ -2852,6 +2855,12 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     // frem is a call to fmod
     if (module_has_frem(mod)) {
       generate_fmod(fctx);
+    }
+    // the fold of strcat with a literal calls strlen
+    if (fctx->has_function("strcat") &&
+        fctx->get_function("strcat")->attribs.libfunc ==
+            foptim::fir::LibFunc::Strcat) {
+      foptim::fir::generate_strlen(fctx);
     }
     if (fctx->has_function("posix_memalign") &&
         fctx->get_function("posix_memalign")->attribs.libfunc ==

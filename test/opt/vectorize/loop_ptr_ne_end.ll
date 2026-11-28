@@ -25,7 +25,7 @@ define void @fill(ptr %first, ptr %last) {
 ; CHECK-NEXT:    %18: i64 = IntMul(%17, 4:i64){} NUses:1
 ; CHECK-NEXT:    %19: ptr = PtrAdd(%16, %18){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%17, 0:i64){} NUses:1
-; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %21: 8@i32 = Load(G(const_legalizeVec_fill_0)){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%16), bb4(%16)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%23{}: ptr):
 ; CHECK-NEXT:    %24: 8@i32 = Store(%23, %21){} NUses:0

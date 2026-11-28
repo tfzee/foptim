@@ -28,7 +28,7 @@ define internal i1 @transitive(ptr %p) {
 define internal i1 @mid(ptr %q) {
 ; CHECK-LABEL: func mid<CC: C, LINK: internal, > Uses: 1
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; nocapture; readonly; }: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; nonnull; nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = Call(transitive, %0){extTy: i1(ptr ); } NUses:1
 ; CHECK-NEXT:    %2: i1 = Return(%1){} NUses:0
 ; CHECK-NEXT:}

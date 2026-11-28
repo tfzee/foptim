@@ -15,6 +15,9 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
                          HelperData &help) {
   (void)ctx;
   (void)cfg;
+  if (std::ranges::find(info.body_nodes, info.head) == info.body_nodes.end()) {
+    return false;
+  }
   // if theres jsut 2 node we cant really have a proper if
   const bool can_have_if = info.body_nodes.size() > 2;
   auto is_invariant = [&](fir::ValueR v) {
@@ -590,6 +593,11 @@ PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
     if (cfg.bbrs.size() >= max_blocks) {
       break;
+    }
+    // earlier unswitches leave the dead arm of the folded branch behind, a
+    // loop in there has no complete body
+    if (!dom.is_reachable(loop->head)) {
+      continue;
     }
     helper.reset(cfg);
     bool apply_res = apply(ctx, cfg, *loop, helper);

@@ -773,6 +773,12 @@ bool is_remat_def(const MInstr &instr, VReg vreg) {
     return src.type == MArgument::ArgumentType::MemLabel ||
            src.type == MArgument::ArgumentType::MemImmLabel;
   }
+  // a read of a generated constant, the global never changes
+  if (instr.is(GBaseSubtype::mov) && instr.n_args == 2 &&
+      dst.reg.is_vec_reg() && src.type == MArgument::ArgumentType::MemLabel &&
+      std::string_view{src.label}.starts_with("const_legalizeVec_")) {
+    return true;
+  }
   if (instr.is(GBaseSubtype::mov) && instr.n_args == 2) {
     return src.isLabel() ||
            (src.isImm() && !dst.reg.is_vec_reg() && dst.ty != Type::Float32 &&

@@ -87,17 +87,13 @@ PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
 }
 
 bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
-  // only if the header is the only exiting node
-  if (linfo.leaving_nodes.size() == 0) {
-    // linfo.dump();
-    failure({.reason = "No leaving node ", .loc = {cfg.bbrs[linfo.head].bb}});
-    return false;
-  }
-  if (linfo.leaving_nodes.size() != 1 || linfo.leaving_nodes[0] != linfo.head) {
-    failure({.reason = "Only leaving node can be the header ",
+  // the header has to be an exiting node, other exits in the body stay
+  if (!std::ranges::contains(linfo.leaving_nodes, linfo.head)) {
+    failure({.reason = "Header does not leave the loop ",
              .loc = {cfg.bbrs[linfo.head].bb}});
     return false;
   }
+  const bool other_exits = linfo.leaving_nodes.size() > 1;
   auto header_bb = cfg.bbrs[linfo.head].bb;
   if (!header_bb->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
     failure({.reason = "Header does not end in a conditional branch",
@@ -110,11 +106,23 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
              .loc = {cfg.bbrs[linfo.head].bb}});
     return false;
   }
-  // only worth it if the header aint to big
-  // TODO: magic number parameter
-  if (header_bb->instructions.size() > 10) {
-    failure({.reason = "Header to big ", .loc = {cfg.bbrs[linfo.head].bb}});
-    return false;
+  // rotation copies the header once in front of the loop. small headers always
+  // pay, a bigger one (row addresses LICM moved into the header of an outer
+  // loop) only when the copy is at most half of the loop
+  {
+    constexpr size_t AlwaysRotate = 10;
+    constexpr size_t MaxCopied = 48;
+    const size_t header_size = header_bb->instructions.size();
+    if (header_size > AlwaysRotate) {
+      size_t loop_size = 0;
+      for (const u32 b : linfo.body_nodes) {
+        loop_size += cfg.bbrs[b].bb->instructions.size();
+      }
+      if (header_size > MaxCopied || header_size * 2 > loop_size) {
+        failure({.reason = "Header to big ", .loc = {cfg.bbrs[linfo.head].bb}});
+        return false;
+      }
+    }
   }
   // which of the two targets of the header terminator is the non exiting one
   uint8_t non_exiting_target = 1;
@@ -129,9 +137,14 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
       }
     }
   }
+  auto in_body = [&](const fir::Use &use) {
+    return std::ranges::contains(linfo.body_nodes,
+                                 cfg.get_bb_id(use.user->get_parent()));
+  };
   // header values that the loop body uses stay available as extra arguments of
-  // the header, values used behind the loop would need a merge of the exits
+  // the header, values used behind the loop are merged over all exits
   TVec<fir::Instr> carried;
+  bool used_after_instr = false;
   for (auto instr : header_bb->instructions) {
     bool used_in_body = false;
     for (auto use : instr->uses) {
@@ -142,11 +155,11 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
             use.type == fir::UseType::BBArg && use.argId == non_exiting_target;
         continue;
       }
-      if (!std::ranges::contains(linfo.body_nodes,
-                                 cfg.get_bb_id(use.user->get_parent()))) {
-        failure({.reason = "Header values are used later",
-                 .loc = {cfg.bbrs[linfo.head].bb}});
-        return false;
+      if (!in_body(use)) {
+        used_after_instr = true;
+        // the other exits pass the value on, so it has to survive the header
+        used_in_body |= other_exits;
+        continue;
       }
       used_in_body = true;
     }
@@ -157,6 +170,38 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     }
     if (used_in_body) {
       carried.push_back(instr);
+    }
+  }
+
+  bool args_used_after = false;
+  for (auto &arg : header_bb->args) {
+    for (auto &use : arg->uses) {
+      if (!in_body(use)) {
+        args_used_after = true;
+      }
+    }
+  }
+  // the exits of the body have to meet the exit of the header in one block
+  // that merges the header values used behind the loop
+  if (other_exits && (used_after_instr || args_used_after)) {
+    const auto exit_bb =
+        header_bb->get_terminator()->bbs[1 - non_exiting_target].bb;
+    for (const u32 n : linfo.leaving_nodes) {
+      if (n == linfo.head) {
+        continue;
+      }
+      auto term = cfg.bbrs[n].bb->get_terminator();
+      for (u16 i = 0; i < term->bbs.size(); i++) {
+        const auto t = term->bbs[i].bb;
+        const bool leaves =
+            !std::ranges::contains(linfo.body_nodes, cfg.get_bb_id(t));
+        if (leaves && t != exit_bb) {
+          failure({.reason = "Exits go to different blocks and header values "
+                             "are used later",
+                   .loc = {cfg.bbrs[linfo.head].bb}});
+          return false;
+        }
+      }
     }
   }
 
@@ -240,78 +285,94 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
   //   we cant do a simple rotate since that might skip the loop leaving them
   //   undefined
 
-  TVec<fir::BBArgument> used_after_args;
+  TVec<fir::ValueR> used_after_vals;
   for (auto &arg : header_bb->args) {
     for (auto &use : arg->uses) {
-      auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
-      if (std::ranges::find(linfo.body_nodes, user_bb_id) ==
-          linfo.body_nodes.end()) {
-        used_after_args.push_back(arg);
+      if (!in_body(use)) {
+        used_after_vals.push_back(fir::ValueR(arg));
+        break;
+      }
+    }
+  }
+  for (auto instr : header_bb->instructions) {
+    for (auto &use : instr->uses) {
+      if (use.user->parent != header_bb && !in_body(use)) {
+        used_after_vals.push_back(instr.result());
         break;
       }
     }
   }
 
-  if (!used_after_args.empty()) {
-    // inserting en empty bb at the end which takes as bb args the header bb
-    // args which need to be available later on
-    //  and then replace all later uses of the bbargs with these new bbargs
+  if (!used_after_vals.empty()) {
+    // a block in front of the exit that takes the old exit args plus the
+    // header values that are needed later, all exits of the loop go through it
     auto old_header = cfg.bbrs[linfo.head].bb;
     auto bb = fir::Builder(old_header);
     auto old_terminator = old_header->get_terminator();
 
     ASSERT(old_terminator->is(fir::InstrType::CondBranchInstr));
 
-    auto &exit_target = old_terminator->bbs[exiting_target];
+    const auto exit_bb = old_terminator->bbs[exiting_target].bb;
+    auto exit_args = old_terminator->bbs[exiting_target].args;
 
     auto new_exit = bb.append_bb();
     bb.at_end(new_exit);
-    // add the terminator that forwards the old_exit_args
-    auto new_exit_term = bb.build_branch(exit_target.bb);
+    auto new_exit_term = bb.build_branch(exit_bb);
 
-    // contsruct our bb args
-    //  BB(old_exit_args..., used_after_args...)
-    // first the old args and forwarding them to the new termintor
-    for (auto argy : exit_target.args) {
+    for (auto argy : exit_args) {
       auto new_bb_arg = ctx->storage.insert_bb_arg(new_exit, argy.get_type());
       new_exit.add_arg(new_bb_arg);
       new_exit_term.add_bb_arg(0, fir::ValueR{new_bb_arg});
     }
-    // then the new args
-    TVec<fir::BBArgument> new_args;
-    for (auto used_after : used_after_args) {
+    TVec<fir::ValueR> new_args;
+    for (auto used_after : used_after_vals) {
       auto new_arg = new_exit.add_arg(
-          ctx->storage.insert_bb_arg(new_exit, used_after->get_type()));
-      new_args.push_back(new_arg);
+          ctx->storage.insert_bb_arg(new_exit, used_after.get_type()));
+      new_args.push_back(fir::ValueR(new_arg));
     }
 
-    // update the header terminator to point to new exit + add the
-    // used_after_args as bbargs
-    old_terminator.replace_bb(exit_target.bb, new_exit, true);
-    for (auto used_after : used_after_args) {
-      old_terminator.add_bb_arg(exiting_target, fir::ValueR(used_after));
-    }
-
-    for (u32 arg_id = 0; arg_id < used_after_args.size(); arg_id++) {
-      auto arg = used_after_args[arg_id];
-      TVec<fir::Use> replaced_uses;
-      for (auto &use : arg->uses) {
-        auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
-        if (std::ranges::find(linfo.body_nodes, user_bb_id) ==
-            linfo.body_nodes.end()) {
-          replaced_uses.push_back(use);
+    // the other exits of the body, instruction values are swapped for the
+    // header arguments that carry them by the loop below
+    for (const u32 n : linfo.leaving_nodes) {
+      if (n == linfo.head) {
+        continue;
+      }
+      auto term = cfg.bbrs[n].bb->get_terminator();
+      for (u16 i = 0; i < term->bbs.size(); i++) {
+        if (term->bbs[i].bb != exit_bb) {
+          continue;
+        }
+        term.replace_bb(i, new_exit, true);
+        for (auto v : used_after_vals) {
+          term.add_bb_arg(i, v);
         }
       }
-      for (auto use : replaced_uses) {
-        use.replace_use(fir::ValueR(new_args[arg_id]));
-      }
     }
 
-    // now replace the uses after with the new_exits bb_args
-    // failure({"Cannot handle loop rotate on loop whose header arguments"
-    //          "are used after the loop",
-    //          {(*used_after_args.begin().base())->get_parent()}});
-    // return false;
+    old_terminator.replace_bb(exit_bb, new_exit, true);
+    for (auto v : used_after_vals) {
+      old_terminator.add_bb_arg(exiting_target, v);
+    }
+
+    for (u32 arg_id = 0; arg_id < used_after_vals.size(); arg_id++) {
+      TVec<fir::Use> replaced_uses;
+      auto uses = [&](auto &&u) {
+        for (auto &use : u) {
+          if (use.user->parent != old_header && !in_body(use)) {
+            replaced_uses.push_back(use);
+          }
+        }
+      };
+      auto v = used_after_vals[arg_id];
+      if (v.is_bb_arg()) {
+        uses(v.as_bb_arg()->uses);
+      } else {
+        uses(v.as_instr()->uses);
+      }
+      for (auto use : replaced_uses) {
+        use.replace_use(new_args[arg_id]);
+      }
+    }
   }
 
   for (auto c : carried) {

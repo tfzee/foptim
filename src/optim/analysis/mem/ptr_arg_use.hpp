@@ -37,6 +37,21 @@ inline bool call_arg_nocapture_readonly(fir::Instr call, u32 arg_id) {
   return param.has_value() && (*param)->nocapture && (*param)->readonly;
 }
 
+// Does a call not keep the pointer it gets as operand arg_id?
+inline bool call_arg_nocapture(fir::Instr call, u32 arg_id) {
+  auto param = callee_param(call, arg_id);
+  return param.has_value() && (*param)->nocapture;
+}
+
+// the operand of a direct call of the C library free
+inline bool call_is_free(fir::Instr call, u32 arg_id) {
+  if (arg_id != 1 || !call->args[0].is_constant_func()) {
+    return false;
+  }
+  return call->args[0].as_constant()->as_func()->attribs.libfunc ==
+         fir::LibFunc::Free;
+}
+
 struct PtrArgUse {
   bool nocapture = true;
   bool readonly = true;

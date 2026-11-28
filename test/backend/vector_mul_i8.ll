@@ -8,7 +8,7 @@ define <32 x i8> @mul_v32i8(<32 x i8> %a, <32 x i8> %b) {
 ; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i8x32
 ; CHECK-NEXT:    $ymm1: i16x16 = $ymm1: i8x32
 ; CHECK-NEXT:    $ymm3: i16x16 = $ymm0: i16x16 * $ymm1: i16x16
-; CHECK-NEXT:    $ymm2: i16x16 = [const_legalizeVec_mul_v32i8_1]: i16x16
+; CHECK-NEXT:    $ymm2: i16x16 = [const_legalizeVec_mul_v32i8_4]: i16x16
 ; CHECK-NEXT:    vAnd($ymm2: i16x16, $ymm3: i16x16, $ymm2: i16x16, )
 ; CHECK-NEXT:    psrl($ymm0: i16x16, $ymm0: i16x16, 8: i8, )
 ; CHECK-NEXT:    psrl($ymm1: i16x16, $ymm1: i16x16, 8: i8, )
@@ -26,7 +26,7 @@ define <16 x i8> @mul_v16i8(<16 x i8> %a, <16 x i8> %b) {
 ; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i8x16
 ; CHECK-NEXT:    $xmm1: i16x8 = $xmm1: i8x16
 ; CHECK-NEXT:    $xmm3: i16x8 = $xmm0: i16x8 * $xmm1: i16x8
-; CHECK-NEXT:    $xmm2: i16x8 = [const_legalizeVec_mul_v16i8_1]: i16x8
+; CHECK-NEXT:    $xmm2: i16x8 = [const_legalizeVec_mul_v16i8_4]: i16x8
 ; CHECK-NEXT:    vAnd($xmm2: i16x8, $xmm3: i16x8, $xmm2: i16x8, )
 ; CHECK-NEXT:    psrl($xmm0: i16x8, $xmm0: i16x8, 8: i8, )
 ; CHECK-NEXT:    psrl($xmm1: i16x8, $xmm1: i16x8, 8: i8, )

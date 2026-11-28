@@ -16,8 +16,7 @@ define i64 @callee_s(i32 %p1, ptr byval(%struct.S) align 8 %s, i32 %p2) {
 ; CHECK: func callee_s ($2: i32, $3: i64, $4: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    lea($rcx: i64, [$rbp + 16]: i64, )
-; CHECK-NEXT:    $rdx: i64 = $rcx: i64
-; CHECK-NEXT:    $rdx: i64 += 16: i64
+; CHECK-NEXT:    lea($rdx: i64, [$rcx + 16]: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rcx]: i64
 ; CHECK-NEXT:    $rax: i64 += [$rdx]: i64
 ; CHECK-NEXT:    $rdx: i64 = 7: i64
@@ -53,8 +52,7 @@ define i64 @callee_t(ptr byval(%struct.T) align 8 %t, i64 %k) {
 ; CHECK: func callee_t ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    lea($rax: i64, [$rbp + 16]: i64, )
-; CHECK-NEXT:    $al: i32 = [$rax + 19]: i8
-; CHECK-NEXT:    mov_zx($rax: i64, $al: i8, )
+; CHECK-NEXT:    mov_zx($rax: i64, [$rax + 19]: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rdi: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %p = getelementptr inbounds %struct.T, ptr %t, i32 0, i32 0, i32 19

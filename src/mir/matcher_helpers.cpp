@@ -370,7 +370,9 @@ MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
     auto load = val.as_instr();
     // TODO: verify if this is ok for atomic/volatile
     if (load->is(fir::InstrType::LoadInstr) &&
-        !load->args[0].get_type()->is_vec() && !load->Atomic) {
+        !load->args[0].get_type()->is_vec() && !load->Atomic &&
+        !(load.result_type()->is_vec() &&
+          get_size(convert_type(load.result_type())) < 16)) {
       if (user->get_parent() == load->get_parent() &&
           no_memory_write_between(load, user)) {
         auto ptr = valueToArgPtrSmart(

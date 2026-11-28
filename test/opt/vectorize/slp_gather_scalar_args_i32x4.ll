@@ -6,7 +6,7 @@ define void @f(ptr %a, i32 %s0, i32 %s1, i32 %s2, i32 %s3) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i32, %2{}: i32, %3{}: i32, %4{}: i32):
-; CHECK-NEXT:    %5: 4@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %6: 4@i32 = InsertElement(<0:i32, 0:i32, 0:i32, 0:i32, >:4@i32, %1, 0:i32){} NUses:1
 ; CHECK-NEXT:    %7: 4@i32 = InsertElement(%6, %2, 1:i32){} NUses:1
 ; CHECK-NEXT:    %8: 4@i32 = InsertElement(%7, %3, 2:i32){} NUses:1

@@ -4,6 +4,7 @@
 
 #include <deque>
 
+#include "mir/analysis/copy_equality.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
@@ -1239,7 +1240,18 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
   TSet<VReg> all_used_regs;
   CFG cfg{func};
   LiveVariables live{cfg, func};
-  RegColl ranges{static_cast<size_t>(CReg::N_REGS) + max_vreg_id(func) + 1};
+  const size_t n_uids =
+      static_cast<size_t>(CReg::N_REGS) + max_vreg_id(func) + 1;
+  RegColl ranges{n_uids};
+  CopyEquality eq{func, cfg, n_uids};
+  // a vreg and a live one collide unless they hold the same value here
+  auto collide = [&](VReg reg, size_t other) {
+    if (eq.same(reg_to_uid(reg), other)) {
+      return;
+    }
+    ranges.insert(uid_to_reg(other), reg_to_uid(reg));
+    ranges.insert(reg, other);
+  };
   TVec<ArgData> helper;
   helper.reserve(8);
 
@@ -1288,6 +1300,7 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
     const auto &bb = func.bbs[bb_id];
 
     auto curr_live = aliveOut;
+    eq.begin_block(bb_id);
 
     for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
       // fmt::println("{}", curr_live);
@@ -1351,15 +1364,18 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
       helper.clear();
       written_args(instr, helper);
       // auto all defs
+      // the state of eq is the one after the instruction, a written vreg that
+      // holds the same value as a live one (a copy of it) does not collide
       for (auto written : helper) {
         if (written.arg.isReg()) {
           for (auto r : curr_live) {
-            ranges.insert(uid_to_reg(r), reg_to_uid(written.arg.reg));
-            ranges.insert(written.arg.reg, r);
+            collide(written.arg.reg, r);
           }
           curr_live[reg_to_uid(written.arg.reg)].set(false);
         }
       }
+      // from here on the state is the one before the instruction
+      eq.step_back(instridp1 - 1);
       // special case is call or invoke in which case also all args are read
       //   iff the call target is a register and not a constant
       if ((instr.is(GBaseSubtype::call) || instr.is(GBaseSubtype::invoke)) &&
@@ -1401,8 +1417,7 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
           case MArgument::ArgumentType::MemImmVReg:
             // fmt::println("{} USE {} ", curr_live, written.arg.reg);
             for (auto r : curr_live) {
-              ranges.insert(uid_to_reg(r), reg_to_uid(written.arg.reg));
-              ranges.insert(written.arg.reg, r);
+              collide(written.arg.reg, r);
             }
             curr_live[reg_to_uid(written.arg.reg)].set(true);
             break;
@@ -1451,8 +1466,7 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
           case MArgument::ArgumentType::MemImmVReg:
             // fmt::println("{} USE {} ", curr_live, read.arg.reg);
             for (auto r : curr_live) {
-              ranges.insert(uid_to_reg(r), reg_to_uid(read.arg.reg));
-              ranges.insert(read.arg.reg, r);
+              collide(read.arg.reg, r);
             }
             curr_live[reg_to_uid(read.arg.reg)].set(true);
             break;
@@ -1486,6 +1500,7 @@ RegColl reg_coll(const MFunc &func, const TVec<f32> *block_weights,
         }
       }
     }
+    eq.end_block();
   }
 
   return ranges;

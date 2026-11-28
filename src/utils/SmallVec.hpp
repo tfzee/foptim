@@ -84,8 +84,12 @@ class SmallVec {
   }
   constexpr T& operator[](size_t i) noexcept { return data[i]; }
   constexpr const T& operator[](size_t i) const noexcept { return data[i]; }
+  [[nodiscard]] constexpr T& front() noexcept { return data[0]; }
+  [[nodiscard]] constexpr const T& front() const noexcept { return data[0]; }
+  [[nodiscard]] constexpr T& back() noexcept { return data[_size - 1]; }
+  [[nodiscard]] constexpr const T& back() const noexcept { return data[_size - 1]; }
   constexpr SizeTy size() const noexcept { return _size; }
-  constexpr bool empty() const noexcept { return _size == 0; }
+  [[nodiscard]] constexpr bool empty() const noexcept { return _size == 0; }
   constexpr SizeTy capacity() const noexcept {
     return is_heap() ? _heap.capacity : N;
   }
@@ -181,7 +185,7 @@ class SmallVec {
       // move rest and cleanup the last thats now gone
       T* last = data + _size - 1;
       if (iter != last) {
-        std::move(iter + 1, last + 1, iter + 1);
+        std::move(iter + 1, last + 1, iter);
       }
       std::destroy_at(last);
     }
@@ -242,22 +246,6 @@ class SmallVec {
   constexpr const T& at(size_t i) const {
     ASSERT(i < _size);
     return data[i];
-  }
-  constexpr T& front() {
-    ASSERT(_size > 0);
-    return data[0];
-  }
-  constexpr const T& front() const {
-    ASSERT(_size > 0);
-    return data[0];
-  }
-  constexpr T& back() {
-    ASSERT(_size > 0);
-    return data[_size - 1];
-  }
-  constexpr const T& back() const {
-    ASSERT(_size > 0);
-    return data[_size - 1];
   }
   constexpr T* get_data() noexcept { return data; }
   constexpr const T* get_data() const noexcept { return data; }

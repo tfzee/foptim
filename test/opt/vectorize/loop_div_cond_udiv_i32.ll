@@ -42,7 +42,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %35: 8@i32 = Load(%32){} NUses:3
 ; CHECK-NEXT:    %36: 8@i32 = V.Broadcast(0:i32){} NUses:3
 ; CHECK-NEXT:    %37: 8@i1 = IntNE(%35, %36){} NUses:1
-; CHECK-NEXT:    %38: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %38: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %39: 8@i32 = Select(%37, %35, %38){} NUses:2
 ; CHECK-NEXT:    %40: 4@i32 = V.ExtractLow(%34){} NUses:1
 ; CHECK-NEXT:    %41: 4@i32 = V.ExtractLow(%39){} NUses:1

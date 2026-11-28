@@ -42,8 +42,7 @@ define <2 x double> @spill_v2f64(ptr %p) {
 ; CHECK-NEXT:    [$rbp + -192]: f64x2 = $xmm3: f64x2
 ; CHECK-NEXT:    $xmm1: f64x2 = [$rdi + 672]: f64x2
 ; CHECK-NEXT:    [$rbp + -160]: f64x2 = $xmm1: f64x2
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 704: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 704]: i64, )
 ; CHECK-NEXT:    $xmm0: f64x2 = [$rdi + 704]: f64x2
 ; CHECK-NEXT:    [$rbp + -80]: f64x2 = $xmm0: f64x2
 ; CHECK-NEXT:    $xmm0: f64x2 = [$rdi + 736]: f64x2
@@ -248,8 +247,7 @@ define <4 x float> @spill_v4f32(ptr %p) {
 ; CHECK-NEXT:    [$rbp + -192]: f64x2 = $xmm3: f32x4
 ; CHECK-NEXT:    $xmm1: f32x4 = [$rdi + 672]: f32x4
 ; CHECK-NEXT:    [$rbp + -160]: f64x2 = $xmm1: f32x4
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 704: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 704]: i64, )
 ; CHECK-NEXT:    $xmm0: f32x4 = [$rdi + 704]: f32x4
 ; CHECK-NEXT:    [$rbp + -80]: f64x2 = $xmm0: f32x4
 ; CHECK-NEXT:    $xmm0: f32x4 = [$rdi + 736]: f32x4
@@ -454,8 +452,7 @@ define <4 x double> @spill_v4f64(ptr %p) {
 ; CHECK-NEXT:    [$rbp + -384]: f64x4 = $ymm3: f64x4
 ; CHECK-NEXT:    $ymm1: f64x4 = [$rdi + 1344]: f64x4
 ; CHECK-NEXT:    [$rbp + -320]: f64x4 = $ymm1: f64x4
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 1408: i64
+; CHECK-NEXT:    lea($rax: i64, [$rdi + 1408]: i64, )
 ; CHECK-NEXT:    $ymm0: f64x4 = [$rdi + 1408]: f64x4
 ; CHECK-NEXT:    [$rbp + -160]: f64x4 = $ymm0: f64x4
 ; CHECK-NEXT:    $ymm0: f64x4 = [$rdi + 1472]: f64x4

@@ -73,7 +73,69 @@ void LVN::apply_impl(MBB &bb) {
   }
 }
 
+namespace {
+bool is_all_ones(const MInstr &instr) {
+  return instr.is(X86Subtype::vpcmpeq) && instr.n_args == 3 &&
+         instr.args[0].isReg() && !instr.args[0].reg.is_concrete() &&
+         instr.args[1] == instr.args[0] && instr.args[2] == instr.args[0];
+}
+
+// An all ones vector made again later in the block becomes a copy of the first
+// one. The mask of every vector not is built on its own otherwise.
+void share_all_ones(MFunc &func) {
+  bool any = false;
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      any |= is_all_ones(instr);
+    }
+  }
+  if (!any) {
+    return;
+  }
+  TMap<u64, u32> n_defs;
+  TVec<ArgData> written;
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      written.clear();
+      written_args(instr, written);
+      for (const auto &w : written) {
+        if (w.arg.isReg() && !w.arg.reg.is_concrete()) {
+          n_defs[w.arg.reg.virt_id()]++;
+        }
+      }
+    }
+  }
+  // the shared register stays alive until the last copy, so the distance is
+  // bounded to keep it from living across a huge block
+  constexpr size_t MaxShareDistance = 48;
+  struct First {
+    MArgument reg;
+    size_t pos;
+  };
+  TMap<Type, First> first;
+  for (auto &bb : func.bbs) {
+    first.clear();
+    for (size_t i = 0; i < bb.instrs.size(); i++) {
+      auto &instr = bb.instrs[i];
+      if (!is_all_ones(instr)) {
+        continue;
+      }
+      const auto dst = instr.args[0];
+      auto it = first.find(dst.ty);
+      if (it == first.end() || i - it->second.pos > MaxShareDistance) {
+        if (n_defs[dst.reg.virt_id()] == 1) {
+          first.insert_or_assign(dst.ty, First{dst, i});
+        }
+        continue;
+      }
+      instr = MInstr{GBaseSubtype::mov, dst, it->second.reg};
+    }
+  }
+}
+}  // namespace
+
 void LVN::apply(MFunc &func, const conf::CompConf & /*config*/) {
+  share_all_ones(func);
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {

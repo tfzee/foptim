@@ -76,8 +76,8 @@ bool early_simplify(MInstr &instr, FVec<MInstr> &instrs, size_t instr_id) {
     if (instr.args[1].ty == instr.args[0].ty) {
       instr.bop = GOpcode::GBase;
       instr.sop = static_cast<u32>(GBaseSubtype::mov);
-    } else if (instr.args[1].isMem() && instr.args[0].isReg() &&
-               !instr.args[0].reg.is_concrete()) {
+    } else if (instr.is(GConvSubtype::itrunc) && instr.args[1].isMem() &&
+               instr.args[0].isReg() && !instr.args[0].reg.is_concrete()) {
       instr.bop = GOpcode::GBase;
       instr.sop = static_cast<u32>(GBaseSubtype::mov);
       instr.args[0].reg = instr.args[0].reg.retype(instr.args[1].ty);
@@ -126,6 +126,96 @@ bool early_multi_simplify(FVec<MInstr> &instrs, size_t instr_id) {
     }
   }
   return false;
+}
+
+class VRegCounts {
+ public:
+  explicit VRegCounts(const MFunc &func) : func_(func) {}
+
+  u32 get(const VReg &reg) {
+    if (!built_) {
+      build();
+    }
+    return reg.virt_id() < counts_.size() ? counts_[reg.virt_id()] : 0;
+  }
+
+ private:
+  void count(const VReg &reg) {
+    if (reg.is_concrete()) {
+      return;
+    }
+    if (reg.virt_id() >= counts_.size()) {
+      counts_.resize(reg.virt_id() + 1, 0);
+    }
+    counts_[reg.virt_id()]++;
+  }
+
+  void build() {
+    built_ = true;
+    for (const auto &bb : func_.bbs) {
+      for (const auto &instr : bb.instrs) {
+        for (size_t i = 0; i < instr.n_args; i++) {
+          const auto &arg = instr.args[i];
+          switch (arg.type) {
+            case MArgument::ArgumentType::VReg:
+            case MArgument::ArgumentType::MemVReg:
+            case MArgument::ArgumentType::MemImmVReg:
+              count(arg.reg);
+              break;
+            case MArgument::ArgumentType::MemImmVRegScale:
+            case MArgument::ArgumentType::MemLabelVreg:
+            case MArgument::ArgumentType::MemLabelVregScale:
+              count(arg.indx);
+              break;
+            case MArgument::ArgumentType::MemImmVRegVReg:
+            case MArgument::ArgumentType::MemVRegVRegScale:
+            case MArgument::ArgumentType::MemVRegVReg:
+            case MArgument::ArgumentType::MemImmVRegVRegScale:
+              count(arg.reg);
+              count(arg.indx);
+              break;
+            default:
+              break;
+          }
+        }
+      }
+    }
+  }
+
+  const MFunc &func_;
+  TVec<u32> counts_;
+  bool built_ = false;
+};
+
+// zero extending narrow load followed by a zero extension of its result
+// fuses into one extending load
+bool fuse_extending_load(FVec<MInstr> &instrs, size_t instr_id,
+                         VRegCounts &counts) {
+  if (instr_id + 1 >= instrs.size()) {
+    return false;
+  }
+  auto &load = instrs[instr_id];
+  auto &ext = instrs[instr_id + 1];
+  if (!load.is(GConvSubtype::mov_zx) || !ext.is(GConvSubtype::mov_zx) ||
+      !load.args[0].isReg() || !load.args[1].isMem() || !ext.args[0].isReg() ||
+      !ext.args[1].isReg()) {
+    return false;
+  }
+  const auto &loaded = load.args[0].reg;
+  const auto &mem_ty = load.args[1].ty;
+  if (loaded.is_concrete() || loaded.is_vec_reg() || loaded.ty != Type::Int32 ||
+      (mem_ty != Type::Int8 && mem_ty != Type::Int16) ||
+      !(ext.args[1].reg == loaded) || ext.args[1].ty != mem_ty ||
+      ext.args[0].reg.is_vec_reg() || get_size(ext.args[0].ty) < 4) {
+    return false;
+  }
+  // the load and the extension are the only appearances
+  if (counts.get(loaded) != 2) {
+    return false;
+  }
+  load.args[0] = ext.args[0];
+  instrs.erase(instrs.begin() + static_cast<i64>(instr_id) + 1);
+  return true;
 }
 
 bool multi_simplify(FVec<MInstr> &instrs, size_t instr_id) {
@@ -208,6 +298,7 @@ void InstSimplifyImpl::impl_apply(MFunc &func) {
 }
 
 void InstSimplifyImpl::impl_early(MFunc &func) {
+  VRegCounts counts{func};
   for (auto &bb : func.bbs) {
     for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
       if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
@@ -216,6 +307,9 @@ void InstSimplifyImpl::impl_early(MFunc &func) {
       }
       if (early_multi_simplify(bb.instrs, instr_id)) {
         instr_id--;
+        continue;
+      }
+      if (fuse_extending_load(bb.instrs, instr_id, counts)) {
         continue;
       }
     }

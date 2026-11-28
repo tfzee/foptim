@@ -15,7 +15,7 @@ define void @copy_add(ptr noalias %d, ptr noalias %s) {
 ; CHECK-NEXT:  bb1(%7{}: i8, %8{}: ptr, %9{}: ptr):
 ; CHECK-NEXT:    %10: i64 = IntMul(%4, 2:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %11: ptr = PtrAdd(%8, %10){} NUses:1
-; CHECK-NEXT:    %12: 16@i16 = V.Broadcast(5:i16){} NUses:1
+; CHECK-NEXT:    %12: 16@i16 = Load(G(const_legalizeVec_copy_add_0)){} NUses:1
 ; CHECK-NEXT:    %13: () = Branch<bb3(%7, %8, %9)>(){} NUses:0
 ; CHECK-NEXT:  bb3(%14{}: i8, %15{}: ptr, %16{}: ptr):
 ; CHECK-NEXT:    %17: 16@i16 = Load(%15){} NUses:1

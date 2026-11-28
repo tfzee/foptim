@@ -22,10 +22,13 @@ TEST(AliasSets, RootRelations) {
       EXPECT_EQ(r.disjoint(a, b), a != b) << a << " " << b;
     }
   }
-  // a fresh allocation may be null
+  // fresh allocations may be null and are only reachable from Foreign once
+  // they escape
   EXPECT_TRUE(r.disjoint(T::Heap, T::Stack));
   EXPECT_TRUE(r.disjoint(T::Heap, T::Globals));
   EXPECT_FALSE(r.disjoint(T::Heap, T::Null));
+  EXPECT_FALSE(r.subset(T::Heap, T::Foreign));
+  EXPECT_FALSE(r.disjoint(T::Heap, T::Foreign));
   for (SetId s = 0; s < T::NumRoots; s++) {
     EXPECT_FALSE(r.disjoint(s, T::Unknown));
     EXPECT_FALSE(r.disjoint(s, s));
@@ -129,6 +132,7 @@ TEST(AliasSets, Unions) {
   // a union of sets of different roots
   auto ah = t.union_of(a, h);
   EXPECT_FALSE(t.subset(ah, T::Stack));
+  EXPECT_TRUE(t.disjoint(ah, T::Globals));
   // the heap part may be null
   EXPECT_FALSE(t.disjoint(ah, T::Null));
   EXPECT_TRUE(t.disjoint(ah, b));
@@ -187,6 +191,78 @@ TEST(Provenance, Roots) {
   EXPECT_NE(p.set_of(m.g1), p.set_of(m.g2));
   EXPECT_EQ(p.set_of(m.n), T::Unknown);
   EXPECT_FALSE(t.disjoint(p.set_of(m.n), T::Stack));
+}
+
+TEST(Provenance, ResultAttribs) {
+  foptim::fir::Context ctx{nullptr};
+  auto &d = *ctx.data;
+  const foptim::fir::TypeR ptr = d.get_ptr_type();
+  const foptim::fir::TypeR i64 = d.get_int_type(64);
+  const foptim::fir::TypeR three[] = {ptr, i64, ptr};
+  auto f = d.create_function("alloc3", d.get_func_ty(three, {}));
+  f->set_result_attribs(0b101, 0b001);
+  EXPECT_TRUE(f->result_noalias(0));
+  EXPECT_FALSE(f->result_noalias(1));
+  EXPECT_TRUE(f->result_noalias(2));
+  EXPECT_TRUE(f->result_nonnull(0));
+  EXPECT_FALSE(f->result_nonnull(2));
+  // the middle result is dropped, the last one moves down
+  const foptim::fir::TypeR two[] = {ptr, ptr};
+  f->func_ty = d.get_func_ty(two, {});
+  EXPECT_FALSE(f->result_noalias(0));
+  const foptim::u8 new_index[] = {0, 255, 1};
+  f->remap_result_attribs(three, new_index);
+  EXPECT_TRUE(f->result_noalias(0));
+  EXPECT_TRUE(f->result_noalias(1));
+  EXPECT_TRUE(f->result_nonnull(0));
+  EXPECT_FALSE(f->result_nonnull(1));
+  // a change of the results without a remap only loses the bits, also when
+  // it comes back to the old types later
+  const foptim::fir::TypeR swapped[] = {i64, ptr};
+  f->func_ty = d.get_func_ty(swapped, {});
+  EXPECT_FALSE(f->result_noalias(1));
+  // remapping from types the bits were not set for keeps nothing
+  const foptim::fir::TypeR other[] = {ptr, ptr, ptr};
+  const foptim::u8 keep[] = {0, 1};
+  f->func_ty = d.get_func_ty(two, {});
+  f->remap_result_attribs(other, keep);
+  EXPECT_FALSE(f->result_noalias(0));
+  EXPECT_FALSE(f->result_noalias(1));
+}
+
+TEST(Provenance, HeapResultOfMultiResultCall) {
+  foptim::fir::Context ctx{nullptr};
+  auto &d = *ctx.data;
+  const foptim::fir::TypeR ptr = d.get_ptr_type();
+  const foptim::fir::TypeR i32 = d.get_int_type(32);
+  const foptim::fir::TypeR rets[] = {ptr, ptr};
+  auto alloc = d.create_function("alloc2", d.get_func_ty(rets, {}));
+  alloc.func->basic_blocks.clear();
+  alloc->set_result_attribs(0b10, 0b10);
+  auto f = d.create_function("f", d.get_func_ty(d.get_void_type(), {ptr}));
+  auto b = f.builder();
+  b.at_end(f.func->get_entry());
+  std::array<ValueR, 0> no_args{};
+  auto c1 = b.build_call(ValueR{d.get_constant_value(alloc)}, alloc->func_ty,
+                         rets, no_args);
+  auto c2 = b.build_call(ValueR{d.get_constant_value(alloc)}, alloc->func_ty,
+                         rets, no_args);
+  auto one = ValueR{d.get_constant_value(foptim::i128{1}, i32)};
+  b.build_store(c1.result(0), one, false, false);
+  b.build_store(c1.result(1), one, false, false);
+  b.build_store(c2.result(1), one, false, false);
+  b.build_return();
+  Provenance p{*f.func};
+  const auto &t = p.table();
+  // only the second result is fresh
+  EXPECT_FALSE(p.is_heap(c1.result(0)));
+  EXPECT_TRUE(p.is_heap(c1.result(1)));
+  EXPECT_TRUE(p.non_null(c1.result(1)));
+  EXPECT_FALSE(p.non_null(c1.result(0)));
+  EXPECT_FALSE(p.escapes(c1.result(1)));
+  EXPECT_TRUE(t.disjoint(p.set_of(c1.result(1)), p.set_of(c2.result(1))));
+  EXPECT_TRUE(t.disjoint(p.set_of(c1.result(1)), T::Foreign));
+  EXPECT_EQ(p.set_of(c1.result(0)), T::Foreign);
 }
 
 TEST(Provenance, Disjointness) {

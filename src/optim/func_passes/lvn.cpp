@@ -114,35 +114,75 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
   return false;
 }
 
-bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
-               const Dominators &dom) {
-  auto bb_id = cfg.get_bb_id(bb);
-  // hoisted so the (checked) ref derefs are not repeated for every candidate
-  const fir::InstrData &data = *instr.get_raw_ptr();
-  const auto instr_type = data.instr_type;
-  const auto subtype = data.subtype;
-  const auto n_args = data.args.size();
-  const auto type = instr.result_type();
-  // walk up the dominator tree (nearest dominator first)
-  for (u32 d = bb_id; d != cfg.entry;) {
-    d = dom.idom(d);
-    auto prev_bb = cfg.bbrs[d].bb;
-    for (auto instr2 : prev_bb->instructions) {
-      const fir::InstrData &data2 = *instr2.get_raw_ptr();
-      // cheap rejects before the full comparison
-      if (data2.instr_type != instr_type || data2.subtype != subtype ||
-          data2.args.size() != n_args) {
-        continue;
-      }
-      if (data.eql_expr(data2) && type == instr2.result_type()) {
-        instr2->intersect_poison_flags(*instr.get_raw_ptr());
-        instr->replace_all_uses(instr2.result());
-        instr.destroy();
-        return true;
+// signature of a pure expression to bucket CSE candidates, only a pre filter,
+// eql_instr_expr does the real comparison
+u64 hash_pure_expr(fir::Instr instr);
+
+// every instruction of the function that gvn may merge, bucketed by
+// expression. users of a replaced value keep their old hash, which only
+// costs a missed merge, the candidates are compared on the live operands
+class GvnTable {
+ public:
+  explicit GvnTable(const Dominators &dom) : dom(dom) {}
+
+  void add(fir::Instr instr) { table[hash_pure_expr(instr)].push_back(instr); }
+
+  // call before the instruction is destroyed
+  void remove(fir::Instr instr) {
+    auto it = table.find(hash_pure_expr(instr));
+    if (it == table.end()) {
+      return;
+    }
+    auto &bucket = it->second;
+    for (size_t k = 0; k < bucket.size(); k++) {
+      if (bucket[k] == instr) {
+        bucket.erase(bucket.begin() + k);
+        return;
       }
     }
   }
-  return false;
+
+  // the equal instruction in the nearest strictly dominating block
+  fir::Instr find(fir::Instr instr, fir::BasicBlock bb) const {
+    auto it = table.find(hash_pure_expr(instr));
+    if (it == table.end()) {
+      return fir::Instr{};
+    }
+    const fir::InstrData &data = *instr.get_raw_ptr();
+    const auto type = instr.result_type();
+    fir::Instr best{};
+    for (auto cand : it->second) {
+      auto cbb = cand->get_parent();
+      if (cbb == bb || !dom.strict_dominates(cbb, bb)) {
+        continue;
+      }
+      const fir::InstrData &cdata = *cand.get_raw_ptr();
+      if (!data.eql_expr(cdata) || type != cand.result_type()) {
+        continue;
+      }
+      // the candidates are on one dominator chain
+      if (!best.is_valid() || dom.strict_dominates(best->get_parent(), cbb)) {
+        best = cand;
+      }
+    }
+    return best;
+  }
+
+ private:
+  const Dominators &dom;
+  TMap<u64, TVec<fir::Instr>> table;
+};
+
+bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, GvnTable &gvn) {
+  auto same = gvn.find(instr, bb);
+  if (!same.is_valid()) {
+    return false;
+  }
+  same->intersect_poison_flags(*instr.get_raw_ptr());
+  instr->replace_all_uses(same.result());
+  gvn.remove(instr);
+  instr.destroy();
+  return true;
 }
 
 // The clobber of a load is a store to the same object (the load is rebuilt from
@@ -160,7 +200,21 @@ class MemForwarder {
         walker(mssa, info, aq) {}
 
   bool run() {
+    // a load is only forwarded from a store or another load with the same
+    // base, so loads of a base nobody else touches skip the clobber walk.
+    // bit 0 is a store, the rest counts the loads
+    TMap<fir::ValueR, u32> base_use;
     for (const auto &a : info.accesses()) {
+      if (a.kind == MemAccess::Kind::Load) {
+        base_use[a.loc.ptr.base] += 2;
+      } else if (a.kind == MemAccess::Kind::Store) {
+        base_use[a.loc.ptr.base] |= 1;
+      }
+    }
+    for (const auto &a : info.accesses()) {
+      if (a.kind == MemAccess::Kind::Load && base_use[a.loc.ptr.base] == 2) {
+        continue;
+      }
       if (a.kind != MemAccess::Kind::Load || a.ordered || a.loc.size == 0 ||
           !a.instr->is(fir::InstrType::LoadInstr) || a.instr->Volatile ||
           !dom.is_reachable(cfg.get_bb_id(a.instr->get_parent()))) {
@@ -472,8 +526,7 @@ u64 hash_icmp_operands(fir::Instr instr) {
 
 constexpr size_t kLvnMemWindow = 64;
 
-bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
-               AliasAnalyis &aa) {
+bool apply_lvn(fir::BasicBlock bb, GvnTable &gvn, AliasAnalyis &aa) {
   bool modified = false;
   // pure CSE and the ICmp EQ/NE fold only compare against earlier pure
   // instructions at any distance, so hash tables of candidates keep this
@@ -482,7 +535,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
   TMap<u64, TVec<fir::Instr>> icmp_table;
   for (size_t i = 0; i < bb->instructions.size(); i++) {
     auto instr = bb->instructions[i];
-    if (gvn_applicable(instr) && apply_gvn(instr, bb, cfg, dom)) {
+    if (gvn_applicable(instr) && apply_gvn(instr, bb, gvn)) {
       i--;
       modified = true;
       continue;
@@ -500,6 +553,9 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           earlier->intersect_poison_flags(*instr.get_raw_ptr());
           instr->replace_all_uses(earlier.result());
           ASSERT(instr->get_n_uses() == 0);
+          if (gvn_applicable(instr)) {
+            gvn.remove(instr);
+          }
           instr.destroy();
           i--;
           modified = true;
@@ -523,9 +579,10 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
              instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
         if (opposite_eql) {
           fir::Builder buh{instr};
-          auto res = buh.build_unary_op(earlier.result(),
-                                        fir::UnaryInstrSubType::Not);
+          auto res =
+              buh.build_unary_op(earlier.result(), fir::UnaryInstrSubType::Not);
           instr->replace_all_uses(res);
+          gvn.remove(instr);
           instr.destroy();
           i--;
           modified = true;
@@ -658,9 +715,9 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           }
         }
         // merge integers into bigger integers
-        if (instr->result_type()->is_int() &&
-            instr2.result_type()->is_int() && old_width <= 4 &&
-            base1_addr == base2_addr && base1_off + old_width == base2_off &&
+        if (instr->result_type()->is_int() && instr2.result_type()->is_int() &&
+            old_width <= 4 && base1_addr == base2_addr &&
+            base1_off + old_width == base2_off &&
             instr->args[1].is_constant() && instr2->args[1].is_constant()) {
           bool pot_load_between = is_pot_loadstore_between(
               bb, instr->args[0], old_width * 2, i + 1, i2, aa);
@@ -802,15 +859,22 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
 
 PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("LVN", COLOR_OPTIMF);
-  CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
   bool modified = MemForwarder{func}.run();
   if (modified) {
     AnalysisManager::drop_memory(func);
   }
   AliasAnalyis aa;
+  GvnTable gvn{dom};
   for (auto bb : func.basic_blocks) {
-    modified |= apply_lvn(bb, cfg, dom, aa);
+    for (auto instr : bb->instructions) {
+      if (gvn_applicable(instr)) {
+        gvn.add(instr);
+      }
+    }
+  }
+  for (auto bb : func.basic_blocks) {
+    modified |= apply_lvn(bb, gvn, aa);
   }
   // only instructions change, never blocks or edges
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();

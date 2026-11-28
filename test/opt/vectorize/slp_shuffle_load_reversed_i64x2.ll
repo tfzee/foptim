@@ -8,7 +8,7 @@ define void @f(ptr noalias %a, ptr noalias %o) {
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr):
 ; CHECK-NEXT:    %2: 2@i64 = Load(%0){} NUses:2
 ; CHECK-NEXT:    %3: 2@i64 = V.Shuffle(%2, %2, <1:i32, 0:i32, >:2@i32){} NUses:1
-; CHECK-NEXT:    %4: 2@i64 = V.Broadcast(7:i64){} NUses:1
+; CHECK-NEXT:    %4: 2@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %5: 2@i64 = IntAdd(%3, %4){} NUses:1
 ; CHECK-NEXT:    %6: 2@i64 = Store(%1, %5){} NUses:0
 ; CHECK-NEXT:    %7: () = Return(){} NUses:0

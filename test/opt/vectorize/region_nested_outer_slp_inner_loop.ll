@@ -28,10 +28,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n, i64 %m) {
 ; CHECK-NEXT:    %22: i1 = IntSLT(%21, %4){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb4(%21), bb5()>(%22){} NUses:0
 ; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %24: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %24: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %25: 4@i64 = PtrAdd(%5, %24){} NUses:1
 ; CHECK-NEXT:    %26: 4@i32 = Load(%25){} NUses:1
-; CHECK-NEXT:    %27: 4@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %27: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %28: 4@i32 = IntAdd(%26, %27){} NUses:1
 ; CHECK-NEXT:    %29: 4@i32 = Store(%2, %28){} NUses:0
 ; CHECK-NEXT:    %30: i64 = IntAdd(%10, 1:i64){NSW; NUW; } NUses:2
@@ -41,7 +41,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n, i64 %m) {
 ; CHECK-NEXT:    %34: i64 = And(%11, -8:i64){} NUses:3
 ; CHECK-NEXT:    %35: i64 = IntAdd(%34, %33){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %36: i1 = IntEQ(%34, 0:i64){} NUses:1
-; CHECK-NEXT:    %37: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %37: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %38: () = CondBranch<bb4(%33), bb6(%33)>(%36){} NUses:0
 ; CHECK-NEXT:  bb6(%39{}: i64):
 ; CHECK-NEXT:    %40: i64 = IntMul(%39, 4:i64){NSW; NUW; } NUses:2

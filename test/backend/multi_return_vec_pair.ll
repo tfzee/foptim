@@ -6,9 +6,8 @@
 ; of the constant is not reached from this input anymore).
 ; CHECK-LABEL: func _Z7testfun4Test
 ; CHECK-LABEL: func main
-; CHECK: lea($rax: i64, [__const.main.d]: i64, )
-; CHECK-NEXT: $rax: i64 += 8: i64
-; CHECK: $mm1: f32x2 = [$rax]: f32x2
+; CHECK: $mm1: f32x2 = [__const.main.d + 8]: f32x2
+; CHECK-NEXT: $mm0: f32x2 = [const_legalizeVec_main_2]: f32x2
 ; CHECK-NEXT: call(_Z7testfun4Test
 ; ModuleID = '/home/tim/programming/foptim_test/test/multi_return_float.cpp'
 source_filename = "/home/tim/programming/foptim_test/test/multi_return_float.cpp"

@@ -9,7 +9,7 @@ define double @sel_div(ptr %p, i32 %n, double %t) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i32, %2{}: f64):
 ; CHECK-NEXT:    %3: i1 = IntSGT(%1, 0:i32){} NUses:1
-; CHECK-NEXT:    %4: i1 = FloatOLT(%2, 0:f64){} NUses:3
+; CHECK-NEXT:    %4: i1 = FloatOLT(%2, 0:f64){} NUses:1
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(), bb2(0:f64)>(%3){} NUses:0
 ; CHECK-NEXT:  bb3(%6{}: i32, %7{}: f64):
 ; CHECK-NEXT:    %8: i64 = SExt(%6){} NUses:1
@@ -19,24 +19,22 @@ define double @sel_div(ptr %p, i32 %n, double %t) {
 ; CHECK-NEXT:    %12: f64 = FloatAdd(%11, %7){} NUses:1
 ; CHECK-NEXT:    %13: f64 = FloatDiv(%11, 401C000000000000:f64){} NUses:1
 ; CHECK-NEXT:    %14: f64 = FloatAdd(%12, %13){} NUses:2
-; CHECK-NEXT:    %15: i32 = Select(%4, 1:i32, 1:i32){} NUses:1
-; CHECK-NEXT:    %16: i32 = IntAdd(%6, %15){} NUses:2
-; CHECK-NEXT:    %17: i1 = IntSLT(%16, %1){} NUses:1
-; CHECK-NEXT:    %18: () = CondBranch<bb3(%16, %14), bb2(%14)>(%17){} NUses:0
-; CHECK-NEXT:  bb2(%19{}: f64):
-; CHECK-NEXT:    %20: f64 = Return(%19){} NUses:0
-; CHECK-NEXT:  bb4(%21{}: i32, %22{}: f64):
-; CHECK-NEXT:    %23: i64 = SExt(%21){} NUses:1
-; CHECK-NEXT:    %24: i64 = IntMul(%23, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %25: ptr = PtrAdd(%0, %24){} NUses:1
-; CHECK-NEXT:    %26: f64 = Load(%25){} NUses:1
-; CHECK-NEXT:    %27: f64 = FloatAdd(%26, %22){} NUses:2
-; CHECK-NEXT:    %28: i32 = Select(%4, 1:i32, 1:i32){} NUses:1
-; CHECK-NEXT:    %29: i32 = IntAdd(%21, %28){} NUses:2
-; CHECK-NEXT:    %30: i1 = IntSLT(%29, %1){} NUses:1
-; CHECK-NEXT:    %31: () = CondBranch<bb4(%29, %27), bb2(%27)>(%30){} NUses:0
+; CHECK-NEXT:    %15: i32 = IntAdd(%6, 1:i32){NSW; } NUses:2
+; CHECK-NEXT:    %16: i1 = IntSLT(%15, %1){} NUses:1
+; CHECK-NEXT:    %17: () = CondBranch<bb3(%15, %14), bb2(%14)>(%16){} NUses:0
+; CHECK-NEXT:  bb2(%18{}: f64):
+; CHECK-NEXT:    %19: f64 = Return(%18){} NUses:0
+; CHECK-NEXT:  bb4(%20{}: i32, %21{}: f64):
+; CHECK-NEXT:    %22: i64 = SExt(%20){} NUses:1
+; CHECK-NEXT:    %23: i64 = IntMul(%22, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %24: ptr = PtrAdd(%0, %23){} NUses:1
+; CHECK-NEXT:    %25: f64 = Load(%24){} NUses:1
+; CHECK-NEXT:    %26: f64 = FloatAdd(%25, %21){} NUses:2
+; CHECK-NEXT:    %27: i32 = IntAdd(%20, 1:i32){NSW; } NUses:2
+; CHECK-NEXT:    %28: i1 = IntSLT(%27, %1){} NUses:1
+; CHECK-NEXT:    %29: () = CondBranch<bb4(%27, %26), bb2(%26)>(%28){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %32: () = CondBranch<bb3(0:i32, 0:f64), bb4(0:i32, 0:f64)>(%4){} NUses:0
+; CHECK-NEXT:    %30: () = CondBranch<bb3(0:i32, 0:f64), bb4(0:i32, 0:f64)>(%4){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %head
@@ -70,7 +68,7 @@ define double @sel_and(ptr %p, i32 %n, double %t) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i32, %2{}: f64):
 ; CHECK-NEXT:    %3: i1 = IntSGT(%1, 0:i32){} NUses:1
-; CHECK-NEXT:    %4: i1 = FloatOLT(%2, 0:f64){} NUses:3
+; CHECK-NEXT:    %4: i1 = FloatOLT(%2, 0:f64){} NUses:1
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(), bb2(0:f64)>(%3){} NUses:0
 ; CHECK-NEXT:  bb3(%6{}: i32, %7{}: f64):
 ; CHECK-NEXT:    %8: i64 = SExt(%6){} NUses:1
@@ -78,31 +76,29 @@ define double @sel_and(ptr %p, i32 %n, double %t) {
 ; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %9){} NUses:1
 ; CHECK-NEXT:    %11: f64 = Load(%10){} NUses:3
 ; CHECK-NEXT:    %12: f64 = FloatAdd(%11, %7){} NUses:2
-; CHECK-NEXT:    %13: i1 = FloatOGT(%11, 0:f64){} NUses:2
-; CHECK-NEXT:    %14: i1 = And(%13, %4){} NUses:1
+; CHECK-NEXT:    %13: i1 = FloatOGT(%11, 0:f64){} NUses:1
+; CHECK-NEXT:    %14: () = CondBranch<bb4(), bb5(%12)>(%13){} NUses:0
+; CHECK-NEXT:  bb4():
 ; CHECK-NEXT:    %15: f64 = FloatDiv(%11, 401C000000000000:f64){} NUses:1
 ; CHECK-NEXT:    %16: f64 = FloatAdd(%12, %15){} NUses:1
-; CHECK-NEXT:    %17: i32 = Select(%14, 1:i32, 1:i32){} NUses:1
-; CHECK-NEXT:    %18: i32 = IntAdd(%6, %17){} NUses:2
-; CHECK-NEXT:    %19: f64 = Select(%13, %16, %12){} NUses:2
-; CHECK-NEXT:    %20: i1 = IntSLT(%18, %1){} NUses:1
-; CHECK-NEXT:    %21: () = CondBranch<bb3(%18, %19), bb2(%19)>(%20){} NUses:0
+; CHECK-NEXT:    %17: () = Branch<bb5(%16)>(){} NUses:0
+; CHECK-NEXT:  bb5(%18{}: f64):
+; CHECK-NEXT:    %19: i32 = IntAdd(%6, 1:i32){NSW; } NUses:2
+; CHECK-NEXT:    %20: i1 = IntSLT(%19, %1){} NUses:1
+; CHECK-NEXT:    %21: () = CondBranch<bb3(%19, %18), bb2(%18)>(%20){} NUses:0
 ; CHECK-NEXT:  bb2(%22{}: f64):
 ; CHECK-NEXT:    %23: f64 = Return(%22){} NUses:0
-; CHECK-NEXT:  bb4(%24{}: i32, %25{}: f64):
+; CHECK-NEXT:  bb6(%24{}: i32, %25{}: f64):
 ; CHECK-NEXT:    %26: i64 = SExt(%24){} NUses:1
 ; CHECK-NEXT:    %27: i64 = IntMul(%26, 8:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %28: ptr = PtrAdd(%0, %27){} NUses:1
-; CHECK-NEXT:    %29: f64 = Load(%28){} NUses:2
+; CHECK-NEXT:    %29: f64 = Load(%28){} NUses:1
 ; CHECK-NEXT:    %30: f64 = FloatAdd(%29, %25){} NUses:2
-; CHECK-NEXT:    %31: i1 = FloatOGT(%29, 0:f64){} NUses:1
-; CHECK-NEXT:    %32: i1 = And(%31, %4){} NUses:1
-; CHECK-NEXT:    %33: i32 = Select(%32, 1:i32, 1:i32){} NUses:1
-; CHECK-NEXT:    %34: i32 = IntAdd(%24, %33){} NUses:2
-; CHECK-NEXT:    %35: i1 = IntSLT(%34, %1){} NUses:1
-; CHECK-NEXT:    %36: () = CondBranch<bb4(%34, %30), bb2(%30)>(%35){} NUses:0
+; CHECK-NEXT:    %31: i32 = IntAdd(%24, 1:i32){NSW; } NUses:2
+; CHECK-NEXT:    %32: i1 = IntSLT(%31, %1){} NUses:1
+; CHECK-NEXT:    %33: () = CondBranch<bb6(%31, %30), bb2(%30)>(%32){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %37: () = CondBranch<bb3(0:i32, 0:f64), bb4(0:i32, 0:f64)>(%4){} NUses:0
+; CHECK-NEXT:    %34: () = CondBranch<bb3(0:i32, 0:f64), bb6(0:i32, 0:f64)>(%4){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %head

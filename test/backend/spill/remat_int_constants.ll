@@ -6,7 +6,7 @@ declare i32 @printf(ptr, ...)
 define void @f(ptr %p, i32 %n) {
 ; CHECK: func f ($2: i64, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 208: i64
+; CHECK-NEXT:    $rsp: i64 -= 160: i64
 ; CHECK-NEXT:    $rsp: i64 -= 8: i64
 ; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    push($r15: i64, )
@@ -14,107 +14,94 @@ define void @f(ptr %p, i32 %n) {
 ; CHECK-NEXT:    push($r13: i64, )
 ; CHECK-NEXT:    push($r12: i64, )
 ; CHECK-NEXT:    [$rbp + -12]: i32 = $esi: i32
-; CHECK-NEXT:    [$rbp + -208]: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -208]: i64
+; CHECK-NEXT:    [$rbp + -88]: i64 = $rdi: i64
+; CHECK-NEXT:    $rcx: i64 = [$rbp + -88]: i64
 ; CHECK-NEXT:    $r15: i64 = [$rcx]: i64
-; CHECK-NEXT:    $rdi: i64 = [$rcx + 8]: i64
-; CHECK-NEXT:    $rsi: i64 = [$rcx + 16]: i64
-; CHECK-NEXT:    $rdx: i64 = [$rcx + 24]: i64
-; CHECK-NEXT:    $rax: i64 = [$rcx + 32]: i64
-; CHECK-NEXT:    $r10: i64 = [$rcx + 40]: i64
-; CHECK-NEXT:    $r9: i64 = [$rcx + 48]: i64
-; CHECK-NEXT:    $r8: i64 = [$rcx + 56]: i64
-; CHECK-NEXT:    $r14: i64 = [$rcx + 64]: i64
-; CHECK-NEXT:    $r11: i64 = [$rcx + 72]: i64
-; CHECK-NEXT:    $rbx: i64 = [$rcx + 80]: i64
-; CHECK-NEXT:    $r12: i64 = [$rcx + 88]: i64
-; CHECK-NEXT:    $r13: i64 = [$rcx + 96]: i64
+; CHECK-NEXT:    $r8: i64 = [$rcx + 8]: i64
+; CHECK-NEXT:    $rdi: i64 = [$rcx + 16]: i64
+; CHECK-NEXT:    $rsi: i64 = [$rcx + 24]: i64
+; CHECK-NEXT:    $rdx: i64 = [$rcx + 32]: i64
+; CHECK-NEXT:    $rax: i64 = [$rcx + 40]: i64
+; CHECK-NEXT:    $r11: i64 = [$rcx + 48]: i64
+; CHECK-NEXT:    $r10: i64 = [$rcx + 56]: i64
+; CHECK-NEXT:    $r9: i64 = [$rcx + 64]: i64
+; CHECK-NEXT:    $rbx: i64 = [$rcx + 72]: i64
+; CHECK-NEXT:    $r12: i64 = [$rcx + 80]: i64
+; CHECK-NEXT:    $r13: i64 = [$rcx + 88]: i64
+; CHECK-NEXT:    $r14: i64 = [$rcx + 96]: i64
 ; CHECK-NEXT:    $rcx: i64 = [$rcx + 104]: i64
 ; CHECK-NEXT:    [$rbp + -16]: i32 = 0: i32
-; CHECK-NEXT:    [$rbp + -64]: i64 = $rdi: i64
-; CHECK-NEXT:    [$rbp + -48]: i64 = $rsi: i64
-; CHECK-NEXT:    [$rbp + -32]: i64 = $rdx: i64
-; CHECK-NEXT:    [$rbp + -72]: i64 = $rax: i64
-; CHECK-NEXT:    $rsi: i64 = $r10: i64
-; CHECK-NEXT:    [$rbp + -56]: i64 = $r9: i64
-; CHECK-NEXT:    [$rbp + -40]: i64 = $r8: i64
-; CHECK-NEXT:    [$rbp + -24]: i64 = $r11: i64
-; CHECK-NEXT:    $r8: i64 = $rbx: i64
-; CHECK-NEXT:    $r9: i64 = $r12: i64
-; CHECK-NEXT:    $r10: i64 = $r13: i64
-; CHECK-NEXT:    $rbx: i64 = $r15: i64
+; CHECK-NEXT:    [$rbp + -120]: i64 = $r8: i64
+; CHECK-NEXT:    [$rbp + -128]: i64 = $rdi: i64
+; CHECK-NEXT:    [$rbp + -136]: i64 = $rsi: i64
+; CHECK-NEXT:    [$rbp + -144]: i64 = $rdx: i64
+; CHECK-NEXT:    [$rbp + -152]: i64 = $rax: i64
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    [$rbp + -80]: i64 = $rcx: i64
-; CHECK-NEXT:    [$rbp + -96]: i64 = $r10: i64
-; CHECK-NEXT:    [$rbp + -104]: i64 = $r9: i64
-; CHECK-NEXT:    [$rbp + -112]: i64 = $r8: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -24]: i64
-; CHECK-NEXT:    [$rbp + -120]: i64 = $rax: i64
-; CHECK-NEXT:    [$rbp + -128]: i64 = $r14: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -40]: i64
+; CHECK-NEXT:    [$rbp + -24]: i64 = $rcx: i64
+; CHECK-NEXT:    [$rbp + -32]: i64 = $r14: i64
+; CHECK-NEXT:    [$rbp + -40]: i64 = $r13: i64
+; CHECK-NEXT:    [$rbp + -48]: i64 = $r12: i64
+; CHECK-NEXT:    [$rbp + -56]: i64 = $rbx: i64
+; CHECK-NEXT:    [$rbp + -64]: i64 = $r9: i64
+; CHECK-NEXT:    [$rbp + -72]: i64 = $r10: i64
+; CHECK-NEXT:    [$rbp + -80]: i64 = $r11: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -152]: i64
+; CHECK-NEXT:    [$rbp + -96]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -144]: i64
+; CHECK-NEXT:    [$rbp + -104]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -136]: i64
+; CHECK-NEXT:    [$rbp + -112]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -128]: i64
 ; CHECK-NEXT:    [$rbp + -136]: i64 = $rax: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -56]: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -120]: i64
 ; CHECK-NEXT:    [$rbp + -144]: i64 = $rax: i64
-; CHECK-NEXT:    [$rbp + -152]: i64 = $rsi: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -72]: i64
-; CHECK-NEXT:    [$rbp + -160]: i64 = $rax: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -32]: i64
-; CHECK-NEXT:    [$rbp + -168]: i64 = $rax: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -48]: i64
-; CHECK-NEXT:    [$rbp + -176]: i64 = $rax: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -64]: i64
-; CHECK-NEXT:    [$rbp + -184]: i64 = $rax: i64
-; CHECK-NEXT:    [$rbp + -88]: i64 = $rbx: i64
-; CHECK-NEXT:    push($rcx: i64, )
-; CHECK-NEXT:    push($rsi: i64, )
-; CHECK-NEXT:    push($r8: i64, )
-; CHECK-NEXT:    push($r9: i64, )
-; CHECK-NEXT:    push($r10: i64, )
-; CHECK-NEXT:    $rax: i64 = 322381695982253: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 322308395207068: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 322235094431883: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 322161793656698: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 322088492881513: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 322015192106328: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321941891331143: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321868590555958: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321795289780773: i64
-; CHECK-NEXT:    push($rax: i64, )
+; CHECK-NEXT:    [$rbp + -152]: i64 = $r15: i64
+; CHECK-NEXT:    $r15: i64 = 320842379703368: i64
+; CHECK-NEXT:    $r14: i64 = 321062282028923: i64
+; CHECK-NEXT:    $rbx: i64 = 321135582804108: i64
+; CHECK-NEXT:    $rdi: i64 = 321428785904848: i64
+; CHECK-NEXT:    $r12: i64 = 321502086680033: i64
+; CHECK-NEXT:    $rsi: i64 = 321575387455218: i64
+; CHECK-NEXT:    $rdx: i64 = 321648688230403: i64
 ; CHECK-NEXT:    $rax: i64 = 321721989005588: i64
+; CHECK-NEXT:    $r8: i64 = 321795289780773: i64
+; CHECK-NEXT:    $r13: i64 = 321868590555958: i64
+; CHECK-NEXT:    $r9: i64 = 321941891331143: i64
+; CHECK-NEXT:    $r10: i64 = 322015192106328: i64
+; CHECK-NEXT:    $r11: i64 = 322088492881513: i64
+; CHECK-NEXT:    $rsp: i64 -= 8: i32
+; CHECK-NEXT:    $rcx: i64 = 322381695982253: i64
+; CHECK-NEXT:    push($rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 322308395207068: i64
+; CHECK-NEXT:    push($rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 322235094431883: i64
+; CHECK-NEXT:    push($rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 322161793656698: i64
+; CHECK-NEXT:    push($rcx: i64, )
+; CHECK-NEXT:    push($r11: i64, )
+; CHECK-NEXT:    push($r10: i64, )
+; CHECK-NEXT:    push($r9: i64, )
+; CHECK-NEXT:    push($r13: i64, )
+; CHECK-NEXT:    push($r8: i64, )
 ; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321648688230403: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321575387455218: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321502086680033: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321428785904848: i64
-; CHECK-NEXT:    push($rax: i64, )
+; CHECK-NEXT:    push($rdx: i64, )
+; CHECK-NEXT:    push($rsi: i64, )
+; CHECK-NEXT:    push($r12: i64, )
+; CHECK-NEXT:    push($rdi: i64, )
 ; CHECK-NEXT:    $rax: i64 = 321355485129663: i64
 ; CHECK-NEXT:    push($rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = 321282184354478: i64
 ; CHECK-NEXT:    push($rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = 321208883579293: i64
 ; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321135582804108: i64
-; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 321062282028923: i64
-; CHECK-NEXT:    push($rax: i64, )
+; CHECK-NEXT:    push($rbx: i64, )
+; CHECK-NEXT:    push($r14: i64, )
 ; CHECK-NEXT:    $rax: i64 = 320988981253738: i64
 ; CHECK-NEXT:    push($rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = 320915680478553: i64
 ; CHECK-NEXT:    push($rax: i64, )
-; CHECK-NEXT:    $rax: i64 = 320842379703368: i64
-; CHECK-NEXT:    push($rax: i64, )
+; CHECK-NEXT:    push($r15: i64, )
 ; CHECK-NEXT:    $rax: i64 = 320769078928183: i64
 ; CHECK-NEXT:    push($rax: i64, )
 ; CHECK-NEXT:    $rax: i64 = 320695778152998: i64
@@ -129,88 +116,89 @@ define void @f(ptr %p, i32 %n) {
 ; CHECK-NEXT:    $r9: i64 = 320549176602628: i64
 ; CHECK-NEXT:    clear $al: i8
 ; CHECK-NEXT:    call(printf, )  VARARG
-; CHECK-NEXT:    [$rbp + -200]: i32 = $eax: i32
 ; CHECK-NEXT:    $rsp: i64 += 200: i32
-; CHECK-NEXT:    pop($r10: i64, )
-; CHECK-NEXT:    pop($r9: i64, )
-; CHECK-NEXT:    pop($r8: i64, )
-; CHECK-NEXT:    pop($rsi: i64, )
-; CHECK-NEXT:    pop($rcx: i64, )
-; CHECK-NEXT:    [$rbp + -192]: i64 = $rbx: i64
-; CHECK-NEXT:    $r15: i64 = [$rbp + -64]: i64
-; CHECK-NEXT:    [$rbp + -192]: i64 += $r15: i64
-; CHECK-NEXT:    $r15: i64 += [$rbp + -48]: i64
-; CHECK-NEXT:    $r11: i64 = [$rbp + -48]: i64
-; CHECK-NEXT:    $r11: i64 += [$rbp + -32]: i64
-; CHECK-NEXT:    $r12: i64 = [$rbp + -32]: i64
-; CHECK-NEXT:    $r12: i64 += [$rbp + -72]: i64
-; CHECK-NEXT:    $r13: i64 = [$rbp + -72]: i64
-; CHECK-NEXT:    $r13: i64 += $rsi: i64
-; CHECK-NEXT:    $rsi: i64 += [$rbp + -56]: i64
-; CHECK-NEXT:    $rdx: i64 = [$rbp + -56]: i64
-; CHECK-NEXT:    $rdx: i64 += [$rbp + -40]: i64
-; CHECK-NEXT:    $rax: i64 = [$rbp + -40]: i64
-; CHECK-NEXT:    $rax: i64 += $r14: i64
+; CHECK-NEXT:    $rsp: i64 += 8: i32
+; CHECK-NEXT:    $rax: i64 = [$rbp + -152]: i64
+; CHECK-NEXT:    [$rbp + -160]: i64 = $rax: i64
+; CHECK-NEXT:    $rdx: i64 = [$rbp + -144]: i64
+; CHECK-NEXT:    [$rbp + -160]: i64 += $rdx: i64
+; CHECK-NEXT:    $rdx: i64 += [$rbp + -136]: i64
+; CHECK-NEXT:    $r8: i64 = [$rbp + -136]: i64
+; CHECK-NEXT:    $r8: i64 += [$rbp + -112]: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -112]: i64
+; CHECK-NEXT:    $rax: i64 += [$rbp + -104]: i64
+; CHECK-NEXT:    $r10: i64 = [$rbp + -104]: i64
+; CHECK-NEXT:    $r10: i64 += [$rbp + -96]: i64
+; CHECK-NEXT:    $r9: i64 = [$rbp + -96]: i64
+; CHECK-NEXT:    $r9: i64 += [$rbp + -80]: i64
+; CHECK-NEXT:    $r11: i64 = [$rbp + -80]: i64
+; CHECK-NEXT:    $r11: i64 += [$rbp + -72]: i64
+; CHECK-NEXT:    $rsi: i64 = [$rbp + -72]: i64
+; CHECK-NEXT:    $rsi: i64 += [$rbp + -64]: i64
+; CHECK-NEXT:    $rdi: i64 = [$rbp + -64]: i64
+; CHECK-NEXT:    $rdi: i64 += [$rbp + -56]: i64
+; CHECK-NEXT:    $rbx: i64 = [$rbp + -56]: i64
+; CHECK-NEXT:    $rbx: i64 += [$rbp + -48]: i64
+; CHECK-NEXT:    $r12: i64 = [$rbp + -48]: i64
+; CHECK-NEXT:    $r12: i64 += [$rbp + -40]: i64
+; CHECK-NEXT:    $r13: i64 = [$rbp + -40]: i64
+; CHECK-NEXT:    $r13: i64 += [$rbp + -32]: i64
+; CHECK-NEXT:    $r14: i64 = [$rbp + -32]: i64
 ; CHECK-NEXT:    $r14: i64 += [$rbp + -24]: i64
-; CHECK-NEXT:    $rdi: i64 = [$rbp + -24]: i64
-; CHECK-NEXT:    $rdi: i64 += $r8: i64
-; CHECK-NEXT:    $r8: i64 += $r9: i64
-; CHECK-NEXT:    $r9: i64 += $r10: i64
-; CHECK-NEXT:    $r10: i64 += $rcx: i64
-; CHECK-NEXT:    [$rbp + -200]: i64 = $rcx: i64
-; CHECK-NEXT:    [$rbp + -200]: i64 += $rbx: i64
+; CHECK-NEXT:    $r15: i64 = [$rbp + -24]: i64
+; CHECK-NEXT:    $r15: i64 += [$rbp + -152]: i64
 ; CHECK-NEXT:    $ecx: i32 = [$rbp + -16]: i32
 ; CHECK-NEXT:    $ecx: i32 += 1: i32
 ; CHECK-NEXT:    cjmp_int_sge($ecx: i32, [$rbp + -12]: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
 ; CHECK-NEXT:    [$rbp + -16]: i32 = $ecx: i32
-; CHECK-NEXT:    [$rbp + -64]: i64 = $r15: i64
-; CHECK-NEXT:    [$rbp + -48]: i64 = $r11: i64
-; CHECK-NEXT:    [$rbp + -32]: i64 = $r12: i64
-; CHECK-NEXT:    [$rbp + -72]: i64 = $r13: i64
-; CHECK-NEXT:    [$rbp + -56]: i64 = $rdx: i64
-; CHECK-NEXT:    [$rbp + -40]: i64 = $rax: i64
-; CHECK-NEXT:    [$rbp + -24]: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -200]: i64
-; CHECK-NEXT:    $rbx: i64 = [$rbp + -192]: i64
+; CHECK-NEXT:    [$rbp + -120]: i64 = $rdx: i64
+; CHECK-NEXT:    [$rbp + -128]: i64 = $r8: i64
+; CHECK-NEXT:    [$rbp + -136]: i64 = $rax: i64
+; CHECK-NEXT:    [$rbp + -144]: i64 = $r10: i64
+; CHECK-NEXT:    [$rbp + -152]: i64 = $r9: i64
+; CHECK-NEXT:    $r10: i64 = $rsi: i64
+; CHECK-NEXT:    $r9: i64 = $rdi: i64
+; CHECK-NEXT:    $rcx: i64 = $r15: i64
+; CHECK-NEXT:    $r15: i64 = [$rbp + -160]: i64
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $rax: i64 = [$rbp + -208]: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -152]: i64
 ; CHECK-NEXT:    $rcx: i64 = [$rbp + -88]: i64
-; CHECK-NEXT:    [$rax]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -184]: i64
-; CHECK-NEXT:    [$rax + 8]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -176]: i64
-; CHECK-NEXT:    [$rax + 16]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -168]: i64
-; CHECK-NEXT:    [$rax + 24]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -160]: i64
-; CHECK-NEXT:    [$rax + 32]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -152]: i64
-; CHECK-NEXT:    [$rax + 40]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -144]: i64
-; CHECK-NEXT:    [$rax + 48]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -136]: i64
-; CHECK-NEXT:    [$rax + 56]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -128]: i64
-; CHECK-NEXT:    [$rax + 64]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -120]: i64
-; CHECK-NEXT:    [$rax + 72]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -112]: i64
-; CHECK-NEXT:    [$rax + 80]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -104]: i64
-; CHECK-NEXT:    [$rax + 88]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -96]: i64
-; CHECK-NEXT:    [$rax + 96]: i64 = $rcx: i64
-; CHECK-NEXT:    $rcx: i64 = [$rbp + -80]: i64
-; CHECK-NEXT:    [$rax + 104]: i64 = $rcx: i64
+; CHECK-NEXT:    [$rcx]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -144]: i64
+; CHECK-NEXT:    [$rcx + 8]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -136]: i64
+; CHECK-NEXT:    [$rcx + 16]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -112]: i64
+; CHECK-NEXT:    [$rcx + 24]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -104]: i64
+; CHECK-NEXT:    [$rcx + 32]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -96]: i64
+; CHECK-NEXT:    [$rcx + 40]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -80]: i64
+; CHECK-NEXT:    [$rcx + 48]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -72]: i64
+; CHECK-NEXT:    [$rcx + 56]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -64]: i64
+; CHECK-NEXT:    [$rcx + 64]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -56]: i64
+; CHECK-NEXT:    [$rcx + 72]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -48]: i64
+; CHECK-NEXT:    [$rcx + 80]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -40]: i64
+; CHECK-NEXT:    [$rcx + 88]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -32]: i64
+; CHECK-NEXT:    [$rcx + 96]: i64 = $rax: i64
+; CHECK-NEXT:    $rax: i64 = [$rbp + -24]: i64
+; CHECK-NEXT:    [$rcx + 104]: i64 = $rax: i64
 ; CHECK-NEXT:    pop($r12: i64, )
 ; CHECK-NEXT:    pop($r13: i64, )
 ; CHECK-NEXT:    pop($r14: i64, )
 ; CHECK-NEXT:    pop($r15: i64, )
 ; CHECK-NEXT:    pop($rbx: i64, )
-; CHECK-NEXT:    $rsp: i64 += 208: i64
+; CHECK-NEXT:    $rsp: i64 += 160: i64
 ; CHECK-NEXT:    ret()
 ; CHECK-EMPTY:
 ; CHECK-NEXT:printf

@@ -43,11 +43,9 @@ define <2 x i64> @i64_lane1(<2 x i64> %v, i64 %x) {
 define <8 x i32> @i32x8_lane6(<8 x i32> %v, i32 %x) {
 ; CHECK: func i32x8_lane6 ($2: i32x8, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $ymm1: i32x8 = $ymm0: i32x8
-; CHECK-NEXT:    vextract128($xmm0: i32x4, $ymm0: i32x8, 1: i8, )
-; CHECK-NEXT:    vpinsr($xmm0: i32x4, $xmm0: i32x4, $edi: i32, 2: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: i32x8, $ymm1: i32x8, $xmm0: i32x4, 1: i8, )
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm1: i32x8
+; CHECK-NEXT:    vextract128($xmm1: i32x4, $ymm0: i32x8, 1: i8, )
+; CHECK-NEXT:    vpinsr($xmm1: i32x4, $xmm1: i32x4, $edi: i32, 2: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: i32x8, $ymm0: i32x8, $xmm1: i32x4, 1: i8, )
 ; CHECK-NEXT:    ret($ymm0: i32x8, )
   %w = insertelement <8 x i32> %v, i32 %x, i32 6
   ret <8 x i32> %w
@@ -56,12 +54,9 @@ define <8 x i32> @i32x8_lane6(<8 x i32> %v, i32 %x) {
 define <8 x float> @f32x8_lane1(<8 x float> %v, float %x) {
 ; CHECK: func f32x8_lane1 ($2: f32x8, $3: f32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $mm2: f32 = $mm1: f32
-; CHECK-NEXT:    $ymm1: f32x8 = $ymm0: f32x8
-; CHECK-NEXT:    vextract128($xmm0: f32x4, $ymm0: f32x8, 0: i8, )
-; CHECK-NEXT:    vinsertps($xmm0: f32x4, $xmm0: f32x4, $xmm2: f32x4, 16: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: f32x8, $ymm1: f32x8, $xmm0: f32x4, 0: i8, )
-; CHECK-NEXT:    $ymm0: f32x8 = $ymm1: f32x8
+; CHECK-NEXT:    vextract128($xmm2: f32x4, $ymm0: f32x8, 0: i8, )
+; CHECK-NEXT:    vinsertps($xmm2: f32x4, $xmm2: f32x4, $xmm1: f32x4, 16: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: f32x8, $ymm0: f32x8, $xmm2: f32x4, 0: i8, )
 ; CHECK-NEXT:    ret($ymm0: f32x8, )
   %w = insertelement <8 x float> %v, float %x, i32 1
   ret <8 x float> %w
@@ -70,12 +65,9 @@ define <8 x float> @f32x8_lane1(<8 x float> %v, float %x) {
 define <8 x float> @f32x8_lane5(<8 x float> %v, float %x) {
 ; CHECK: func f32x8_lane5 ($2: f32x8, $3: f32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $mm2: f32 = $mm1: f32
-; CHECK-NEXT:    $ymm1: f32x8 = $ymm0: f32x8
-; CHECK-NEXT:    vextract128($xmm0: f32x4, $ymm0: f32x8, 1: i8, )
-; CHECK-NEXT:    vinsertps($xmm0: f32x4, $xmm0: f32x4, $xmm2: f32x4, 16: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: f32x8, $ymm1: f32x8, $xmm0: f32x4, 1: i8, )
-; CHECK-NEXT:    $ymm0: f32x8 = $ymm1: f32x8
+; CHECK-NEXT:    vextract128($xmm2: f32x4, $ymm0: f32x8, 1: i8, )
+; CHECK-NEXT:    vinsertps($xmm2: f32x4, $xmm2: f32x4, $xmm1: f32x4, 16: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: f32x8, $ymm0: f32x8, $xmm2: f32x4, 1: i8, )
 ; CHECK-NEXT:    ret($ymm0: f32x8, )
   %w = insertelement <8 x float> %v, float %x, i32 5
   ret <8 x float> %w
@@ -84,11 +76,9 @@ define <8 x float> @f32x8_lane5(<8 x float> %v, float %x) {
 define <4 x i64> @i64x4_lane2(<4 x i64> %v, i64 %x) {
 ; CHECK: func i64x4_lane2 ($2: i64x4, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $ymm1: i64x4 = $ymm0: i64x4
-; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm0: i64x4, 1: i8, )
-; CHECK-NEXT:    vpinsr($xmm0: i64x2, $xmm0: i64x2, $rdi: i64, 0: i8, )
-; CHECK-NEXT:    vinsert128($ymm1: i64x4, $ymm1: i64x4, $xmm0: i64x2, 1: i8, )
-; CHECK-NEXT:    $ymm0: i64x4 = $ymm1: i64x4
+; CHECK-NEXT:    vextract128($xmm1: i64x2, $ymm0: i64x4, 1: i8, )
+; CHECK-NEXT:    vpinsr($xmm1: i64x2, $xmm1: i64x2, $rdi: i64, 0: i8, )
+; CHECK-NEXT:    vinsert128($ymm0: i64x4, $ymm0: i64x4, $xmm1: i64x2, 1: i8, )
 ; CHECK-NEXT:    ret($ymm0: i64x4, )
   %w = insertelement <4 x i64> %v, i64 %x, i32 2
   ret <4 x i64> %w

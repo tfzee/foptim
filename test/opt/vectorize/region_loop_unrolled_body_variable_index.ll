@@ -13,13 +13,13 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %7: i64 = Shl(%6, 2:i64){} NUses:1
 ; CHECK-NEXT:    %8: i64 = IntMul(%7, 4:i64){} NUses:2
 ; CHECK-NEXT:    %9: 4@i64 = V.Broadcast(%8){} NUses:1
-; CHECK-NEXT:    %10: 4@i64 = V.Broadcast(4:i64){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %10: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
+; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %12: 4@i64 = IntMul(%11, %10){} NUses:1
 ; CHECK-NEXT:    %13: 4@i64 = IntAdd(%9, %12){} NUses:1
 ; CHECK-NEXT:    %14: 4@i64 = PtrAdd(%3, %13){} NUses:1
 ; CHECK-NEXT:    %15: 4@i32 = Load(%14){} NUses:1
-; CHECK-NEXT:    %16: 4@i32 = V.Broadcast(9:i32){} NUses:1
+; CHECK-NEXT:    %16: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %17: 4@i32 = IntAdd(%15, %16){} NUses:1
 ; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %8){} NUses:1
 ; CHECK-NEXT:    %19: 4@i32 = Store(%18, %17){} NUses:0

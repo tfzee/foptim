@@ -14,10 +14,10 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: 4@i64 = V.Broadcast(%8){} NUses:1
 ; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %12: 4@i64 = PtrAdd(%9, %11){} NUses:1
 ; CHECK-NEXT:    %13: 4@i32 = Load(%12){} NUses:1
-; CHECK-NEXT:    %14: 4@i32 = V.Broadcast(9:i32){} NUses:1
+; CHECK-NEXT:    %14: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %15: 4@i32 = IntAdd(%13, %14){} NUses:1
 ; CHECK-NEXT:    %16: 4@i32 = Store(%10, %15){} NUses:0
 ; CHECK-NEXT:    %17: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2

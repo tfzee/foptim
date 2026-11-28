@@ -16,6 +16,15 @@ class LifetimeShortening : public FunctionPass {
       if (instr.bop == GOpcode::GBase) {
         switch (static_cast<GBaseSubtype>(instr.sop)) {
           case GBaseSubtype::mov:
+            if (instr.args[0].isReg()) {
+              // the destination gets a new value, mappings to or from it are
+              // stale now
+              const auto dst = instr.args[0].reg;
+              mappings.erase(dst);
+              for (auto it = mappings.begin(); it != mappings.end();) {
+                it = it->second == dst ? mappings.erase(it) : std::next(it);
+              }
+            }
             if (instr.args[0].isReg() && instr.args[1].isReg() &&
                 instr.args[0] != instr.args[1] &&
                 instr.args[0].ty == instr.args[1].ty) {

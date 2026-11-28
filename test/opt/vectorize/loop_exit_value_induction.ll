@@ -25,7 +25,7 @@ define i64 @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %19: i64 = And(%4, -8:i64){} NUses:3
 ; CHECK-NEXT:    %20: i64 = IntAdd(%19, %18){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %21: i1 = IntEQ(%19, 0:i64){} NUses:1
-; CHECK-NEXT:    %22: 8@i32 = V.Broadcast(1:i32){} NUses:1
+; CHECK-NEXT:    %22: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %23: () = CondBranch<bb3(%18), bb4(%18)>(%21){} NUses:0
 ; CHECK-NEXT:  bb4(%24{}: i64):
 ; CHECK-NEXT:    %25: i64 = IntMul(%24, 4:i64){NSW; NUW; } NUses:2

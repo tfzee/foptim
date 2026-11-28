@@ -10,7 +10,7 @@ define void @f(ptr noalias %a, ptr noalias %o) {
 ; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %4: 4@i32 = Load(%3){} NUses:1
 ; CHECK-NEXT:    %5: 4@i32 = V.Shuffle(%2, %4, <0:i32, 2:i32, 5:i32, 7:i32, >:4@i32){} NUses:1
-; CHECK-NEXT:    %6: 4@i32 = V.Broadcast(7:i32){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %7: 4@i32 = IntAdd(%5, %6){} NUses:1
 ; CHECK-NEXT:    %8: 4@i32 = Store(%1, %7){} NUses:0
 ; CHECK-NEXT:    %9: () = Return(){} NUses:0

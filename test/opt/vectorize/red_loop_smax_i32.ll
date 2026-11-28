@@ -24,7 +24,7 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %18: i64 = And(%3, -8:i64){} NUses:3
 ; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
-; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(-2147483648:i32){} NUses:1
+; CHECK-NEXT:    %21: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%23{}: i64, %24{}: 8@i32):
 ; CHECK-NEXT:    %25: i64 = IntMul(%23, 4:i64){NSW; NUW; } NUses:1

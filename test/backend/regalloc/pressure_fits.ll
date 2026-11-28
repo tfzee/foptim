@@ -8,24 +8,15 @@ define i64 @live_10(ptr %p) {
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    push($r12: i64, )
-; CHECK-NEXT:    $rcx: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 += 8: i64
-; CHECK-NEXT:    $rdx: i64 = $rdi: i64
-; CHECK-NEXT:    $rdx: i64 += 16: i64
-; CHECK-NEXT:    $rsi: i64 = $rdi: i64
-; CHECK-NEXT:    $rsi: i64 += 24: i64
-; CHECK-NEXT:    $r8: i64 = $rdi: i64
-; CHECK-NEXT:    $r8: i64 += 32: i64
-; CHECK-NEXT:    $r9: i64 = $rdi: i64
-; CHECK-NEXT:    $r9: i64 += 40: i64
-; CHECK-NEXT:    $r10: i64 = $rdi: i64
-; CHECK-NEXT:    $r10: i64 += 48: i64
-; CHECK-NEXT:    $r11: i64 = $rdi: i64
-; CHECK-NEXT:    $r11: i64 += 56: i64
-; CHECK-NEXT:    $rbx: i64 = $rdi: i64
-; CHECK-NEXT:    $rbx: i64 += 64: i64
-; CHECK-NEXT:    $r12: i64 = $rdi: i64
-; CHECK-NEXT:    $r12: i64 += 72: i64
+; CHECK-NEXT:    lea($rcx: i64, [$rdi + 8]: i64, )
+; CHECK-NEXT:    lea($rdx: i64, [$rdi + 16]: i64, )
+; CHECK-NEXT:    lea($rsi: i64, [$rdi + 24]: i64, )
+; CHECK-NEXT:    lea($r8: i64, [$rdi + 32]: i64, )
+; CHECK-NEXT:    lea($r9: i64, [$rdi + 40]: i64, )
+; CHECK-NEXT:    lea($r10: i64, [$rdi + 48]: i64, )
+; CHECK-NEXT:    lea($r11: i64, [$rdi + 56]: i64, )
+; CHECK-NEXT:    lea($rbx: i64, [$rdi + 64]: i64, )
+; CHECK-NEXT:    lea($r12: i64, [$rdi + 72]: i64, )
 ; CHECK-NEXT:    $rax: i64 = [$rdi]: i64
 ; CHECK-NEXT:    $rax: i64 += [$rcx]: i64
 ; CHECK-NEXT:    $rax: i64 += [$rdx]: i64

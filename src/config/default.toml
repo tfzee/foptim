@@ -67,7 +67,7 @@ passes = [
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp", "ConstraintProp",
       "InstSimplify", "SimplifyCFG", "LICM", "LoopHoist", "LoopRotate", "InstSimplify", "SimplifyCFG", "DCE",
-      "LoopSimplify", "LoopUnswitch", "SimplifyCFG", "ConstraintProp", "InstSimplify", "SimplifyCFG", "InstSimplify", "LVN", "SimplifyCFG", "DCE", "LICM",
+      "LoopSimplify", "LoopUnswitch", "SimplifyCFG", "ConstraintProp", "InstSimplify", "SimplifyCFG", "FlagAnnotator", "InstSimplify", "LVN", "SimplifyCFG", "DCE", "LICM",
       "LoopSimplify", "IntrinConv", "DCE", "NarrowInts", "WidenAccum", "WidenIV", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
       "LVN", "SCCP", "IntrinSimplify", "InstSimplify", "ConstLoopEval", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
@@ -156,10 +156,11 @@ max_live_ins = 8
 
 #func
 [pass.fir.LoopUnswitch]
-[pass.fir.WidenIV]
 [pass.fir.NarrowInts]
+[pass.fir.WidenIV]
 
 [pass.fir.WidenAccum]
+[pass.fir.FlagAnnotator]
 [pass.fir.LoopHoist]
 [pass.fir.LoopUnroll]
 maxUnroll = 32

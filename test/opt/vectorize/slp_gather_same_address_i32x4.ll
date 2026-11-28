@@ -7,10 +7,11 @@ define void @f(ptr noalias %a, ptr noalias %o) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr):
 ; CHECK-NEXT:    %2: i32 = Load(%0){} NUses:1
-; CHECK-NEXT:    %3: i32 = IntAdd(%2, 7:i32){} NUses:1
-; CHECK-NEXT:    %4: 4@i32 = V.Broadcast(%3){} NUses:1
-; CHECK-NEXT:    %5: 4@i32 = Store(%1, %4){} NUses:0
-; CHECK-NEXT:    %6: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 4@i32 = V.Broadcast(%2){} NUses:1
+; CHECK-NEXT:    %4: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = IntAdd(%3, %4){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = Store(%1, %5){} NUses:0
+; CHECK-NEXT:    %7: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %p0 = getelementptr i32, ptr %a, i64 0
   %q0 = getelementptr i32, ptr %o, i64 0
