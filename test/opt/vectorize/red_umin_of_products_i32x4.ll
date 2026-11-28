@@ -8,22 +8,13 @@ define i32 @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = PtrAdd(%2, %5){} NUses:1
-; CHECK-NEXT:    %7: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = PtrAdd(%4, %7){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %10: 4@i64 = PtrAdd(%3, %9){} NUses:1
-; CHECK-NEXT:    %11: 4@i32 = Load(%8){} NUses:1
-; CHECK-NEXT:    %12: 4@i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %13: 4@i32 = Load(%10){} NUses:1
-; CHECK-NEXT:    %14: 4@i32 = IntMul(%11, %13){} NUses:1
-; CHECK-NEXT:    %15: 4@i32 = IntAdd(%14, %12){} NUses:1
-; CHECK-NEXT:    %16: i32 = Reduce.UMin(%15){} NUses:1
-; CHECK-NEXT:    %17: i32 = Return(%16){} NUses:0
+; CHECK-NEXT:    %2: 4@i32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %3: 4@i32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %4: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = IntMul(%2, %4){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = IntAdd(%5, %3){} NUses:1
+; CHECK-NEXT:    %7: i32 = Reduce.UMin(%6){} NUses:1
+; CHECK-NEXT:    %8: i32 = Return(%7){} NUses:0
 ; CHECK-NEXT:}
   %pa0 = getelementptr i32, ptr %a, i64 0
   %pb0 = getelementptr i32, ptr %b, i64 0

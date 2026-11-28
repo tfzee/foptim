@@ -5,6 +5,7 @@
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/cost_model/op_desc.hpp"
 #include "optim/func_passes/vectorizer/seeds.hpp"
 
 namespace foptim::optim::vec {
@@ -112,9 +113,18 @@ void loop_children(const LoopCtx &c, PlanNode &n,
     }
   }
 }
-// Strided operands would need an iota vector
+// a strided operand becomes its first lane plus an iota vector times the step,
+// which needs an integer recurrence with a constant step
 bool vector_operand_ok(const LoopCtx &c, fir::ValueR v) {
-  return shape_of(c, v) != LaneShape::Strided;
+  if (shape_of(c, v) != LaneShape::Strided) {
+    return true;
+  }
+  const auto ty = v.get_type();
+  if (!ty->is_int() || ty->get_bitwidth() == 1) {
+    return false;
+  }
+  const auto r = c.evo.get(v);
+  return c.evo.is_addrec(r) && c.evo.is_const(c.evo.expr(r).b);
 }
 
 bool store_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
@@ -268,19 +278,6 @@ bool div_needs_safe_divisor(fir::Instr instr) {
   return v.is_zero() || (is_signed && v.is_all_ones());
 }
 
-i64 scalar_int_div_extra(fir::Instr instr) {
-  if (!instr->is(fir::InstrType::BinaryInstr) ||
-      !is_int_div_rem(static_cast<BinSub>(instr->subtype))) {
-    return 0;
-  }
-  // multiply by the magic number, shift and fix up (about four operations)
-  if (instr->args[1].is_constant_int()) {
-    return 3;
-  }
-  // idiv reciprocal throughput, the 64 bit form is a bit slower
-  return instr->result_type()->get_bitwidth() > 32 ? 6 : 5;
-}
-
 namespace {
 
 //   8 and 16 bit: widen to 32 bit, convert to f32, divps, truncate, narrow
@@ -317,8 +314,7 @@ bool binary_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
   const bool shift =
       sub == BinSub::Shl || sub == BinSub::Shr || sub == BinSub::AShr;
   if (n.type->is_int() && n.type->get_bitwidth() < 32 &&
-      ((shift && space != LaneSpace::LoopIter) ||
-       (sub == BinSub::IntMul && n.type->get_bitwidth() == 8))) {
+      shift && space != LaneSpace::LoopIter) {
     return false;
   }
   // no 64 bit vector multiply before avx512dq, a bundle pays for the emulation
@@ -329,25 +325,6 @@ bool binary_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
   }
   return true;
 }
-i64 binary_cost(const PlanNode &n, u32 vf, const Features &features) {
-  const auto sub = static_cast<BinSub>(n.sub);
-  if (is_int_div_rem(sub) && n.value.is_instr()) {
-    return vector_int_div_cost(n, vf);
-  }
-  if (sub == BinSub::IntMul && n.type->is_int()) {
-    if (n.type->get_bitwidth() == 64 && !features.avx512dq) {
-      return 8;
-    }
-    if (n.type->get_bitwidth() == 32) {
-      return 2;
-    }
-  }
-  if (sub == BinSub::FloatDiv) {
-    return 6;
-  }
-  return 1;
-}
-
 bool load_match_bundle(const TVec<fir::ValueR> &values, BundleCtx &ctx) {
   for (auto v : values) {
     if (!lane_instr(v)) {
@@ -402,6 +379,10 @@ bool load_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
                 const Features &features) {
   if (space == LaneSpace::LoopIter) {
     return true;
+  }
+  if (n.shape == LaneShape::Consecutive) {
+    return n.type->get_bitwidth() * n.n_lanes <=
+           (features.avx512f ? 512U : 256U);
   }
   // TODO dont know how to grather i8 and stuff efficiently
   if (n.type->get_bitwidth() <= 16) {
@@ -502,22 +483,6 @@ void load_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
     gather_load_init(n, values);
   }
 }
-i64 load_cost(const PlanNode &n, u32 vf, const Features & /*features*/) {
-  // loop loads are unit stride and have no lanes set
-  const bool gather = n.n_lanes != 0 && n.shape != LaneShape::Consecutive;
-  if (!n.shuf_mask.empty()) {
-    return static_cast<i64>(n.shuf_starts.size()) + 1;
-  }
-  if (!n.gather_idx.empty()) {
-    if (std::ranges::all_of(n.gather_idx,
-                            [&](i64 i) { return i == n.gather_idx[0]; })) {
-      return 2;
-    }
-    return static_cast<i64>(vf) + 2;
-  }
-  return gather ? 3 * static_cast<i64>(vf) : 1;
-}
-
 bool unary_match(const TVec<fir::ValueR> &values, BundleCtx &ctx) {
   if (!match_same_instr_back(values, ctx)) {
     return false;
@@ -706,21 +671,6 @@ bool cmp_legal(const PlanNode &n, LaneSpace /*space*/, u32 vf,
                const Features & /*features*/) {
   return mask_width_ok(n.op_type->get_bitwidth(), vf);
 }
-i64 cmp_cost(const PlanNode &n, u32 /*vf*/, const Features & /*features*/) {
-  if (n.op_type->is_float()) {
-    return 1;
-  }
-  // only equal and signed greater than exist, the rest takes a second step
-  switch (static_cast<fir::ICmpInstrSubType>(n.sub)) {
-    case fir::ICmpInstrSubType::EQ:
-    case fir::ICmpInstrSubType::SGT:
-    case fir::ICmpInstrSubType::SLT:
-      return 1;
-    default:
-      return 2;
-  }
-}
-
 bool select_match_bundle(const TVec<fir::ValueR> &values, BundleCtx &ctx) {
   if (!match_same_instr(values, ctx)) {
     return false;
@@ -983,17 +933,178 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
   }
 }
 
-i64 unit_cost(const PlanNode & /*n*/, u32 /*vf*/,
-              const Features & /*features*/) {
-  return 1;
-}
-i64 call_cost(const PlanNode & /*n*/, u32 /*vf*/,
-              const Features & /*features*/) {
-  return 4;
-}
-i64 extract_cost(const PlanNode & /*n*/, u32 /*vf*/,
+namespace cm = cost_model;
+
+double zero_cost(const PlanNode & /*n*/, u32 /*vf*/,
                  const Features & /*features*/) {
-  return 0;
+  return 0.0;
+}
+
+u32 node_elem_bits(const PlanNode &n) {
+  fir::TypeR ty = n.type;
+  if (n.kind == NodeKind::Cmp && n.op_type.is_valid()) {
+    ty = n.op_type;
+  }
+  if (!ty.is_valid() || ty->is_void()) {
+    // a store has no result, its value is the non pointer operand
+    if (n.aux.is_valid()) {
+      for (auto a : n.aux->args) {
+        if (!a.get_type()->is_ptr()) {
+          return a.get_type()->get_bitwidth();
+        }
+      }
+    }
+    return 64;
+  }
+  if (ty->is_ptr()) {
+    return 64;
+  }
+  return ty->get_bitwidth() == 1 ? 8 : ty->get_bitwidth();
+}
+
+cm::OpDesc make_desc(cm::OpKind kind, u32 bits, u32 lanes, bool is_float) {
+  return cm::OpDesc{
+      .kind = kind, .elem_bits = bits, .lanes = lanes, .is_float = is_float};
+}
+
+// the operation of a node for lanes lanes, 1 is the scalar form
+std::optional<cm::OpDesc> node_op(const PlanNode &n, u32 lanes) {
+  const u32 bits = node_elem_bits(n);
+  const bool is_float = n.type.is_valid() && n.type->is_float();
+  switch (n.kind) {
+    case NodeKind::Binary:
+      switch (static_cast<BinSub>(n.sub)) {
+        case BinSub::IntMul:
+          return make_desc(cm::OpKind::IntMul, bits, lanes, false);
+        case BinSub::IntSDiv:
+        case BinSub::IntUDiv:
+        case BinSub::IntSRem:
+        case BinSub::IntURem:
+          return make_desc(cm::OpKind::IntDiv, bits, lanes, false);
+        case BinSub::Shl:
+        case BinSub::Shr:
+        case BinSub::AShr:
+          return make_desc(cm::OpKind::Shift, bits, lanes, false);
+        case BinSub::FloatAdd:
+        case BinSub::FloatSub:
+          return make_desc(cm::OpKind::FloatAddSub, bits, lanes, true);
+        case BinSub::FloatMul:
+          return make_desc(cm::OpKind::FloatMul, bits, lanes, true);
+        case BinSub::FloatDiv:
+          return make_desc(cm::OpKind::FloatDiv, bits, lanes, true);
+        default:
+          return make_desc(cm::OpKind::IntAlu, bits, lanes, false);
+      }
+    case NodeKind::Unary:
+      if (static_cast<fir::UnaryInstrSubType>(n.sub) ==
+          fir::UnaryInstrSubType::FloatSqrt) {
+        return make_desc(cm::OpKind::FloatSqrt, bits, lanes, true);
+      }
+      return make_desc(cm::OpKind::IntAlu, bits, lanes, false);
+    case NodeKind::Intrin:
+      switch (static_cast<fir::IntrinsicSubType>(n.sub)) {
+        case fir::IntrinsicSubType::SMin:
+        case fir::IntrinsicSubType::SMax:
+        case fir::IntrinsicSubType::UMin:
+        case fir::IntrinsicSubType::UMax:
+          return make_desc(cm::OpKind::MinMax, bits, lanes, false);
+        case fir::IntrinsicSubType::FMin:
+        case fir::IntrinsicSubType::FMax:
+          return make_desc(cm::OpKind::MinMax, bits, lanes, true);
+        case fir::IntrinsicSubType::Fma:
+          return make_desc(cm::OpKind::FloatMul, bits, lanes, true);
+        default:
+          return make_desc(cm::OpKind::IntAlu, bits, lanes, is_float);
+      }
+    case NodeKind::Zext:
+    case NodeKind::Widen:
+    case NodeKind::ITrunc:
+      return make_desc(cm::OpKind::Resize, bits, lanes, false);
+    case NodeKind::Conversion:
+      if (static_cast<fir::ConversionSubType>(n.sub) ==
+          fir::ConversionSubType::BitCast) {
+        return std::nullopt;
+      }
+      return make_desc(cm::OpKind::Convert, bits, lanes, true);
+    case NodeKind::Select:
+    case NodeKind::Phi:
+      return make_desc(cm::OpKind::Select, bits, lanes, is_float);
+    case NodeKind::Cmp: {
+      auto d = make_desc(cm::OpKind::Cmp, bits, lanes,
+                         n.op_type.is_valid() && n.op_type->is_float());
+      return d;
+    }
+    case NodeKind::Load:
+      return make_desc(cm::OpKind::Load, bits, lanes, is_float);
+    case NodeKind::Store:
+      return make_desc(cm::OpKind::Store, bits, lanes, is_float);
+    case NodeKind::Call:
+      return make_desc(cm::OpKind::IntAlu, bits, 1, false);
+    case NodeKind::Scalar:
+      return make_desc(cm::OpKind::IntAlu, 64, 1, false);
+    default:
+      return std::nullopt;
+  }
+}
+
+double desc_throughput(const cm::OpDesc &d, const Features &f) {
+  return cm::cost(d, cm::CostKind::Throughput, *f.machine).value;
+}
+
+double kind_throughput(cm::OpKind kind, u32 bits, u32 lanes, bool is_float,
+                       const Features &f) {
+  return desc_throughput(make_desc(kind, bits, lanes, is_float), f);
+}
+
+// cost of the vector instructions of one node for vf lanes
+double model_cost(const PlanNode &n, u32 vf, const Features &f) {
+  const u32 bits = node_elem_bits(n);
+  const bool is_float = n.type.is_valid() && n.type->is_float();
+  if (n.kind == NodeKind::Call) {
+    // one vector call
+    return f.machine->table(cm::X86OpClass::CALL).recip_throughput;
+  }
+  if (n.kind == NodeKind::Load) {
+    const bool gather = n.n_lanes != 0 && n.shape != LaneShape::Consecutive;
+    if (!n.shuf_mask.empty()) {
+      return static_cast<double>(n.shuf_starts.size()) *
+                 kind_throughput(cm::OpKind::Load, bits, vf, is_float, f) +
+             kind_throughput(cm::OpKind::CrossShuffle, bits, vf, is_float, f);
+    }
+    if (!n.gather_idx.empty()) {
+      if (std::ranges::all_of(n.gather_idx,
+                              [&](i64 i) { return i == n.gather_idx[0]; })) {
+        return kind_throughput(cm::OpKind::Load, bits, 1, is_float, f) +
+               kind_throughput(cm::OpKind::Broadcast, bits, vf, is_float, f);
+      }
+      return kind_throughput(cm::OpKind::Gather, bits, vf, is_float, f);
+    }
+    if (gather) {
+      if (gather_load_legal(bits, vf)) {
+        return kind_throughput(cm::OpKind::Gather, bits, vf, is_float, f);
+      }
+      // lanes loaded one by one and inserted
+      return vf * (kind_throughput(cm::OpKind::Load, bits, 1, is_float, f) +
+                   kind_throughput(cm::OpKind::Insert, bits, vf, is_float, f));
+    }
+  }
+  if (n.kind == NodeKind::Cmp && !n.op_type->is_float()) {
+    // only equal and signed greater than exist, the rest takes a second step
+    switch (static_cast<fir::ICmpInstrSubType>(n.sub)) {
+      case fir::ICmpInstrSubType::EQ:
+      case fir::ICmpInstrSubType::SGT:
+      case fir::ICmpInstrSubType::SLT:
+        break;
+      default:
+        return 2.0 * kind_throughput(cm::OpKind::Cmp, bits, vf, false, f);
+    }
+  }
+  if (n.kind == NodeKind::Binary && n.value.is_instr() &&
+      is_int_div_rem(static_cast<BinSub>(n.sub))) {
+    return static_cast<double>(vector_int_div_cost(n, vf));
+  }
+  const auto d = node_op(n, vf);
+  return d ? desc_throughput(*d, f) : 0.0;
 }
 
 const Recipe Recipes[] = {
@@ -1005,7 +1116,7 @@ const Recipe Recipes[] = {
      .init = store_init,
      .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 2; },
      .legal = always_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::BinaryInstr,
      .kind = NodeKind::Binary,
      .name = "binary",
@@ -1014,7 +1125,7 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 2; },
      .legal = binary_legal,
-     .cost = binary_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::LoadInstr,
      .kind = NodeKind::Load,
      .name = "load",
@@ -1023,7 +1134,7 @@ const Recipe Recipes[] = {
      .init = load_init,
      .n_args = n_args_1,
      .legal = load_legal,
-     .cost = load_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::Intrinsic,
      .kind = NodeKind::Intrin,
      .name = "intrinsic",
@@ -1032,7 +1143,7 @@ const Recipe Recipes[] = {
      .init = init_back,
      .n_args = n_args_instr,
      .legal = intrin_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::ITrunc,
      .kind = NodeKind::ITrunc,
      .name = "itrunc",
@@ -1041,7 +1152,7 @@ const Recipe Recipes[] = {
      .init = init_back,
      .n_args = n_args_1,
      .legal = itrunc_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::ZExt,
      .kind = NodeKind::Zext,
      .name = "zext",
@@ -1050,7 +1161,7 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = n_args_1,
      .legal = zext_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::SExt,
      .kind = NodeKind::Widen,
      .name = "widen",
@@ -1059,7 +1170,7 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = n_args_1,
      .legal = widen_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::UnaryInstr,
      .kind = NodeKind::Unary,
      .name = "unary",
@@ -1068,7 +1179,7 @@ const Recipe Recipes[] = {
      .init = init_back,
      .n_args = n_args_1,
      .legal = always_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::ExtractElement,
      .kind = NodeKind::Extract,
      .name = "extract",
@@ -1077,7 +1188,7 @@ const Recipe Recipes[] = {
      .init = extract_init,
      .n_args = n_args_0,
      .legal = always_legal,
-     .cost = extract_cost},
+     .cost = zero_cost},
     {.type = fir::InstrType::CallInstr,
      .kind = NodeKind::Call,
      .name = "call",
@@ -1086,7 +1197,7 @@ const Recipe Recipes[] = {
      .init = call_init,
      .n_args = n_args_instr,
      .legal = always_legal,
-     .cost = call_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::Conversion,
      .kind = NodeKind::Conversion,
      .name = "conversion",
@@ -1095,7 +1206,7 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = n_args_1,
      .legal = conversion_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::SelectInstr,
      .kind = NodeKind::Select,
      .name = "select",
@@ -1104,7 +1215,7 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 3; },
      .legal = select_legal,
-     .cost = unit_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::ICmp,
      .kind = NodeKind::Cmp,
      .name = "cmp",
@@ -1113,7 +1224,7 @@ const Recipe Recipes[] = {
      .init = cmp_init,
      .n_args = n_args_2,
      .legal = cmp_legal,
-     .cost = cmp_cost},
+     .cost = model_cost},
     {.type = fir::InstrType::FCmp,
      .kind = NodeKind::Cmp,
      .name = "cmp",
@@ -1122,7 +1233,7 @@ const Recipe Recipes[] = {
      .init = cmp_init,
      .n_args = n_args_2,
      .legal = cmp_legal,
-     .cost = cmp_cost},
+     .cost = model_cost},
 };
 }  // namespace
 
@@ -1207,7 +1318,8 @@ bool vector_type_ok(fir::TypeR elem, u32 lanes, const Features &features) {
     return (bits == 32 && lanes >= 2) || (bits == 64 && lanes >= 2);
   }
   return elem->is_int() &&
-         (bits == 8 || bits == 16 || bits == 32 || bits == 64) && total >= 128;
+         (bits == 8 || bits == 16 || bits == 32 || bits == 64) &&
+         (total >= 128 || (total == 64 && bits <= 16));
 }
 
 // Operands that no recipe matches are built from their scalars: a zero vector
@@ -1351,46 +1463,76 @@ bool node_legal(const PlanNode &n, LaneSpace space, u32 vf,
   return r == nullptr || r->legal(n, space, vf, features);
 }
 
-i64 node_vec_cost(const PlanNode &n, u32 vf, const Features &features) {
+double node_vec_cost(const PlanNode &n, u32 vf, const Features &features) {
+  const u32 bits = node_elem_bits(n);
+  const bool is_float = n.type.is_valid() && n.type->is_float();
   switch (n.kind) {
     case NodeKind::Broadcast:
-      return 1;
+      return kind_throughput(cm::OpKind::Broadcast, bits, vf, is_float,
+                             features);
     case NodeKind::Gather:
-      // a lane insert is two operations
-      return 2 * static_cast<i64>(vf);
+      return vf *
+             kind_throughput(cm::OpKind::Insert, bits, vf, is_float, features);
     case NodeKind::HorizRed: {
       const auto root = n.value.as_instr();
       const bool binary = root->is(fir::InstrType::BinaryInstr);
+      const auto step = [&](u32 lanes) {
+        return kind_throughput(cm::OpKind::Shuffle, bits, lanes, is_float,
+                               features) +
+               kind_throughput(cm::OpKind::IntAlu, bits, lanes, is_float,
+                               features);
+      };
+      // lane 0 leaves through a movd, one lane op
+      const double extract =
+          kind_throughput(cm::OpKind::IntAlu, bits, 4, is_float, features);
       if (halving_op_for(root, vf, features)) {
         const u32 lanes128 = 128 / n.type->get_bitwidth();
         const i64 steps =
             std::countr_zero(std::min(vf, lanes128)) + (vf > lanes128 ? 1 : 0);
-        return 2 * steps + 1;
+        return static_cast<double>(steps) * step(vf) + extract;
       }
       if (reduce_op_for(root, vf, n.assoc, features)) {
-        return std::countr_zero(std::bit_ceil(vf));
+        return static_cast<double>(std::countr_zero(std::bit_ceil(vf))) *
+               step(vf);
       }
-      // an extract costs about two operations
       const u32 lanes128 =
           binary ? std::min(vf, 128 / n.type->get_bitwidth()) : vf;
-      return 3 * static_cast<i64>(lanes128) - 1 +
-             (binary && vf > lanes128 ? 2 : 0);
+      return lanes128 * kind_throughput(cm::OpKind::Extract, bits, vf, is_float,
+                                        features) +
+             (lanes128 - 1) * kind_throughput(cm::OpKind::IntAlu, bits, 1,
+                                              is_float, features) +
+             (binary && vf > lanes128 ? 2 * step(vf) : 0.0);
     }
     case NodeKind::Constant:
     case NodeKind::Induction:
     case NodeKind::Reduction:
     case NodeKind::BuildRoot:
-      return 0;
+    case NodeKind::CarriedRoot:
+    case NodeKind::CarriedArg:
+      return 0.0;
     case NodeKind::Scalar:
+      return kind_throughput(cm::OpKind::IntAlu, 64, 1, false, features);
     case NodeKind::Phi:
-      return 1;
+      return model_cost(n, vf, features);
     default:
       return recipe_of(n.kind)->cost(n, vf, features);
   }
 }
 
-i64 node_scalar_cost(const PlanNode &n) {
-  const auto lanes = static_cast<i64>(n.n_lanes);
+double masked_access_cost(const PlanNode &n, u32 vf, const Features &features) {
+  const u32 bits = node_elem_bits(n);
+  const bool is_float = n.type.is_valid() && n.type->is_float();
+  return kind_throughput(n.kind == NodeKind::Load ? cm::OpKind::MaskedLoad
+                                                  : cm::OpKind::MaskedStore,
+                         bits, vf, is_float, features);
+}
+
+double node_scalar_cost(const PlanNode &n, const Features &features) {
+  const u32 bits = node_elem_bits(n);
+  const bool is_float = n.type.is_valid() && n.type->is_float();
+  const double lanes = n.n_lanes;
+  const double alu =
+      kind_throughput(cm::OpKind::IntAlu, 64, 1, false, features);
   switch (n.kind) {
     case NodeKind::Broadcast:
     case NodeKind::Gather:
@@ -1398,33 +1540,48 @@ i64 node_scalar_cost(const PlanNode &n) {
     case NodeKind::Induction:
     case NodeKind::Reduction:
     case NodeKind::Scalar:
-      return 0;
+    case NodeKind::CarriedRoot:
+    case NodeKind::CarriedArg:
+      return 0.0;
     case NodeKind::HorizRed:
       // the chain of lanes - 1 operations
-      return lanes - 1;
+      return (lanes - 1) *
+             kind_throughput(cm::OpKind::IntAlu, bits, 1, is_float, features);
     case NodeKind::BuildRoot:
-      return n.scalar_ops;
+      return n.scalar_ops * alu;
     case NodeKind::Call:
-      return lanes * 4;
+      return lanes *
+             features.machine->table(cm::X86OpClass::CALL).recip_throughput;
     case NodeKind::Store:
       // the store and the address it computes
-      return n.scalar_ops != 0 ? static_cast<i64>(n.scalar_ops) : lanes * 2;
-    default:
-      return lanes;
+      return n.scalar_ops != 0
+                 ? n.scalar_ops * alu
+                 : lanes * (kind_throughput(cm::OpKind::Store, bits, 1,
+                                            is_float, features) +
+                            alu);
+    default: {
+      const auto d = node_op(n, 1);
+      return d ? lanes * desc_throughput(*d, features) : 0.0;
+    }
   }
 }
 
-i64 bundle_benefit(const Plan &plan, u32 id, const Features &features) {
+double bundle_cost_benefit(const Plan &plan, u32 id, const Features &features) {
   const auto &n = plan.nodes[id];
-  i64 benefit = node_scalar_cost(n) - node_vec_cost(n, n.n_lanes, features);
+  double benefit =
+      node_scalar_cost(n, features) - node_vec_cost(n, n.n_lanes, features);
   for (size_t i = 0; i < n.children.size(); i++) {
     // the address of a store is the address of its first lane
     if (n.kind == NodeKind::Store && i != 0) {
       break;
     }
-    benefit += bundle_benefit(plan, n.children[i], features);
+    benefit += bundle_cost_benefit(plan, n.children[i], features);
   }
   return benefit;
+}
+
+i64 bundle_benefit(const Plan &plan, u32 id, const Features &features) {
+  return to_benefit_units(bundle_cost_benefit(plan, id, features));
 }
 
 fir::ValueR emit_node(fir::Context &ctx, fir::Builder &bb, const PlanNode &n,

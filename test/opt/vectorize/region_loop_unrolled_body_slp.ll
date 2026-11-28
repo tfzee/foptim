@@ -12,19 +12,16 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %6: i64 = Shl(%5, 2:i64){} NUses:1
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = V.Broadcast(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %12: 4@i64 = PtrAdd(%9, %11){} NUses:1
-; CHECK-NEXT:    %13: 4@i32 = Load(%12){} NUses:1
-; CHECK-NEXT:    %14: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %15: 4@i32 = IntAdd(%13, %14){} NUses:1
-; CHECK-NEXT:    %16: 4@i32 = Store(%10, %15){} NUses:0
-; CHECK-NEXT:    %17: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %18: i1 = IntSLT(%17, %2){} NUses:1
-; CHECK-NEXT:    %19: () = CondBranch<bb1(%17), bb2()>(%18){} NUses:0
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %7){} NUses:1
+; CHECK-NEXT:    %10: 4@i32 = Load(%8){} NUses:1
+; CHECK-NEXT:    %11: 4@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %12: 4@i32 = IntAdd(%10, %11){} NUses:1
+; CHECK-NEXT:    %13: 4@i32 = Store(%9, %12){} NUses:0
+; CHECK-NEXT:    %14: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %15: i1 = IntSLT(%14, %2){} NUses:1
+; CHECK-NEXT:    %16: () = CondBranch<bb1(%14), bb2()>(%15){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %20: () = Return(){} NUses:0
+; CHECK-NEXT:    %17: () = Return(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g = icmp sgt i64 %n, 0

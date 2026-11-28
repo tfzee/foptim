@@ -6,14 +6,11 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %o) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr):
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = PtrAdd(%3, %4){} NUses:1
-; CHECK-NEXT:    %6: 4@f32 = Load(%5){} NUses:1
-; CHECK-NEXT:    %7: 4@f32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %8: 4@f32 = FloatAdd(%6, %7){} NUses:1
-; CHECK-NEXT:    %9: 4@f32 = Store(%2, %8){} NUses:0
-; CHECK-NEXT:    %10: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 4@f32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %4: 4@f32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %5: 4@f32 = FloatAdd(%3, %4){} NUses:1
+; CHECK-NEXT:    %6: 4@f32 = Store(%2, %5){} NUses:0
+; CHECK-NEXT:    %7: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %p1 = getelementptr float, ptr %a, i64 1
   %p2 = getelementptr float, ptr %a, i64 2

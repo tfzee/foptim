@@ -14,7 +14,7 @@ define void @vzu_ret(ptr %p, ptr %q) {
 ; CHECK: func vzu_ret ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + [$rdi]: i32x8
+; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + $ymm0: i32x8
 ; CHECK-NEXT:    [$rsi]: i32x8 = $ymm0: i32x8
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
@@ -29,7 +29,7 @@ define void @vzu_call_ret(ptr %p, ptr %q) {
 ; CHECK: func vzu_call_ret ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + [$rdi]: i32x8
+; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + $ymm0: i32x8
 ; CHECK-NEXT:    [$rsi]: i32x8 = $ymm0: i32x8
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    call(ext, )
@@ -46,7 +46,7 @@ define <8 x i32> @vzu_ret_wide(ptr %p) {
 ; CHECK: func vzu_ret_wide ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + [$rdi]: i32x8
+; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + $ymm0: i32x8
 ; CHECK-NEXT:    ret($ymm0: i32x8, )
   %v = load <8 x i32>, ptr %p
   %w = add <8 x i32> %v, %v
@@ -58,7 +58,7 @@ define void @vzu_call_wide_arg(ptr %p) {
 ; CHECK: func vzu_call_wide_arg ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + [$rdi]: i32x8
+; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + $ymm0: i32x8
 ; CHECK-NEXT:    call(ext_vec, )
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
@@ -72,7 +72,7 @@ define void @vzu_none(ptr %p) {
 ; CHECK: func vzu_none ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 + [$rdi]: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 + $xmm0: i32x4
 ; CHECK-NEXT:    [$rdi]: i32x4 = $xmm0: i32x4
 ; CHECK-NEXT:    call(ext, )
 ; CHECK-NEXT:    ret()
@@ -88,23 +88,22 @@ define void @vzu_none(ptr %p) {
 define double @save_width(ptr %p, ptr %q, i1 %c, double %x) {
 ; CHECK: func save_width ($2: i64, $3: i64, $4: i8, $5: f64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $mm1: f64 = $mm0: f64
 ; CHECK-NEXT:    cjmp($dl: i8, ) -> 2
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    $rsp: i64 -= 8: i32
-; CHECK-NEXT:    push($mm1: f64, )
-; CHECK-NEXT:    $mm0: f64 = $mm1: f64
+; CHECK-NEXT:    push($mm0: f64, )
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    call(cos, )
-; CHECK-NEXT:    pop($mm1: f64, )
+; CHECK-NEXT:    $mm1: f64 = $mm0: f64
+; CHECK-NEXT:    pop($mm0: f64, )
 ; CHECK-NEXT:    $rsp: i64 += 8: i32
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm1: f64
+; CHECK-NEXT:    $mm0: f64 = $mm1: f64 + $mm0: f64
 ; CHECK-NEXT:    ret($mm0: f64, )
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    $ymm0: i32x8 = [$rdi]: i32x8
-; CHECK-NEXT:    $ymm0: i32x8 = $ymm0: i32x8 + [$rdi]: i32x8
-; CHECK-NEXT:    [$rsi]: i32x8 = $ymm0: i32x8
+; CHECK-NEXT:    $ymm1: i32x8 = [$rdi]: i32x8
+; CHECK-NEXT:    $ymm1: i32x8 = $ymm1: i32x8 + $ymm1: i32x8
+; CHECK-NEXT:    [$rsi]: i32x8 = $ymm1: i32x8
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-EMPTY:
 ; CHECK-NEXT:cos

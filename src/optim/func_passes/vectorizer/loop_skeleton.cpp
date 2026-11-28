@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
@@ -112,8 +114,8 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
   const auto trip_bw = evo.expr(l.trip).bw;
 
   TVec<u32> pl;
-  const bool parts_ok =
-      assign_part_lanes(plan, vf, ctx.config->target.features, pl);
+  const FeatureSet feature_set(ctx.config->target);
+  const bool parts_ok = assign_part_lanes(plan, vf, feature_set.features, pl);
   ASSERT(parts_ok);
 
   auto add_arg = [&](fir::BasicBlock bb, fir::TypeR ty) {
@@ -126,9 +128,31 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
     return fir::ValueR{ctx->get_constant_int(v, bw)};
   };
 
+  // Add reductions of masks accumulate in the lanes of the mask. Those lanes
+  // overflow after 2^bits - 1 additions, so the vector loop runs in strips and
+  // the strip block widens them into scalars in between.
+  auto narrow_ty = [&](u32 k) {
+    return ctx->get_int_type(static_cast<u16>(plan.nodes[k].narrow_bits));
+  };
+  TVec<u32> narrow;
+  u32 strip_iters = ~0U;
+  for (u32 k = 0; k < n_args; k++) {
+    if (plan.nodes[k].narrow_bits != 0) {
+      narrow.push_back(k);
+      strip_iters = std::min<u32>(
+          strip_iters, ((1U << plan.nodes[k].narrow_bits) - 1) / (vf / pl[k]));
+    }
+  }
+  // a loop with fewer vector iterations than one strip has none
+  const bool has_strips =
+      !narrow.empty() && !(l.const_trip && *l.const_trip / vf <= strip_iters);
+  const u32 strip_lanes = strip_iters * vf;
+
   fir::Builder blocks{hdr};
   auto vpre = blocks.append_bb();
   auto vloop = blocks.append_bb();
+  auto vstrip = has_strips ? blocks.append_bb()
+                           : fir::BasicBlock{fir::BasicBlock::invalid()};
   auto vmid = blocks.append_bb();
 
   // the vector loop only reaches addresses the scalar loop reaches, so its
@@ -147,26 +171,79 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
     return bld.build_ptr_add(ptr, off, inb, nuw, nsw);
   };
 
+  // the counter after lanes more scalar iterations
+  auto advance_counter = [&](fir::Builder &bd, fir::ValueR cur,
+                             fir::ValueR lanes) -> fir::ValueR {
+    const auto &cn = plan.nodes[l.counter];
+    if (cn.type->is_ptr()) {
+      fir::ValueR lanes64 = lanes;
+      if (trip_bw < 64) {
+        lanes64 = bd.build_zext(lanes, ctx->get_int_type(64));
+      }
+      return ptr_add_like_step(bd, l.counter, cur,
+                               bd.build_int_mul(lanes64, cint(cn.stride, 64)));
+    }
+    if (cn.stride == 1) {
+      return bd.build_int_add(cur, lanes);
+    }
+    return bd.build_int_add(cur,
+                            bd.build_int_mul(lanes, cint(cn.stride, trip_bw)));
+  };
+
   TVec<fir::ValueR> pre_args;
   // an accumulator has one argument per part
   TVec<Parts> vec_args(n_args);
   TVec<Parts> mid_args(n_args);
+  TVec<Parts> strip_args(n_args);
   for (u32 k = 0; k < n_args; k++) {
     const auto &n = plan.nodes[k];
     pre_args.push_back(add_arg(vpre, n.type));
     if (n.kind == NodeKind::Reduction) {
+      const auto ety = n.narrow_bits != 0 ? narrow_ty(k) : n.type;
       for (u32 p = 0; p < vf / pl[k]; p++) {
-        vec_args[k].push_back(add_arg(vloop, vec_ty(n.type, pl[k])));
-        mid_args[k].push_back(add_arg(vmid, vec_ty(n.type, pl[k])));
+        vec_args[k].push_back(add_arg(vloop, vec_ty(ety, pl[k])));
+        if (has_strips) {
+          strip_args[k].push_back(add_arg(vstrip, vec_ty(ety, pl[k])));
+        }
+        if (n.narrow_bits == 0 || !has_strips) {
+          mid_args[k].push_back(add_arg(vmid, vec_ty(ety, pl[k])));
+        }
+      }
+      if (n.narrow_bits != 0 && has_strips) {
+        // the widened sum
+        mid_args[k].push_back(add_arg(vmid, n.type));
       }
     } else {
       vec_args[k].push_back(add_arg(vloop, n.type));
+      if (has_strips) {
+        strip_args[k].push_back(add_arg(vstrip, n.type));
+      }
       mid_args[k].push_back(add_arg(vmid, n.type));
+    }
+  }
+  // the strips: end of the current strip and the lanes left behind it, the
+  // widened sums of the narrow accumulators
+  fir::ValueR loop_strip_end;
+  fir::ValueR loop_left;
+  fir::ValueR strip_left;
+  TVec<fir::ValueR> loop_wide;
+  TVec<fir::ValueR> strip_wide;
+  if (has_strips) {
+    loop_strip_end = add_arg(vloop, plan.nodes[l.counter].type);
+    loop_left = add_arg(vloop, ctx->get_int_type(static_cast<u16>(trip_bw)));
+    strip_left = add_arg(vstrip, ctx->get_int_type(static_cast<u16>(trip_bw)));
+    for (u32 k : narrow) {
+      loop_wide.push_back(add_arg(vloop, plan.nodes[k].type));
+      strip_wide.push_back(add_arg(vstrip, plan.nodes[k].type));
     }
   }
 
   // header executions, computed in the entry block
   fir::ValueR total_trip;
+  // set when a widened recurrence was only assumed not to wrap, true at run
+  // time if one of them does
+  fir::ValueR wrapped;
+  bool has_wrapped = false;
   {
     fir::ValueR last_iter;
     {
@@ -175,34 +252,64 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
     }
     fir::Builder b{entry->get_terminator()};
     total_trip = b.build_int_add(last_iter, cint(1, trip_bw));
+    // every assumed recurrence stays in its type up to the iteration after the
+    // last one, they are monotonic so the end value tells
+    if (!evo.assumed_no_wrap().empty()) {
+      SCEVExpander ex{ctx, evo, entry->get_terminator()};
+      const auto i64 = ctx->get_int_type(64);
+      auto k = trip_bw < 64 ? b.build_zext(last_iter, i64) : last_iter;
+      k = b.build_int_add(k, cint(1, 64));
+      for (const auto &nw : evo.assumed_no_wrap()) {
+        const auto rec = evo.expr(nw.rec);
+        const auto start = ex.expand(rec.a);
+        const auto narrow = ctx->get_int_type(static_cast<u16>(rec.bw));
+        const auto step = evo.expr(rec.b).cval_i();
+        auto widen = [&](fir::ValueR v) {
+          return nw.is_signed ? b.build_sext(v, i64) : b.build_zext(v, i64);
+        };
+        const auto wend =
+            b.build_int_add(widen(start), b.build_int_mul(k, cint(step, 64)));
+        const auto bad = b.build_int_cmp(widen(b.build_itrunc(wend, narrow)),
+                                         wend, fir::ICmpInstrSubType::NE);
+        wrapped =
+            has_wrapped ? b.build_binary_op(wrapped, bad, BinSub::Or) : bad;
+        has_wrapped = true;
+      }
+    }
   }
   entry->get_terminator().replace_bb(hdr, vpre, true);
 
   // pre block, vtrip is the trip count rounded down to a multiple of vf
   fir::ValueR vtrip;
   fir::ValueR end_counter;
+  fir::ValueR first_strip_end;
+  fir::ValueR first_left;
   {
     fir::Builder b{vpre};
     b.at_end(vpre);
     vtrip = b.build_binary_op(
         total_trip, cint(~static_cast<i128>(vf - 1), trip_bw), BinSub::And);
-    if (plan.nodes[l.counter].type->is_ptr()) {
-      auto vtrip64 =
-          trip_bw == 64 ? vtrip : b.build_zext(vtrip, ctx->get_int_type(64));
-      end_counter = ptr_add_like_step(
-          b, l.counter, pre_args[l.counter],
-          b.build_int_mul(vtrip64, cint(plan.nodes[l.counter].stride, 64)));
+    if (has_strips) {
+      const auto first = b.build_intrinsic(vtrip, cint(strip_lanes, trip_bw),
+                                           fir::IntrinsicSubType::UMin);
+      first_strip_end = advance_counter(b, pre_args[l.counter], first);
+      first_left = b.build_int_sub(vtrip, first);
     } else {
-      end_counter = b.build_int_add(pre_args[l.counter], vtrip);
+      end_counter = advance_counter(b, pre_args[l.counter], vtrip);
     }
     auto none =
         b.build_int_cmp(vtrip, cint(0, trip_bw), fir::ICmpInstrSubType::EQ);
+    if (has_wrapped) {
+      none = b.build_binary_op(none, wrapped, BinSub::Or);
+    }
     TVec<Parts> vec_init(n_args);
     for (u32 k = 0; k < n_args; k++) {
       const auto &n = plan.nodes[k];
       if (n.kind == NodeKind::Reduction) {
-        auto id = reduction_identity(ctx, n);
-        auto bc = b.build_vbroadcast(id, vec_ty(n.type, pl[k]));
+        auto id = n.narrow_bits != 0 ? cint(0, n.narrow_bits)
+                                     : reduction_identity(ctx, n);
+        auto bc = b.build_vbroadcast(
+            id, vec_ty(n.narrow_bits != 0 ? narrow_ty(k) : n.type, pl[k]));
         vec_init[k].assign(vf / pl[k], bc);
       } else {
         vec_init[k].push_back(pre_args[k]);
@@ -213,6 +320,13 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
       br.add_bb_arg(0, pre_args[k]);
       for (auto v : vec_init[k]) {
         br.add_bb_arg(1, v);
+      }
+    }
+    if (has_strips) {
+      br.add_bb_arg(1, first_strip_end);
+      br.add_bb_arg(1, first_left);
+      for (u32 k : narrow) {
+        br.add_bb_arg(1, cint(0, plan.nodes[k].type->get_bitwidth()));
       }
     }
   }
@@ -246,8 +360,11 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
         return vp.at(v);
       }
       const fir::ValueR scalar = it == l.node_of.end() ? v : vm.at(v);
-      if (auto bc = broadcasts.find(scalar);
-          bc != broadcasts.end() && bc->second.lanes == part_lanes) {
+      const bool strided = it != l.node_of.end() &&
+                           plan.nodes[it->second].shape == LaneShape::Strided;
+      if (auto bc = broadcasts.find(scalar); !strided &&
+                                             bc != broadcasts.end() &&
+                                             bc->second.lanes == part_lanes) {
         return Parts(vf / part_lanes, bc->second.value);
       }
       const bool in_loop =
@@ -264,6 +381,25 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
             pb.build_vbroadcast(scalar, vec_ty(scalar.get_type(), part_lanes));
       }
       broadcasts[scalar] = {part_lanes, res};
+      if (it != l.node_of.end() &&
+          plan.nodes[it->second].shape == LaneShape::Strided) {
+        // lane i of a strided value is the first lane plus i times the step
+        const auto r = evo.get(v);
+        const i128 step = evo.expr(evo.expr(r).b).cval_i();
+        const auto bw = scalar.get_type()->get_bitwidth();
+        Parts parts;
+        for (u32 p = 0; p < vf / part_lanes; p++) {
+          IRVec<fir::ConstantValueR> lanes;
+          for (u32 k = 0; k < part_lanes; k++) {
+            lanes.push_back(ctx->get_constant_int(
+                static_cast<i128>(p * part_lanes + k) * step, bw));
+          }
+          const fir::ValueR iota{ctx->get_constant_value(
+              std::move(lanes), vec_ty(scalar.get_type(), part_lanes))};
+          parts.push_back(b.build_binary_op(res, iota, BinSub::IntAdd));
+        }
+        return parts;
+      }
       return Parts(vf / part_lanes, res);
     };
     // the mask of a block and of an edge, built on first use
@@ -490,6 +626,12 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
         case NodeKind::Widen: {
           const auto src = instr->args[0];
           const u32 j = l.node_of.at(src);
+          if (n.narrow_bits != 0) {
+            // folded into the sub of the accumulator
+            const Parts same = vp.at(src);
+            vp[n.value] = same;
+            break;
+          }
           Parts sp = vp.at(src);
           const u32 spl = pl[j];
           if (n.sub == 2) {
@@ -500,11 +642,15 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
           }
           Parts res;
           for (u32 d = 0; d < n_parts; d++) {
-            const u32 ratio = spl > lanes ? spl / lanes : 1;
-            const fir::ValueR v =
-                spl != lanes ? slice(sp[d / ratio], spl, (d % ratio) * lanes,
-                                     lanes, n.op_type)
-                             : sp[d];
+            fir::ValueR v{};
+            if (spl != lanes) {
+              ASSERT(spl > lanes && spl % lanes == 0);
+              const u32 ratio = spl / lanes;
+              v = slice(sp[d / ratio], spl, (d % ratio) * lanes, lanes,
+                        n.op_type);
+            } else {
+              v = sp[d];
+            }
             const fir::ValueR ops[] = {v};
             res.push_back(emit_node(ctx, b, n, lanes, ops));
           }
@@ -560,6 +706,25 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
           }
           [[fallthrough]];
         case NodeKind::Binary:
+          if (n.narrow_bits != 0) {
+            // acc + zext(mask) is acc - mask, the true lanes of a mask are -1
+            const bool acc_first = l.node_of.at(instr->args[0]) < n_args;
+            const auto acc = vp.at(instr->args[acc_first ? 0 : 1]);
+            const auto mask = vp.at(instr->args[acc_first ? 1 : 0]);
+            Parts res;
+            for (u32 p = 0; p < n_parts; p++) {
+              res.push_back(b.build_binary_op(
+                  acc[p],
+                  b.build_sext(mask[p],
+                               vec_ty(narrow_ty(l.node_of.at(
+                                          instr->args[acc_first ? 0 : 1])),
+                                      lanes)),
+                  BinSub::IntSub));
+            }
+            vp[n.value] = res;
+            break;
+          }
+          [[fallthrough]];
         case NodeKind::Cmp:
         case NodeKind::Zext:
         case NodeKind::Unary:
@@ -608,14 +773,82 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
         next_vals[k] = vp.at(back_args[k]);
       }
     }
-    auto cond = b.build_int_cmp(next_vals[l.counter][0], end_counter,
+    auto cond = b.build_int_cmp(next_vals[l.counter][0],
+                                has_strips ? loop_strip_end : end_counter,
                                 fir::ICmpInstrSubType::NE);
-    auto br = b.build_cond_branch(cond, vloop, vmid);
+    auto br = b.build_cond_branch(cond, vloop, has_strips ? vstrip : vmid);
+    // the accumulators of the middle block, the narrow ones are widened in the
+    // strip block
     for (u32 k = 0; k < n_args; k++) {
       for (auto v : next_vals[k]) {
         br.add_bb_arg(0, v);
         br.add_bb_arg(1, v);
       }
+    }
+    if (has_strips) {
+      br.add_bb_arg(0, loop_strip_end);
+      br.add_bb_arg(0, loop_left);
+      br.add_bb_arg(1, loop_left);
+      for (auto w : loop_wide) {
+        br.add_bb_arg(0, w);
+        br.add_bb_arg(1, w);
+      }
+    }
+  }
+
+  // the sum of the lanes of a narrow accumulator, its registers added first
+  auto widen_lanes = [&](fir::Builder &bd, u32 k, const Parts &parts) {
+    fir::ValueR sum = parts[0];
+    for (size_t p = 1; p < parts.size(); p++) {
+      sum = bd.build_int_add(sum, parts[p]);
+    }
+    const auto wide = bd.build_zext(sum, vec_ty(plan.nodes[k].type, pl[k]));
+    return bd.build_reduce(wide, fir::ReduceInstrSubType::Add);
+  };
+  // strip block widens the narrow accumulators, then starts the next strip or
+  // leaves the vector loop
+  if (has_strips) {
+    fir::Builder b{vstrip};
+    b.at_end(vstrip);
+    TVec<fir::ValueR> new_wide;
+    for (size_t i = 0; i < narrow.size(); i++) {
+      const u32 k = narrow[i];
+      new_wide.push_back(
+          b.build_int_add(strip_wide[i], widen_lanes(b, k, strip_args[k])));
+    }
+    const auto len = b.build_intrinsic(strip_left, cint(strip_lanes, trip_bw),
+                                       fir::IntrinsicSubType::UMin);
+    const auto next_end = advance_counter(b, strip_args[l.counter][0], len);
+    const auto next_left = b.build_int_sub(strip_left, len);
+    const auto done = b.build_int_cmp(strip_left, cint(0, trip_bw),
+                                      fir::ICmpInstrSubType::EQ);
+    TVec<fir::ValueR> zeros;
+    for (u32 k : narrow) {
+      zeros.push_back(b.build_vbroadcast(cint(0, plan.nodes[k].narrow_bits),
+                                         vec_ty(narrow_ty(k), pl[k])));
+    }
+    auto br = b.build_cond_branch(done, vmid, vloop);
+    for (u32 k = 0; k < n_args; k++) {
+      const auto &n = plan.nodes[k];
+      if (n.narrow_bits != 0) {
+        const auto i =
+            static_cast<size_t>(std::ranges::find(narrow, k) - narrow.begin());
+        br.add_bb_arg(0, new_wide[i]);
+        const auto zero = zeros[i];
+        for (size_t p = 0; p < strip_args[k].size(); p++) {
+          br.add_bb_arg(1, zero);
+        }
+        continue;
+      }
+      for (auto v : strip_args[k]) {
+        br.add_bb_arg(0, v);
+        br.add_bb_arg(1, v);
+      }
+    }
+    br.add_bb_arg(1, next_end);
+    br.add_bb_arg(1, next_left);
+    for (auto w : new_wide) {
+      br.add_bb_arg(1, w);
     }
   }
 
@@ -628,6 +861,12 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
       const auto &n = plan.nodes[k];
       if (n.kind != NodeKind::Reduction) {
         finals.push_back(mid_args[k][0]);
+        continue;
+      }
+      if (n.narrow_bits != 0) {
+        const auto sum =
+            has_strips ? mid_args[k][0] : widen_lanes(b, k, mid_args[k]);
+        finals.push_back(reduction_combine(b, n, sum, pre_args[k]));
         continue;
       }
       // the registers of the accumulator are combined first
@@ -654,7 +893,7 @@ LoopBlocks emit_loop(fir::Context &ctx, Plan &plan) {
       br.add_bb_arg(1, finals[k]);
     }
   }
-  return {vpre, vloop, vmid};
+  return {vpre, vloop, vmid, vstrip};
 }
 
 }  // namespace foptim::optim::vec

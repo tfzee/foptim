@@ -5,7 +5,7 @@
 
 namespace foptim::optim::vec {
 
-u32 max_vector_bits(const Features &features);
+u32 max_vector_bits(const conf::Target::Features &features);
 
 // Innermost single block countable loops. A seed is one loop, planning picks
 // the vector factor with the best benefit over all iterations.
@@ -30,6 +30,7 @@ struct LoopBlocks {
   fir::BasicBlock pre;
   fir::BasicBlock vector;
   fir::BasicBlock middle;
+  fir::BasicBlock strip;
 };
 
 // Rewrites the loop into a pre block, a vector loop and a middle block that

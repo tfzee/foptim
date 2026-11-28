@@ -22,8 +22,9 @@ define void @sub_mul_i16x16(ptr noalias %a, ptr noalias %b) {
 ; CHECK: func sub_mul_i16x16 ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $ymm0: i16x16 = [$rdi]: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 - [$rsi]: i16x16
-; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 * [$rsi]: i16x16
+; CHECK-NEXT:    $ymm1: i16x16 = [$rsi]: i16x16
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 - $ymm1: i16x16
+; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 * $ymm1: i16x16
 ; CHECK-NEXT:    [$rdi]: i16x16 = $ymm0: i16x16
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()

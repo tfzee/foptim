@@ -25,9 +25,7 @@ define double @hit(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK-NEXT:    mov_sx($rcx: i64, $edx: i32, )
 ; CHECK-NEXT:    $rcx: i64 *= 40: i64
 ; CHECK-NEXT:    $rax: i64 = [sp]: i64
-; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $rax: i64 += 8: i64
-; CHECK-NEXT:    $xmm0: f64x2 = [$rax]: f64x2
+; CHECK-NEXT:    $xmm0: f64x2 = [$rax + $rcx + 8]: f64x2
 ; CHECK-NEXT:    $xmm2: f64x2 = $xmm0: f64x2 - [$rdi]: f64x2
 ; CHECK-NEXT:    $rax: i64 = [sp]: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rax + $rcx + 24]: f64
@@ -47,8 +45,7 @@ define double @hit(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK-NEXT:    $mm1: f64 = $mm1: f64 + $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = [sp]: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rax + $rcx]: f64
-; CHECK-NEXT:    $rax: i64 = [sp]: i64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax + $rcx]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm1: f64
 ; CHECK-NEXT:    $eax: i32 = 4: i32
 ; CHECK-NEXT:    clear $mm1: f64

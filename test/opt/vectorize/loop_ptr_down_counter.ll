@@ -6,28 +6,24 @@ define void @copy_add(ptr noalias %d, ptr noalias %s) {
 ; CHECK-LABEL: func copy_add<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr):
-; CHECK-NEXT:    %2: i64 = ZExt(63:i8){} NUses:1
-; CHECK-NEXT:    %3: i64 = ZExt(1:i8){} NUses:1
-; CHECK-NEXT:    %4: i64 = IntAdd(%2, %3){} NUses:1
-; CHECK-NEXT:    %5: () = Branch<bb1(64:i8, %1, %0)>(){} NUses:0
+; CHECK-NEXT:    %2: () = Branch<bb1(64:i8, %1, %0)>(){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %6: () = Return(){} NUses:0
-; CHECK-NEXT:  bb1(%7{}: i8, %8{}: ptr, %9{}: ptr):
-; CHECK-NEXT:    %10: i64 = IntMul(%4, 2:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%8, %10){} NUses:1
-; CHECK-NEXT:    %12: 16@i16 = Load(G(const_legalizeVec_copy_add_0)){} NUses:1
-; CHECK-NEXT:    %13: () = Branch<bb3(%7, %8, %9)>(){} NUses:0
-; CHECK-NEXT:  bb3(%14{}: i8, %15{}: ptr, %16{}: ptr):
-; CHECK-NEXT:    %17: 16@i16 = Load(%15){} NUses:1
-; CHECK-NEXT:    %18: 16@i16 = IntAdd(%17, %12){} NUses:1
-; CHECK-NEXT:    %19: 16@i16 = Store(%16, %18){} NUses:0
-; CHECK-NEXT:    %20: i8 = IntAdd(%14, -16:i8){} NUses:2
-; CHECK-NEXT:    %21: ptr = PtrAdd(%15, 32:i64){} NUses:3
-; CHECK-NEXT:    %22: ptr = PtrAdd(%16, 32:i64){} NUses:2
-; CHECK-NEXT:    %23: i1 = IntNE(%21, %11){} NUses:1
-; CHECK-NEXT:    %24: () = CondBranch<bb3(%20, %21, %22), bb4(%20, %21, %22)>(%23){} NUses:0
-; CHECK-NEXT:  bb4(%25{}: i8, %26{}: ptr, %27{}: ptr):
-; CHECK-NEXT:    %28: () = Branch<bb2()>(){} NUses:0
+; CHECK-NEXT:    %3: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%4{}: i8, %5{}: ptr, %6{}: ptr):
+; CHECK-NEXT:    %7: i8 = IntSub(%4, 64:i8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: 16@i16 = Load(G(const_legalizeVec_copy_add_0)){} NUses:1
+; CHECK-NEXT:    %9: () = Branch<bb3(%4, %5, %6)>(){} NUses:0
+; CHECK-NEXT:  bb3(%10{}: i8, %11{}: ptr, %12{}: ptr):
+; CHECK-NEXT:    %13: 16@i16 = Load(%11){} NUses:1
+; CHECK-NEXT:    %14: 16@i16 = IntAdd(%13, %8){} NUses:1
+; CHECK-NEXT:    %15: 16@i16 = Store(%12, %14){} NUses:0
+; CHECK-NEXT:    %16: i8 = IntAdd(%10, -16:i8){} NUses:3
+; CHECK-NEXT:    %17: ptr = PtrAdd(%11, 32:i64){} NUses:2
+; CHECK-NEXT:    %18: ptr = PtrAdd(%12, 32:i64){} NUses:2
+; CHECK-NEXT:    %19: i1 = IntNE(%16, %7){} NUses:1
+; CHECK-NEXT:    %20: () = CondBranch<bb3(%16, %17, %18), bb4(%16, %17, %18)>(%19){} NUses:0
+; CHECK-NEXT:  bb4(%21{}: i8, %22{}: ptr, %23{}: ptr):
+; CHECK-NEXT:    %24: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop

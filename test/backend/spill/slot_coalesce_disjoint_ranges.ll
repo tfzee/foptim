@@ -10,13 +10,13 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rsp: i64 -= 32: i64
 ; CHECK-NEXT:    $ymm1: f64x4 = [$rdi]: f64x4
-; CHECK-NEXT:    $mm2: f64 = [$rdi + 32]: f64
+; CHECK-NEXT:    $mm3: f64 = [$rdi + 32]: f64
 ; CHECK-NEXT:    $mm4: f64 = [$rdi + 40]: f64
 ; CHECK-NEXT:    $mm5: f64 = [$rdi + 48]: f64
 ; CHECK-NEXT:    $mm6: f64 = [$rdi + 56]: f64
-; CHECK-NEXT:    $mm3: f64 = [$rdi + 64]: f64
+; CHECK-NEXT:    $mm7: f64 = [$rdi + 64]: f64
 ; CHECK-NEXT:    $mm8: f64 = [$rdi + 72]: f64
-; CHECK-NEXT:    $mm7: f64 = [$rdi + 80]: f64
+; CHECK-NEXT:    $mm2: f64 = [$rdi + 80]: f64
 ; CHECK-NEXT:    $mm9: f64 = [$rdi + 88]: f64
 ; CHECK-NEXT:    $mm10: f64 = [$rdi + 96]: f64
 ; CHECK-NEXT:    $mm11: f64 = [$rdi + 104]: f64
@@ -68,13 +68,13 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:    vextract128($xmm0: f64x2, $ymm1: f64x4, 1: i8, )
 ; CHECK-NEXT:    $xmm0: f64x2 = $xmm0: f64x2 + $xmm1: f64x2
 ; CHECK-NEXT:    HAdd($mm0: f64, $xmm0: f64x2, )
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm2: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm3: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm4: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm5: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm6: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm3: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm8: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm7: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm8: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm2: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm9: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm10: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm11: f64
@@ -85,9 +85,7 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -32]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -24]: f64
 ; CHECK-NEXT:    [$rbp + -16]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 256: i64
-; CHECK-NEXT:    $ymm1: f64x4 = [$rax]: f64x4
+; CHECK-NEXT:    $ymm1: f64x4 = [$rdi + 256]: f64x4
 ; CHECK-NEXT:    $mm3: f64 = [$rdi + 288]: f64
 ; CHECK-NEXT:    $mm4: f64 = [$rdi + 296]: f64
 ; CHECK-NEXT:    $mm5: f64 = [$rdi + 304]: f64

@@ -7,13 +7,10 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: 2@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %4: 2@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %5: 2@i64 = PtrAdd(%3, %4){} NUses:1
-; CHECK-NEXT:    %6: 2@f64 = Load(%5){} NUses:1
-; CHECK-NEXT:    %7: 2@f64 = FloatSqrt(%6){} NUses:1
-; CHECK-NEXT:    %8: 2@f64 = Store(%0, %7){} NUses:0
-; CHECK-NEXT:    %9: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 2@f64 = Load(%1){} NUses:1
+; CHECK-NEXT:    %4: 2@f64 = FloatSqrt(%3){} NUses:1
+; CHECK-NEXT:    %5: 2@f64 = Store(%0, %4){} NUses:0
+; CHECK-NEXT:    %6: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr double, ptr %a, i64 0
   %a1 = getelementptr double, ptr %a, i64 1

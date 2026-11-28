@@ -6,20 +6,14 @@ define i32 @f(ptr %a, ptr %b, ptr %c, ptr %p) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr, %3{}: ptr):
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %7: 4@i64 = PtrAdd(%5, %6){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = PtrAdd(%4, %8){} NUses:1
-; CHECK-NEXT:    %10: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %11: 4@i32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %12: 4@i32 = Load(%9){} NUses:1
-; CHECK-NEXT:    %13: 4@i32 = IntAdd(%11, %12){} NUses:1
-; CHECK-NEXT:    %14: i32 = Store(%0, %10){} NUses:0
-; CHECK-NEXT:    %15: i32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %16: 4@i32 = Store(%0, %13){} NUses:0
-; CHECK-NEXT:    %17: i32 = Return(%15){} NUses:0
+; CHECK-NEXT:    %4: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %7: 4@i32 = IntAdd(%5, %6){} NUses:1
+; CHECK-NEXT:    %8: i32 = Store(%0, %4){} NUses:0
+; CHECK-NEXT:    %9: i32 = Load(%3){} NUses:1
+; CHECK-NEXT:    %10: 4@i32 = Store(%0, %7){} NUses:0
+; CHECK-NEXT:    %11: i32 = Return(%9){} NUses:0
 ; CHECK-NEXT:}
   %pb0 = getelementptr i32, ptr %b, i64 0
   %pc0 = getelementptr i32, ptr %c, i64 0

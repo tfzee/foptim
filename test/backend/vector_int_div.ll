@@ -136,14 +136,14 @@ define void @udiv_i32(ptr %p, ptr %q, ptr %o) {
 define void @srem_i32(ptr %p, ptr %q, ptr %o) {
 ; CHECK: func srem_i32 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm2: i32x4 = [$rsi]: i32x4
-; CHECK-NEXT:    SI2FL($ymm1: f64x4, $xmm0: i32x4, )
-; CHECK-NEXT:    SI2FL($ymm2: f64x4, $xmm2: i32x4, )
-; CHECK-NEXT:    $ymm1: f64x4 = $ymm1: f64x4 / $ymm2: f64x4
-; CHECK-NEXT:    FL2SI($xmm1: i32x4, $ymm1: f64x4, )
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm1: i32x4 * [$rsi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 - $xmm1: i32x4
+; CHECK-NEXT:    $xmm2: i32x4 = [$rdi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = [$rsi]: i32x4
+; CHECK-NEXT:    SI2FL($ymm3: f64x4, $xmm2: i32x4, )
+; CHECK-NEXT:    SI2FL($ymm0: f64x4, $xmm1: i32x4, )
+; CHECK-NEXT:    $ymm0: f64x4 = $ymm3: f64x4 / $ymm0: f64x4
+; CHECK-NEXT:    FL2SI($xmm0: i32x4, $ymm0: f64x4, )
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 * $xmm1: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm2: i32x4 - $xmm0: i32x4
 ; CHECK-NEXT:    [$rdx]: i32x4 = $xmm0: i32x4
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
@@ -157,21 +157,21 @@ define void @srem_i32(ptr %p, ptr %q, ptr %o) {
 define void @urem_i16(ptr %p, ptr %q, ptr %o) {
 ; CHECK: func urem_i16 ($2: i64, $3: i64, $4: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm3: i16x8 = [$rdi]: i16x8
-; CHECK-NEXT:    $xmm2: i16x8 = [$rsi]: i16x8
-; CHECK-NEXT:    mov_zx($ymm1: i32x8, $xmm3: i16x8, )
-; CHECK-NEXT:    mov_zx($ymm2: i32x8, $xmm2: i16x8, )
-; CHECK-NEXT:    SI2FL($ymm1: f32x8, $ymm1: i32x8, )
-; CHECK-NEXT:    SI2FL($ymm2: f32x8, $ymm2: i32x8, )
-; CHECK-NEXT:    $ymm1: f32x8 = $ymm1: f32x8 / $ymm2: f32x8
-; CHECK-NEXT:    FL2SI($ymm1: i32x8, $ymm1: f32x8, )
+; CHECK-NEXT:    $xmm5: i16x8 = [$rdi]: i16x8
+; CHECK-NEXT:    $xmm1: i16x8 = [$rsi]: i16x8
+; CHECK-NEXT:    mov_zx($ymm2: i32x8, $xmm5: i16x8, )
+; CHECK-NEXT:    mov_zx($ymm3: i32x8, $xmm1: i16x8, )
+; CHECK-NEXT:    SI2FL($ymm4: f32x8, $ymm2: i32x8, )
+; CHECK-NEXT:    SI2FL($ymm2: f32x8, $ymm3: i32x8, )
+; CHECK-NEXT:    $ymm2: f32x8 = $ymm4: f32x8 / $ymm2: f32x8
+; CHECK-NEXT:    FL2SI($ymm2: i32x8, $ymm2: f32x8, )
 ; CHECK-NEXT:    vpcmpeq($ymm0: i32x8, $ymm0: i32x8, $ymm0: i32x8, )
 ; CHECK-NEXT:    psrl($ymm0: i32x8, $ymm0: i32x8, 16: i8, )
-; CHECK-NEXT:    vAnd($ymm1: i32x8, $ymm1: i32x8, $ymm0: i32x8, )
-; CHECK-NEXT:    vextract128($xmm0: i32x4, $ymm1: i32x8, 1: i8, )
-; CHECK-NEXT:    vpack($xmm0: i16x8, $xmm1: i32x4, $xmm0: i32x4, )
-; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i16x8 * [$rsi]: i16x8
-; CHECK-NEXT:    $xmm0: i16x8 = $xmm3: i16x8 - $xmm0: i16x8
+; CHECK-NEXT:    vAnd($ymm2: i32x8, $ymm2: i32x8, $ymm0: i32x8, )
+; CHECK-NEXT:    vextract128($xmm0: i32x4, $ymm2: i32x8, 1: i8, )
+; CHECK-NEXT:    vpack($xmm0: i16x8, $xmm2: i32x4, $xmm0: i32x4, )
+; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i16x8 * $xmm1: i16x8
+; CHECK-NEXT:    $xmm0: i16x8 = $xmm5: i16x8 - $xmm0: i16x8
 ; CHECK-NEXT:    [$rdx]: i16x8 = $xmm0: i16x8
 ; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()

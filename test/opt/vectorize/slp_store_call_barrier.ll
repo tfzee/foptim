@@ -9,30 +9,22 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 32:i64){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = Load(G(const_legalizeVec_f_3)){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = PtrAdd(%6, %8){} NUses:1
-; CHECK-NEXT:    %10: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = PtrAdd(%5, %10){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 48:i64){} NUses:1
-; CHECK-NEXT:    %13: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %14: 4@i64 = PtrAdd(%4, %13){} NUses:1
-; CHECK-NEXT:    %15: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %16: 4@i64 = PtrAdd(%3, %15){} NUses:1
-; CHECK-NEXT:    %17: 4@i32 = Load(%9){} NUses:1
-; CHECK-NEXT:    %18: 4@i32 = Load(%11){} NUses:1
-; CHECK-NEXT:    %19: 4@i32 = IntAdd(%17, %18){} NUses:1
-; CHECK-NEXT:    %20: 4@i32 = Load(%14){} NUses:1
-; CHECK-NEXT:    %21: 4@i32 = Load(%16){} NUses:1
-; CHECK-NEXT:    %22: 4@i32 = IntAdd(%20, %21){} NUses:1
-; CHECK-NEXT:    %23: 4@i32 = Store(%7, %19){} NUses:0
-; CHECK-NEXT:    %24: () = Call(ext){extTy: ()(); } NUses:0
-; CHECK-NEXT:    %25: 4@i32 = Store(%12, %22){} NUses:0
-; CHECK-NEXT:    %26: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 32:i64){} NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%2, 32:i64){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 32:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%1, 48:i64){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%2, 48:i64){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, 48:i64){} NUses:1
+; CHECK-NEXT:    %9: 4@i32 = Load(%3){} NUses:1
+; CHECK-NEXT:    %10: 4@i32 = Load(%4){} NUses:1
+; CHECK-NEXT:    %11: 4@i32 = IntAdd(%9, %10){} NUses:1
+; CHECK-NEXT:    %12: 4@i32 = Load(%6){} NUses:1
+; CHECK-NEXT:    %13: 4@i32 = Load(%7){} NUses:1
+; CHECK-NEXT:    %14: 4@i32 = IntAdd(%12, %13){} NUses:1
+; CHECK-NEXT:    %15: 4@i32 = Store(%5, %11){} NUses:0
+; CHECK-NEXT:    %16: () = Call(ext){extTy: ()(); } NUses:0
+; CHECK-NEXT:    %17: 4@i32 = Store(%8, %14){} NUses:0
+; CHECK-NEXT:    %18: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pb8 = getelementptr i32, ptr %b, i64 8
   %pc8 = getelementptr i32, ptr %c, i64 8

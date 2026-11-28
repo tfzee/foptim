@@ -172,10 +172,10 @@ maxFullInstr = 256
 [pass.fir.SLPVectorizer]
 reductions = true
 loops = true
-# 0 = only the target decides
-maxVF = 0
-# trip count of the loop cost model when it is not a constant
-assumedTrip = 64
+maxVF = 0 # 0 = only the target decides
+assumedTrip = 64 # trip count of the loop cost model when it is not a constant
+minBenefit = 0.0 # cycles a straight line plan has to save, negative takes plans that lose
+
 [pass.fir.DCE]
 [pass.fir.LLVMIntrinsicLowering]
 [pass.fir.SORA]

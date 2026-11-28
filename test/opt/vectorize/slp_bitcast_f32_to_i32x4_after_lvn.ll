@@ -6,12 +6,9 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = PtrAdd(%2, %3){} NUses:1
-; CHECK-NEXT:    %5: 4@f32 = Load(%4){} NUses:1
-; CHECK-NEXT:    %6: 4@f32 = Store(%0, %5){} NUses:0
-; CHECK-NEXT:    %7: () = Return(){} NUses:0
+; CHECK-NEXT:    %2: 4@f32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %3: 4@f32 = Store(%0, %2){} NUses:0
+; CHECK-NEXT:    %4: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pb0 = getelementptr float, ptr %b, i64 0
   %x0 = load float, ptr %pb0

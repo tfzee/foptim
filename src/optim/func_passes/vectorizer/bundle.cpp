@@ -118,11 +118,17 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
       seed.base.as_instr()->replace_all_uses(vec);
       return vec;
     }
+    case NodeKind::CarriedRoot:
+      return emit_child(0);
+    case NodeKind::CarriedArg:
+      return seed.carried_vec;
     case NodeKind::HorizRed: {
       auto orig_instr = seed.base.as_instr();
       ASSERT(n.children.size() == 1);
-      const auto &features = ctx.config->target.features;
-      const auto red_op = reduce_op_for(orig_instr, n.n_lanes, n.assoc, features);
+      const FeatureSet feature_set(ctx.config->target);
+      const auto &features = feature_set.features;
+      const auto red_op =
+          reduce_op_for(orig_instr, n.n_lanes, n.assoc, features);
       auto vec = emit_child(0);
       fir::Builder bb{orig_instr};
       bb.after(orig_instr);
@@ -214,6 +220,12 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
         return bb.build_intrinsic(n.value, idx_v, fir::IntrinsicSubType::Gather,
                                   vty);
       }
+      if (n.shape == LaneShape::Consecutive) {
+        fir::Builder bb{n.insert_loc};
+        bb.after(n.insert_loc);
+        const fir::ValueR ops[] = {n.aux->args[0]};
+        return emit_node(ctx, bb, n, n.n_lanes, ops);
+      }
       [[fallthrough]];
     case NodeKind::Store: {
       auto val = emit_child(0);
@@ -267,7 +279,18 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
     root_parent = add_node(NoNode, std::move(red));
   }
   TVec<std::pair<u32, TVec<fir::ValueR>>> worklist;
-  if (b.kind == SeedKind::Build) {
+  if (b.kind == SeedKind::Carried) {
+    TVec<fir::ValueR> v;
+    for (auto &va : b.data) {
+      v.push_back(va.instr.result());
+    }
+    PlanNode root;
+    root.kind = NodeKind::CarriedRoot;
+    init_build_root(root, v, b.type,
+                    InitCtx{.info = info, .parent_loc = b.data[0].instr});
+    root_parent = add_node(NoNode, std::move(root));
+    worklist.emplace_back(root_parent, std::move(v));
+  } else if (b.kind == SeedKind::Build) {
     PlanNode root;
     root.kind = NodeKind::BuildRoot;
     init_build_root(root, b.lane_values, b.type,
@@ -291,6 +314,17 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
     worklist.pop_back();
     auto test_i = curr.back();
 
+    if (b.kind == SeedKind::Carried && curr == b.carried) {
+      // the cycle: the operand that is the value of the previous iteration
+      PlanNode n;
+      n.kind = NodeKind::CarriedArg;
+      n.shape = LaneShape::Recurrence;
+      n.n_lanes = static_cast<u32>(curr.size());
+      n.type = b.type;
+      n.insert_loc = plan.nodes[parent].insert_loc;
+      add_node(parent, std::move(n));
+      continue;
+    }
     if (broadcast_match(curr)) {
       PlanNode n;
       n.kind = NodeKind::Broadcast;
@@ -364,7 +398,9 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
         return false;
       }
       auto n_args = recipe->n_args(curr);
-      if (recipe->kind == NodeKind::Load && !n.gather_idx.empty()) {
+      // a load of adjacent elements reads from the pointer of its first lane
+      if (recipe->kind == NodeKind::Load &&
+          (!n.gather_idx.empty() || n.shape == LaneShape::Consecutive)) {
         n_args = 0;
       }
       if (recipe->kind == NodeKind::Store) {
@@ -503,8 +539,129 @@ void destroy_dead_build(fir::ValueR v) {
 }
 }  // namespace
 
+namespace {
+// The vector goes in as one more header argument, the scalar arguments and the
+// values the back edge passed to them are dropped. Uses behind the loop read
+// lanes of the new back edge value.
+void apply_carried(fir::Context &ctx, const Plan &plan, Seed &seed) {
+  auto bb = seed.block->bb;
+  auto term = bb->get_terminator();
+  const u32 lanes = static_cast<u32>(seed.data.size());
+  const auto vty = ctx->get_vec_type(seed.type, lanes);
+  seed.carried_vec =
+      fir::ValueR{bb.add_arg(ctx->storage.insert_bb_arg(bb, vty))};
+  const auto vnew = emit_tree(ctx, plan, 0, seed);
+
+  TVec<u32> arg_ids;
+  for (auto a : seed.carried) {
+    arg_ids.push_back(static_cast<u32>(bb->get_arg_id(a.as_bb_arg())));
+  }
+  TVec<fir::Use> edges(bb->get_uses().begin(), bb->get_uses().end());
+  for (auto &e : edges) {
+    ASSERT(e.type == fir::UseType::BB);
+    if (e.user == term) {
+      e.user.add_bb_arg(e.argId, vnew);
+      continue;
+    }
+    // the entry builds the vector from the scalars it passed
+    const auto &passed = e.user->bbs[e.argId].args;
+    bool same = true;
+    for (u32 j = 1; j < lanes; j++) {
+      same &= passed[arg_ids[j]] == passed[arg_ids[0]];
+    }
+    fir::Builder b{e.user};
+    fir::ValueR vec;
+    if (same) {
+      vec = b.build_vbroadcast(passed[arg_ids[0]], vty);
+    } else {
+      vec = zero_vector(ctx, seed.type, lanes);
+      for (u32 j = 0; j < lanes; j++) {
+        fir::ValueR idx[1] = {fir::ValueR{ctx->get_constant_int(j, 32)}};
+        vec = b.build_insert_element(vec, passed[arg_ids[j]], idx, vty);
+      }
+    }
+    e.user.add_bb_arg(e.argId, vec);
+  }
+  TVec<u32> drop = arg_ids;
+  std::ranges::sort(drop, std::greater<>{});
+  for (auto &e : edges) {
+    for (auto i : drop) {
+      e.user.remove_bb_arg(e.argId, i);
+    }
+  }
+  // the values the exit edges passed are lanes of the new value, read in a
+  // block of their own so the loop does not extract them every iteration
+  for (u32 slot = 0; slot < term->bbs.size(); slot++) {
+    if (term->bbs[slot].bb == bb) {
+      continue;
+    }
+    const TVec<fir::ValueR> passed(term->bbs[slot].args.begin(),
+                                   term->bbs[slot].args.end());
+    const auto target = term->bbs[slot].bb;
+    auto lane_of = [&](fir::ValueR a) -> std::optional<u32> {
+      for (u32 j = 0; j < lanes; j++) {
+        if (a == seed.data[j].instr.result()) {
+          return j;
+        }
+      }
+      return std::nullopt;
+    };
+    if (std::ranges::none_of(passed,
+                             [&](auto a) { return lane_of(a).has_value(); })) {
+      continue;
+    }
+    fir::Builder blocks{bb};
+    auto split = blocks.append_bb();
+    fir::Builder b{split};
+    b.at_end(split);
+    TVec<fir::ValueR> mapped;
+    TVec<fir::ValueR> extracted(lanes);
+    for (auto a : passed) {
+      const auto j = lane_of(a);
+      if (!j) {
+        mapped.push_back(a);
+        continue;
+      }
+      if (extracted[*j].is_invalid()) {
+        fir::ValueR idx[1] = {fir::ValueR{ctx->get_constant_int(*j, 32)}};
+        extracted[*j] = b.build_extract_element(vnew, idx, seed.type);
+      }
+      mapped.push_back(extracted[*j]);
+    }
+    auto br = b.build_branch(target);
+    for (auto m : mapped) {
+      br.add_bb_arg(0, m);
+    }
+    term.replace_bb(slot, split, false);
+  }
+  for (u32 j = 0; j < lanes; j++) {
+    // edges that an earlier seed of this block moved into blocks of their
+    // own still pass the scalar
+    const TVec<fir::Use> left(seed.data[j].instr.result().get_uses()->begin(),
+                              seed.data[j].instr.result().get_uses()->end());
+    for (const auto &u : left) {
+      ASSERT(u.type == fir::UseType::BBArg);
+      fir::ValueR idx[1] = {fir::ValueR{ctx->get_constant_int(j, 32)}};
+      auto user = u.user;
+      fir::Builder b{user};
+      const auto ex = b.build_extract_element(vnew, idx, seed.type);
+      user.replace_bb_arg(u.argId, u.bbArgId, ex, false);
+    }
+    ASSERT(seed.data[j].instr.result().get_n_uses() == 0);
+    seed.data[j].instr.destroy();
+  }
+  for (auto i : drop) {
+    bb->remove_arg(i);
+  }
+}
+}  // namespace
+
 void apply_bundle(fir::Context &ctx, const Plan &plan, Seed &seed,
                   bool reduction) {
+  if (seed.kind == SeedKind::Carried) {
+    apply_carried(ctx, plan, seed);
+    return;
+  }
   // emit first, erase afterwards: later nodes may still read the scalars
   emit_tree(ctx, plan, 0, seed);
   if (reduction) {

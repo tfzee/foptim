@@ -13,6 +13,8 @@ std::optional<Seed> find_reduction(fir::BasicBlock bb, size_t instr_id,
 std::unique_ptr<SeedProvider> make_store_seeds();
 // Vectors built from scalars that vector code uses.
 std::unique_ptr<SeedProvider> make_build_seeds();
+// Header arguments of a self loop that are updated independently of each other.
+std::unique_ptr<SeedProvider> make_carried_seeds();
 // Chains of associative operations over a few values.
 std::unique_ptr<SeedProvider> make_reduction_seeds();
 

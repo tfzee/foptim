@@ -428,6 +428,7 @@ struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
     loops = tbl["loops"].value_or(loops);
     max_vf = tbl["maxVF"].value_or(max_vf);
     assumed_trip = tbl["assumedTrip"].value_or(assumed_trip);
+    min_benefit = tbl["minBenefit"].value_or(min_benefit);
     return true;
   }
   void construct_function_pass(Pass &p) {

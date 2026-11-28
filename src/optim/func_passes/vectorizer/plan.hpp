@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <optional>
 
@@ -12,11 +13,36 @@
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/analysis/mem/block_mem_access.hpp"
 #include "optim/analysis/mem/loop_mem_dep.hpp"
+#include "optim/cost_model/machine.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim::optim::vec {
 
-using Features = conf::Target::Features;
+// the isa flags of the target plus the machine the costs come from
+struct Features : conf::Target::Features {
+  const cost_model::Machine *machine = nullptr;
+};
+
+// owns the machine a Features points at
+struct FeatureSet {
+  cost_model::Machine machine;
+  Features features;
+
+  explicit FeatureSet(const conf::Target &target)
+      : machine(cost_model::Machine::from_target(target)) {
+    static_cast<conf::Target::Features &>(features) = target.features;
+    features.machine = &machine;
+  }
+  FeatureSet(const FeatureSet &) = delete;
+  FeatureSet &operator=(const FeatureSet &) = delete;
+};
+
+// cost estimates are in cycles, benefits are kept as integers of this many
+// units per cycle
+inline constexpr double kBenefitUnitsPerCycle = 8.0;
+inline i64 to_benefit_units(double cycles) {
+  return static_cast<i64>(std::llround(cycles * kBenefitUnitsPerCycle));
+}
 
 struct Config {
   bool reductions = true;
@@ -25,7 +51,14 @@ struct Config {
   u32 max_vf = 0;
   // trip count of the cost model when it is not a constant
   u32 assumed_trip = 64;
+  // cycles a straight line plan has to save at least, negative accepts plans
+  // the cost model considers a loss (for tests of the emitted code)
+  double min_benefit = 0.0;
 };
+
+inline i64 min_benefit_units(const Config &config) {
+  return to_benefit_units(config.min_benefit);
+}
 
 // Results of multi result calls are plain external values, not lanes.
 inline bool lane_instr(fir::ValueR v) {
@@ -52,7 +85,7 @@ inline bool build_lanes(fir::ValueR v, TVec<fir::ValueR> &out, BuildInfo &info,
       return false;
     }
     for (const auto &m : v.as_constant()->as_vec().members) {
-      out.push_back(fir::ValueR{m});
+      out.emplace_back(m);
     }
     return out.size() >= n;
   }
@@ -256,6 +289,10 @@ enum class NodeKind : u8 {
   Widen,
   // bundles: replaces a built vector
   BuildRoot,
+  // bundles: the vector of values a loop carries back to its header arguments
+  CarriedRoot,
+  // bundles: the vector header argument that replaces the scalar ones
+  CarriedArg,
 };
 
 // One widened value of a plan. Nodes refer to each other by index into
@@ -296,6 +333,9 @@ struct PlanNode {
   // Induction / Reduction / Phi: index of the (block) argument
   u32 arg_id = 0;
   RedKind red = RedKind::Add;
+  // loops: lane width of an add reduction of zext(mask) that accumulates in
+  // the lanes of the mask (the accumulator, the add and the zext), 0 otherwise
+  u32 narrow_bits = 0;
   // horizontal reductions: the lanes may be combined in any order
   bool assoc = false;
   // loops: index into LoopData::blocks
@@ -351,7 +391,7 @@ struct LoopData {
   u32 n_reductions = 0;
   TVec<LoopMemDep::Access> accesses;
   // instructions of the body without the terminator
-  u32 scalar_cost = 0;
+  double scalar_cost = 0.0;
   // legal vfs with their benefit, largest first, dependences not checked yet
   TVec<std::pair<u32, i64>> vf_options;
 };
@@ -372,7 +412,7 @@ struct Plan {
   i64 benefit = 0;
 };
 
-enum class SeedKind : u8 { Store, Reduction, Build, Loop };
+enum class SeedKind : u8 { Store, Reduction, Build, Loop, Carried };
 
 struct SeedInstrData {
   fir::Instr instr;
@@ -393,6 +433,10 @@ struct Seed {
   bool assoc = false;
   // builds: the scalars of the vector base
   TVec<fir::ValueR> lane_values;
+  // carried: the header arguments of the lanes (data holds the values the back
+  // edge passes to them), and the vector argument once apply created it
+  TVec<fir::ValueR> carried;
+  fir::ValueR carried_vec;
 
   [[nodiscard]] u32 n_lanes() const {
     u32 n = 0;

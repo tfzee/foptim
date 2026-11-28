@@ -6,25 +6,10 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: ptr = PtrAdd(%1, 2:i64){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){} NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 6:i64){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 4:i64){} NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 8:i64){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 12:i64){} NUses:1
-; CHECK-NEXT:    %8: i16 = Load(%1){} NUses:1
-; CHECK-NEXT:    %9: i16 = Load(%2){} NUses:1
-; CHECK-NEXT:    %10: i16 = Load(%3){} NUses:1
-; CHECK-NEXT:    %11: i16 = Load(%4){} NUses:1
-; CHECK-NEXT:    %12: i32 = ZExt(%8){} NUses:1
-; CHECK-NEXT:    %13: i32 = ZExt(%9){} NUses:1
-; CHECK-NEXT:    %14: i32 = ZExt(%10){} NUses:1
-; CHECK-NEXT:    %15: i32 = ZExt(%11){} NUses:1
-; CHECK-NEXT:    %16: i32 = Store(%0, %12){} NUses:0
-; CHECK-NEXT:    %17: i32 = Store(%5, %13){} NUses:0
-; CHECK-NEXT:    %18: i32 = Store(%6, %14){} NUses:0
-; CHECK-NEXT:    %19: i32 = Store(%7, %15){} NUses:0
-; CHECK-NEXT:    %20: () = Return(){} NUses:0
+; CHECK-NEXT:    %2: 4@i16 = Load(%1){} NUses:1
+; CHECK-NEXT:    %3: 4@i32 = ZExt(%2){} NUses:1
+; CHECK-NEXT:    %4: 4@i32 = Store(%0, %3){} NUses:0
+; CHECK-NEXT:    %5: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %b1 = getelementptr i16, ptr %b, i64 1
   %b2 = getelementptr i16, ptr %b, i64 2

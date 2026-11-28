@@ -29,9 +29,9 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:    [$rbp + -184]: f64 = $mm0: f64
 ; CHECK-NEXT:    $mm2: f64 = [$rdi + 152]: f64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 160]: f64
-; CHECK-NEXT:    [$rbp + -176]: f64 = $mm0: f64
-; CHECK-NEXT:    $mm0: f64 = [$rdi + 168]: f64
 ; CHECK-NEXT:    [$rbp + -168]: f64 = $mm0: f64
+; CHECK-NEXT:    $mm0: f64 = [$rdi + 168]: f64
+; CHECK-NEXT:    [$rbp + -176]: f64 = $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 176]: f64
 ; CHECK-NEXT:    [$rbp + -160]: f64 = $mm0: f64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 184]: f64
@@ -124,8 +124,8 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -192]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -184]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm2: f64
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -176]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -168]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -176]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -160]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -152]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -144]: f64
@@ -145,9 +145,7 @@ define double @f(ptr %p) {
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -32]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rbp + -24]: f64
 ; CHECK-NEXT:    [$rbp + -192]: f64 = $mm0: f64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 256: i64
-; CHECK-NEXT:    $xmm1: f32x4 = [$rax]: f32x4
+; CHECK-NEXT:    $xmm1: f32x4 = [$rdi + 256]: f32x4
 ; CHECK-NEXT:    $mm3: f32 = [$rdi + 272]: f32
 ; CHECK-NEXT:    $mm4: f32 = [$rdi + 276]: f32
 ; CHECK-NEXT:    $mm5: f32 = [$rdi + 280]: f32

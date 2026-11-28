@@ -9,9 +9,9 @@ declare i32 @llvm.umin.i32(i32, i32)
 define i32 @xor_i32x4(ptr %a, ptr %b) {
 ; CHECK: func xor_i32x4 ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 * [$rsi]: i32x4
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + [$rdi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = [$rdi]: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 * [$rsi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + $xmm1: i32x4
 ; CHECK-NEXT:    vpshuf($xmm0: i32x4, $xmm1: i32x4, 238: i8, )
 ; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 ^ $xmm0: i32x4
 ; CHECK-NEXT:    vpshuf($xmm1: i32x4, $xmm0: i32x4, 85: i8, )
@@ -49,9 +49,9 @@ define i32 @xor_i32x4(ptr %a, ptr %b) {
 define i32 @smax_i32x4(ptr %a, ptr %b) {
 ; CHECK: func smax_i32x4 ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 * [$rsi]: i32x4
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + [$rdi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = [$rdi]: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 * [$rsi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + $xmm1: i32x4
 ; CHECK-NEXT:    vpshuf($xmm0: i32x4, $xmm1: i32x4, 238: i8, )
 ; CHECK-NEXT:    vSMax($xmm0: i32x4, $xmm1: i32x4, $xmm0: i32x4, )
 ; CHECK-NEXT:    vpshuf($xmm1: i32x4, $xmm0: i32x4, 85: i8, )
@@ -89,9 +89,9 @@ define i32 @smax_i32x4(ptr %a, ptr %b) {
 define i32 @umin_i32x4(ptr %a, ptr %b) {
 ; CHECK: func umin_i32x4 ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm0: i32x4 = [$rdi]: i32x4
-; CHECK-NEXT:    $xmm0: i32x4 = $xmm0: i32x4 * [$rsi]: i32x4
-; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + [$rdi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = [$rdi]: i32x4
+; CHECK-NEXT:    $xmm0: i32x4 = $xmm1: i32x4 * [$rsi]: i32x4
+; CHECK-NEXT:    $xmm1: i32x4 = $xmm0: i32x4 + $xmm1: i32x4
 ; CHECK-NEXT:    vpshuf($xmm0: i32x4, $xmm1: i32x4, 238: i8, )
 ; CHECK-NEXT:    vUMin($xmm0: i32x4, $xmm1: i32x4, $xmm0: i32x4, )
 ; CHECK-NEXT:    vpshuf($xmm1: i32x4, $xmm0: i32x4, 85: i8, )

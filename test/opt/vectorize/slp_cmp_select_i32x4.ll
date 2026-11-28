@@ -6,26 +6,14 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, ptr noalias %x, p
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr, %3{noalias; }: ptr, %4{noalias; }: ptr):
-; CHECK-NEXT:    %5: 4@i64 = V.Broadcast(%4){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = V.Broadcast(%3){} NUses:1
-; CHECK-NEXT:    %7: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = Load(G(const_legalizeVec_f_3)){} NUses:1
-; CHECK-NEXT:    %10: 4@i64 = PtrAdd(%8, %9){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %12: 4@i64 = PtrAdd(%7, %11){} NUses:1
-; CHECK-NEXT:    %13: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %14: 4@i64 = PtrAdd(%6, %13){} NUses:1
-; CHECK-NEXT:    %15: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %16: 4@i64 = PtrAdd(%5, %15){} NUses:1
-; CHECK-NEXT:    %17: 4@i32 = Load(%10){} NUses:1
-; CHECK-NEXT:    %18: 4@i32 = Load(%12){} NUses:1
-; CHECK-NEXT:    %19: 4@i32 = Load(%14){} NUses:1
-; CHECK-NEXT:    %20: 4@i32 = Load(%16){} NUses:1
-; CHECK-NEXT:    %21: 4@i1 = IntSGT(%17, %18){} NUses:1
-; CHECK-NEXT:    %22: 4@i32 = Select(%21, %19, %20){} NUses:1
-; CHECK-NEXT:    %23: 4@i32 = Store(%0, %22){} NUses:0
-; CHECK-NEXT:    %24: () = Return(){} NUses:0
+; CHECK-NEXT:    %5: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %7: 4@i32 = Load(%3){} NUses:1
+; CHECK-NEXT:    %8: 4@i32 = Load(%4){} NUses:1
+; CHECK-NEXT:    %9: 4@i1 = IntSGT(%5, %6){} NUses:1
+; CHECK-NEXT:    %10: 4@i32 = Select(%9, %7, %8){} NUses:1
+; CHECK-NEXT:    %11: 4@i32 = Store(%0, %10){} NUses:0
+; CHECK-NEXT:    %12: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pa0 = getelementptr i32, ptr %a, i64 0
   %pa1 = getelementptr i32, ptr %a, i64 1

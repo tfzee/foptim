@@ -388,8 +388,9 @@ bool can_fold_load(fir::ValueR val, fir::Instr user) {
   }
   auto load = val.as_instr();
   // TODO: verify if this is ok for atomic/volatile
+  // a load with other users stays, folding would read the memory twice
   if (!load->is(fir::InstrType::LoadInstr) || load->Atomic || load->Volatile ||
-      load->args[0].get_type()->is_vec()) {
+      load->args[0].get_type()->is_vec() || val.get_n_uses() != 1) {
     return false;
   }
   return !(load.result_type()->is_vec() &&

@@ -21,17 +21,18 @@ struct BlockSeeds {
   std::unique_ptr<SeedProvider> stores = make_store_seeds();
   std::unique_ptr<SeedProvider> builds = make_build_seeds();
   std::unique_ptr<SeedProvider> reductions = make_reduction_seeds();
+  std::unique_ptr<SeedProvider> carried = make_carried_seeds();
 };
 
 void find_seeds(const conf::CompConf &conf, const Config &config,
                 BlockInfo &info, AliasAnalyis &aa, BlockSeeds &out) {
   SeedProvider *providers[] = {out.stores.get(), out.builds.get(),
-                               out.reductions.get()};
+                               out.reductions.get(), out.carried.get()};
   const char *seen_names[] = {"SLPSeedsStore", "SLPSeedsBuild",
-                              "SLPSeedsReduction"};
-  const char *rejected_names[] = {"SLPSeedsRejectedStore",
-                                  "SLPSeedsRejectedBuild",
-                                  "SLPSeedsRejectedReduction"};
+                              "SLPSeedsReduction", "SLPSeedsCarried"};
+  const char *rejected_names[] = {
+      "SLPSeedsRejectedStore", "SLPSeedsRejectedBuild",
+      "SLPSeedsRejectedReduction", "SLPSeedsRejectedCarried"};
   SeedRegion region{
       .info = &info, .loop = nullptr, .aa = aa, .conf = conf, .config = config};
   auto &stats = utils::StatCollector::get();
@@ -73,7 +74,8 @@ class ClaimSet {
 
 i64 Vectorizer::slp_benefit(fir::Context &ctx, AliasAnalyis &aa,
                             fir::BasicBlock bb) {
-  const auto &features = ctx.config->target.features;
+  const FeatureSet feature_set(ctx.config->target);
+  const auto &features = feature_set.features;
   BlockInfo info{bb};
   BlockSeeds seeds;
   find_seeds(*ctx.config, config, info, aa, seeds);
@@ -85,6 +87,7 @@ i64 Vectorizer::slp_benefit(fir::Context &ctx, AliasAnalyis &aa,
   i64 total = 0;
   for (auto [provider, reduction] : {std::pair{seeds.stores.get(), false},
                                      std::pair{seeds.builds.get(), false},
+                                     std::pair{seeds.carried.get(), false},
                                      std::pair{seeds.reductions.get(), true}}) {
     for (auto &s : provider->seeds) {
       if (claims.overlaps(s)) {
@@ -92,7 +95,8 @@ i64 Vectorizer::slp_benefit(fir::Context &ctx, AliasAnalyis &aa,
       }
       auto window = utils::TempAlloc<void *>::save();
       Plan plan;
-      if (plan_bundle(ctx, features, s, reduction, plan) && plan.benefit > 0) {
+      if (plan_bundle(ctx, features, s, reduction, plan) &&
+          plan.benefit > min_benefit_units(config)) {
         total += plan.benefit;
         claims.claim(s);
       }
@@ -212,6 +216,9 @@ bool Vectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func,
     claimed.push_back(blocks.pre);
     claimed.push_back(blocks.vector);
     claimed.push_back(blocks.middle);
+    if (blocks.strip.is_valid()) {
+      claimed.push_back(blocks.strip);
+    }
     stats.addi(1, "loopVectorized", utils::StatCollector::StatFOptim);
     changed = true;
   }
@@ -241,7 +248,8 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
       find_seeds(*ctx.config, config, blocks[i], aa, block_seeds[i]);
       n_seeds += block_seeds[i].stores->seeds.size() +
                  block_seeds[i].builds->seeds.size() +
-                 block_seeds[i].reductions->seeds.size();
+                 block_seeds[i].reductions->seeds.size() +
+                 block_seeds[i].carried->seeds.size();
     }
     if (n_seeds == 0) {
       return loops_changed ? PreservedAnalysis::none()
@@ -251,6 +259,7 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
 
   auto &stats = utils::StatCollector::get();
   bool modified = false;
+  bool cfg_changed = false;
   ClaimSet claims;
   PlanEnv env{.ctx = ctx,
               .func = func,
@@ -276,13 +285,15 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
           stats.addi(1, "SLPRejectedNoPlan", utils::StatCollector::StatFOptim);
           continue;
         }
-        if (plan.nodes.empty() || plan.benefit <= 0) {
+        if (plan.nodes.empty() || plan.benefit <= min_benefit_units(config)) {
           stats.addi(1, "SLPRejectedCost", utils::StatCollector::StatFOptim);
           utils::TempAlloc<void *>::restore(window);
           continue;
         }
         claims.claim(s);
         apply_bundle(ctx, plan, s, reduction);
+        // carried seeds move exit edges into new blocks
+        cfg_changed |= s.kind == SeedKind::Carried;
         stats.addi(1, "SLPVectorized", utils::StatCollector::StatFOptim);
         modified = true;
         s.block->invalidate();
@@ -294,13 +305,14 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
     ZoneScopedN("Run");
     run(&BlockSeeds::stores, false);
     run(&BlockSeeds::builds, false);
+    run(&BlockSeeds::carried, false);
     run(&BlockSeeds::reductions, true);
   }
 
-  if (loops_changed) {
+  if (loops_changed || cfg_changed) {
     return PreservedAnalysis::none();
   }
-  // the straight line part only changes instructions, never blocks or edges
+  // the other seeds only change instructions, never blocks or edges
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 

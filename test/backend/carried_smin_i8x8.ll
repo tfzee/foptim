@@ -6,74 +6,41 @@ declare i8 @llvm.smin.i8(i8, i8)
 define i8 @f(ptr %p, i64 %n) {
 ; CHECK: func f ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 16: i64
-; CHECK-NEXT:    $rsp: i64 -= 8: i64
-; CHECK-NEXT:    push($rbx: i64, )
-; CHECK-NEXT:    push($r15: i64, )
-; CHECK-NEXT:    push($r14: i64, )
-; CHECK-NEXT:    push($r13: i64, )
-; CHECK-NEXT:    push($r12: i64, )
-; CHECK-NEXT:    [$rbp + -16]: i64 = $rsi: i64
-; CHECK-NEXT:    clear $rcx: i64
-; CHECK-NEXT:    $r13l: i8 = 127: i8
-; CHECK-NEXT:    $r14l: i8 = 127: i8
-; CHECK-NEXT:    $r15l: i8 = 127: i8
-; CHECK-NEXT:    [$rbp + -8]: i8 = 127: i8
-; CHECK-NEXT:    [$rbp + -7]: i8 = 127: i8
-; CHECK-NEXT:    [$rbp + -6]: i8 = 127: i8
-; CHECK-NEXT:    [$rbp + -5]: i8 = 127: i8
-; CHECK-NEXT:    $dl: i8 = 127: i8
+; CHECK-NEXT:    $mm0: i8x8 = [const_legalizeVec_f_2]: i8x8
+; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx]: i8, )
-; CHECK-NEXT:    $r12l: i8 = $dl: i8
-; CHECK-NEXT:    cmov_sgt($r12l: i8, $al: i8, $r12l: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 1]: i8, )
-; CHECK-NEXT:    $bl: i8 = $r13l: i8
-; CHECK-NEXT:    cmov_sgt($bl: i8, $al: i8, $bl: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 2]: i8, )
-; CHECK-NEXT:    $r11l: i8 = $r14l: i8
-; CHECK-NEXT:    cmov_sgt($r11l: i8, $al: i8, $r11l: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 3]: i8, )
-; CHECK-NEXT:    $r10l: i8 = $r15l: i8
-; CHECK-NEXT:    cmov_sgt($r10l: i8, $al: i8, $r10l: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 4]: i8, )
-; CHECK-NEXT:    $r9l: i8 = [$rbp + -8]: i8
-; CHECK-NEXT:    cmov_sgt($r9l: i8, $al: i8, $r9l: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 5]: i8, )
-; CHECK-NEXT:    $r8l: i8 = [$rbp + -7]: i8
-; CHECK-NEXT:    cmov_sgt($r8l: i8, $al: i8, $r8l: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($eax: i32, [$rdi + $rcx + 6]: i8, )
-; CHECK-NEXT:    $lsi: i8 = [$rbp + -6]: i8
-; CHECK-NEXT:    cmov_sgt($lsi: i8, $al: i8, $lsi: i8, $al: i8, )
-; CHECK-NEXT:    mov_zx($edx: i32, [$rdi + $rcx + 7]: i8, )
-; CHECK-NEXT:    $al: i8 = [$rbp + -5]: i8
-; CHECK-NEXT:    cmov_sgt($al: i8, $dl: i8, $al: i8, $dl: i8, )
-; CHECK-NEXT:    $rcx: i64 += 8: i64
-; CHECK-NEXT:    $r13l: i8 = $bl: i8
-; CHECK-NEXT:    $r14l: i8 = $r11l: i8
-; CHECK-NEXT:    $r15l: i8 = $r10l: i8
-; CHECK-NEXT:    [$rbp + -8]: i8 = $r9l: i8
-; CHECK-NEXT:    [$rbp + -7]: i8 = $r8l: i8
-; CHECK-NEXT:    [$rbp + -6]: i8 = $lsi: i8
-; CHECK-NEXT:    [$rbp + -5]: i8 = $al: i8
-; CHECK-NEXT:    $dl: i8 = $r12l: i8
-; CHECK-NEXT:    cjmp_int_ult($rcx: i64, [$rbp + -16]: i64, ) -> 1
+; CHECK-NEXT:    $mm1: i8x8 = [$rdi + $rax]: i8x8
+; CHECK-NEXT:    vSMin($mm0: i8x8, $mm1: i8x8, $mm0: i8x8, )
+; CHECK-NEXT:    $rax: i64 += 8: i64
+; CHECK-NEXT:    cjmp_int_ult($rax: i64, $rsi: i64, ) -> 1
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    cmov_sgt($bl: i8, $r12l: i8, $bl: i8, $r12l: i8, )
-; CHECK-NEXT:    cmov_sgt($r11l: i8, $bl: i8, $r11l: i8, $bl: i8, )
-; CHECK-NEXT:    cmov_sgt($r10l: i8, $r11l: i8, $r10l: i8, $r11l: i8, )
-; CHECK-NEXT:    cmov_sgt($r9l: i8, $r10l: i8, $r9l: i8, $r10l: i8, )
-; CHECK-NEXT:    cmov_sgt($r8l: i8, $r9l: i8, $r8l: i8, $r9l: i8, )
-; CHECK-NEXT:    cmov_sgt($lsi: i8, $r8l: i8, $lsi: i8, $r8l: i8, )
-; CHECK-NEXT:    cmov_sgt($al: i8, $lsi: i8, $al: i8, $lsi: i8, )
-; CHECK-NEXT:    pop($r12: i64, )
-; CHECK-NEXT:    pop($r13: i64, )
-; CHECK-NEXT:    pop($r14: i64, )
-; CHECK-NEXT:    pop($r15: i64, )
-; CHECK-NEXT:    pop($rbx: i64, )
-; CHECK-NEXT:    $rsp: i64 += 16: i64
+; CHECK-NEXT:    vpextr($eax: i32, $xmm0: i8x16, 0: i8, )
+; CHECK-NEXT:    itrunc($al: i8, $eax: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 1: i8, )
+; CHECK-NEXT:    itrunc($dl: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 2: i8, )
+; CHECK-NEXT:    itrunc($ldi: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 3: i8, )
+; CHECK-NEXT:    itrunc($r8l: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 4: i8, )
+; CHECK-NEXT:    itrunc($r9l: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 5: i8, )
+; CHECK-NEXT:    itrunc($r10l: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 6: i8, )
+; CHECK-NEXT:    itrunc($r11l: i8, $ecx: i32, )
+; CHECK-NEXT:    vpextr($ecx: i32, $xmm0: i8x16, 7: i8, )
+; CHECK-NEXT:    itrunc($lsi: i8, $ecx: i32, )
+; CHECK-NEXT:    cmov_sgt($dl: i8, $al: i8, $dl: i8, $al: i8, )
+; CHECK-NEXT:    cmov_sgt($ldi: i8, $dl: i8, $ldi: i8, $dl: i8, )
+; CHECK-NEXT:    cmov_sgt($r8l: i8, $ldi: i8, $r8l: i8, $ldi: i8, )
+; CHECK-NEXT:    cmov_sgt($r9l: i8, $r8l: i8, $r9l: i8, $r8l: i8, )
+; CHECK-NEXT:    cmov_sgt($r10l: i8, $r9l: i8, $r10l: i8, $r9l: i8, )
+; CHECK-NEXT:    cmov_sgt($r11l: i8, $r10l: i8, $r11l: i8, $r10l: i8, )
+; CHECK-NEXT:    cmov_sgt($lsi: i8, $r11l: i8, $lsi: i8, $r11l: i8, )
+; CHECK-NEXT:    $al: i8 = $lsi: i8
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($al: i8, )
 entry:
   br label %loop

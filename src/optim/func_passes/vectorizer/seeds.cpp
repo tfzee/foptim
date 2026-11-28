@@ -142,7 +142,9 @@ std::optional<Seed> find_reduction(fir::BasicBlock bb, size_t instr_id,
               .type = base_instr.result_type(),
               .data = out,
               .assoc = is_associative,
-              .lane_values = {}};
+              .lane_values = {},
+              .carried = {},
+              .carried_vec = {}};
 }
 
 namespace {
@@ -211,7 +213,8 @@ class StoreSeedProvider final : public SeedProvider {
     if (r.info == nullptr) {
       return;
     }
-    const auto &features = r.conf.target.features;
+    const FeatureSet feature_set(r.conf.target);
+    const auto &features = feature_set.features;
     const auto &mem = r.info->mem();
     const auto &acc = mem.accesses();
 
@@ -314,8 +317,8 @@ class StoreSeedProvider final : public SeedProvider {
   }
 
   bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
-    return plan_bundle(env.ctx, env.ctx.config->target.features, seed, false,
-                       plan);
+    const FeatureSet feature_set(env.ctx.config->target);
+    return plan_bundle(env.ctx, feature_set.features, seed, false, plan);
   }
 
   void finalize(const conf::CompConf & /*conf*/) final {
@@ -415,8 +418,8 @@ class ReductionSeedProvider final : public SeedProvider {
     }
   }
   bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
-    return plan_bundle(env.ctx, env.ctx.config->target.features, seed, true,
-                       plan);
+    const FeatureSet feature_set(env.ctx.config->target);
+    return plan_bundle(env.ctx, feature_set.features, seed, true, plan);
   }
   void finalize(const conf::CompConf & /*conf*/) final {
     finalize_reductions(seeds);
@@ -431,7 +434,8 @@ class BuildSeedProvider final : public SeedProvider {
     if (r.info == nullptr) {
       return;
     }
-    const auto &features = r.conf.target.features;
+    const FeatureSet feature_set(r.conf.target);
+    const auto &features = feature_set.features;
     for (auto instr : r.info->bb->instructions) {
       const bool insert = instr->is(fir::InstrType::InsertElement);
       if ((!insert && !instr->is(fir::VectorISubType::Concat) &&
@@ -465,8 +469,8 @@ class BuildSeedProvider final : public SeedProvider {
     }
   }
   bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
-    return plan_bundle(env.ctx, env.ctx.config->target.features, seed, false,
-                       plan);
+    const FeatureSet feature_set(env.ctx.config->target);
+    return plan_bundle(env.ctx, feature_set.features, seed, false, plan);
   }
   void finalize(const conf::CompConf & /*conf*/) final {
     std::ranges::stable_sort(seeds, [](const Seed &b1, const Seed &b2) {
@@ -499,9 +503,170 @@ class BuildSeedProvider final : public SeedProvider {
     return other_user;
   }
 };
+
+// Header arguments of a block that loops on itself, each updated from its own
+// previous value, acc2 = op(x, acc) with an x that does not read another
+// accumulator. The updates of a group are one vector update, the arguments one
+// vector argument. Lanes are ordered by the address of the load they read, so
+// the loads end up adjacent.
+class CarriedSeedProvider final : public SeedProvider {
+  struct Lane {
+    fir::Instr update;
+    fir::ValueR arg;
+    i64 order;
+  };
+
+ public:
+  void scan(SeedRegion &r) final {
+    if (r.info == nullptr) {
+      return;
+    }
+    const FeatureSet feature_set(r.conf.target);
+    const auto &features = feature_set.features;
+    auto bb = r.info->bb;
+    auto term = bb->get_terminator();
+    if (!term.is_valid() || bb->n_args() < 2) {
+      return;
+    }
+    std::optional<u32> back;
+    for (u32 s = 0; s < term->bbs.size(); s++) {
+      if (term->bbs[s].bb == bb) {
+        if (back) {
+          return;
+        }
+        back = s;
+      }
+    }
+    if (!back) {
+      return;
+    }
+    struct Group {
+      fir::InstrType type;
+      u32 sub;
+      fir::TypeR elem;
+      u32 pos;
+      TVec<Lane> lanes;
+    };
+    TVec<Group> groups;
+    for (u32 i = 0; i < bb->n_args(); i++) {
+      const fir::ValueR arg{bb->args[i]};
+      const auto v = term->bbs[*back].args[i];
+      if (arg.get_n_uses() != 1 || !lane_instr(v)) {
+        continue;
+      }
+      auto upd = v.as_instr();
+      const auto ty = upd->result_type();
+      if (upd->parent != bb ||
+          (!upd->is(fir::InstrType::BinaryInstr) &&
+           !upd->is(fir::InstrType::Intrinsic)) ||
+          upd->get_n_args() != 2 || (!ty->is_int() && !ty->is_float()) ||
+          ty->get_bitwidth() == 1 || upd->args[0] == upd->args[1]) {
+        continue;
+      }
+      const u32 pos = upd->args[1] == arg ? 1 : 0;
+      if (upd->args[pos] != arg ||
+          !std::ranges::all_of(*v.get_uses(), [&](const fir::Use &u) {
+            return u.user == term;
+          })) {
+        continue;
+      }
+      Group *g = nullptr;
+      for (auto &cand : groups) {
+        if (cand.type == upd->instr_type && cand.sub == upd->subtype &&
+            cand.elem == ty && cand.pos == pos) {
+          g = &cand;
+        }
+      }
+      if (g == nullptr) {
+        groups.push_back(Group{upd->instr_type, upd->subtype, ty, pos, {}});
+        g = &groups.back();
+      }
+      g->lanes.push_back(Lane{upd, arg, static_cast<i64>(i)});
+    }
+    const u32 max_bits = features.avx512f ? 512 : 256;
+    for (auto &g : groups) {
+      order_by_load(g.lanes, 1 - g.pos);
+      const u32 bits = g.elem->get_bitwidth();
+      size_t i = 0;
+      while (g.lanes.size() - i >= 2) {
+        u32 w = 32;
+        while (w >= 2 && (w > g.lanes.size() - i || w * bits > max_bits ||
+                          !vector_type_ok(g.elem, w, features) ||
+                          (w * bits < 128 && !narrow_op_ok(g.type, g.sub)))) {
+          w /= 2;
+        }
+        if (w < 2) {
+          break;
+        }
+        Seed seed;
+        seed.base = g.lanes[i].update.result();
+        seed.type = g.elem;
+        seed.block = r.info;
+        seed.kind = SeedKind::Carried;
+        for (size_t k = i; k < i + w; k++) {
+          seed.data.push_back(SeedInstrData{.instr = g.lanes[k].update});
+          seed.carried.push_back(g.lanes[k].arg);
+        }
+        seeds.push_back(std::move(seed));
+        i += w;
+      }
+    }
+  }
+  bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
+    const FeatureSet feature_set(env.ctx.config->target);
+    return plan_bundle(env.ctx, feature_set.features, seed, false, plan);
+  }
+  void finalize(const conf::CompConf & /*conf*/) final {
+    std::ranges::stable_sort(seeds, [](const Seed &b1, const Seed &b2) {
+      return b1.n_lanes() > b2.n_lanes();
+    });
+  }
+
+ private:
+  static bool narrow_op_ok(fir::InstrType type, u32 sub) {
+    if (type == fir::InstrType::Intrinsic) {
+      const auto i = static_cast<fir::IntrinsicSubType>(sub);
+      return i == fir::IntrinsicSubType::SMin ||
+             i == fir::IntrinsicSubType::SMax ||
+             i == fir::IntrinsicSubType::UMin ||
+             i == fir::IntrinsicSubType::UMax;
+    }
+    const auto b = static_cast<fir::BinaryInstrSubType>(sub);
+    return b == fir::BinaryInstrSubType::IntAdd ||
+           b == fir::BinaryInstrSubType::IntSub ||
+           b == fir::BinaryInstrSubType::And ||
+           b == fir::BinaryInstrSubType::Or || b == fir::BinaryInstrSubType::Xor;
+  }
+  // by the offset of the load at operand x_pos when all lanes load from one
+  // base, otherwise by the position of the argument
+  static void order_by_load(TVec<Lane> &lanes, u32 x_pos) {
+    PtrShape first;
+    TVec<i64> keys;
+    for (const auto &l : lanes) {
+      const auto x = l.update->args[x_pos];
+      if (!lane_instr(x) || !x.as_instr()->is(fir::InstrType::LoadInstr)) {
+        return;
+      }
+      auto shape = decompose_ptr(x.as_instr()->args[0]);
+      if (!keys.empty() && !shape.same_base(first)) {
+        return;
+      }
+      first = shape;
+      keys.push_back(shape.offset);
+    }
+    for (size_t i = 0; i < lanes.size(); i++) {
+      lanes[i].order = keys[i];
+    }
+    std::ranges::stable_sort(
+        lanes, [](const Lane &a, const Lane &b) { return a.order < b.order; });
+  }
+};
 }  // namespace
 std::unique_ptr<SeedProvider> make_build_seeds() {
   return std::make_unique<BuildSeedProvider>();
+}
+std::unique_ptr<SeedProvider> make_carried_seeds() {
+  return std::make_unique<CarriedSeedProvider>();
 }
 std::unique_ptr<SeedProvider> make_store_seeds() {
   return std::make_unique<StoreSeedProvider>();

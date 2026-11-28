@@ -26,7 +26,7 @@ define i64 @early_exit(i64 %a, ptr %p) {
 ; CHECK-NEXT:    pop($rsi: i64, )
 ; CHECK-NEXT:    $rsp: i64 += 8: i32
 ; CHECK-NEXT:    $rbx: i64 = [$rsi]: i64
-; CHECK-NEXT:    $rdi: i64 = [$rsi]: i64
+; CHECK-NEXT:    $rdi: i64 = $rbx: i64
 ; CHECK-NEXT:    call(work, )
 ; CHECK-NEXT:    $rsp: i64 -= 8: i32
 ; CHECK-NEXT:    push($rax: i64, )
@@ -44,6 +44,9 @@ define i64 @early_exit(i64 %a, ptr %p) {
 ; CHECK-NEXT:    $rsp: i64 += 16: i8
 ; CHECK-NEXT:    clear $rax: i64
 ; CHECK-NEXT:    ret($rax: i64, )
+; CHECK-EMPTY:
+; CHECK-NEXT:work
+; CHECK-NEXT:use
 entry:
   %buf = alloca [16 x i8], align 8
   %c = icmp eq i64 %a, 0

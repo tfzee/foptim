@@ -134,9 +134,8 @@ define nofpclass(nan inf) double @prodd4(ptr noundef %0) {
 define nofpclass(nan inf) double @prodd2(ptr noundef %0) {
 ; CHECK: func prodd2 ($2: i64, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $xmm1: f64x2 = [$rdi]: f64x2
-; CHECK-NEXT:    vpermil($mm0: f64, $xmm1: f64x2, 1: i8, )
-; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * $xmm1: f64x2
+; CHECK-NEXT:    $mm0: f64 = [$rdi]: f64
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rdi + 8]: f64
 ; CHECK-NEXT:    ret($mm0: f64, )
   %2 = alloca ptr, align 8
   store ptr %0, ptr %2, align 8

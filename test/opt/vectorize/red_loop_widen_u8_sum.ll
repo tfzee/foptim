@@ -20,39 +20,29 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:  bb2(%14{}: i32):
 ; CHECK-NEXT:    %15: i32 = Return(%14){} NUses:0
 ; CHECK-NEXT:  bb1(%16{}: i64, %17{}: i32):
-; CHECK-NEXT:    %18: i64 = And(%3, -32:i64){} NUses:3
+; CHECK-NEXT:    %18: i64 = And(%3, -16:i64){} NUses:3
 ; CHECK-NEXT:    %19: i64 = IntAdd(%18, %16){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %20: i1 = IntEQ(%18, 0:i64){} NUses:1
-; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(0:i32){} NUses:4
-; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21, %21, %21, %21)>(%20){} NUses:0
-; CHECK-NEXT:  bb4(%23{}: i64, %24{}: 8@i32, %25{}: 8@i32, %26{}: 8@i32, %27{}: 8@i32):
-; CHECK-NEXT:    %28: ptr = PtrAdd(%0, %23){} NUses:4
+; CHECK-NEXT:    %21: 8@i32 = V.Broadcast(0:i32){} NUses:2
+; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21, %21)>(%20){} NUses:0
+; CHECK-NEXT:  bb4(%23{}: i64, %24{}: 8@i32, %25{}: 8@i32):
+; CHECK-NEXT:    %26: ptr = PtrAdd(%0, %23){} NUses:2
+; CHECK-NEXT:    %27: 8@i8 = Load(%26){} NUses:1
+; CHECK-NEXT:    %28: ptr = PtrAdd(%26, 8:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %29: 8@i8 = Load(%28){} NUses:1
-; CHECK-NEXT:    %30: ptr = PtrAdd(%28, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %31: 8@i8 = Load(%30){} NUses:1
-; CHECK-NEXT:    %32: ptr = PtrAdd(%28, 16:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %33: 8@i8 = Load(%32){} NUses:1
-; CHECK-NEXT:    %34: ptr = PtrAdd(%28, 24:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %35: 8@i8 = Load(%34){} NUses:1
-; CHECK-NEXT:    %36: 8@i32 = ZExt(%29){} NUses:1
-; CHECK-NEXT:    %37: 8@i32 = ZExt(%31){} NUses:1
-; CHECK-NEXT:    %38: 8@i32 = ZExt(%33){} NUses:1
-; CHECK-NEXT:    %39: 8@i32 = ZExt(%35){} NUses:1
-; CHECK-NEXT:    %40: 8@i32 = IntAdd(%36, %24){} NUses:2
-; CHECK-NEXT:    %41: 8@i32 = IntAdd(%37, %25){} NUses:2
-; CHECK-NEXT:    %42: 8@i32 = IntAdd(%38, %26){} NUses:2
-; CHECK-NEXT:    %43: 8@i32 = IntAdd(%39, %27){} NUses:2
-; CHECK-NEXT:    %44: i64 = IntAdd(%23, 32:i64){} NUses:3
-; CHECK-NEXT:    %45: i1 = IntNE(%44, %19){} NUses:1
-; CHECK-NEXT:    %46: () = CondBranch<bb4(%44, %40, %41, %42, %43), bb5(%44, %40, %41, %42, %43)>(%45){} NUses:0
-; CHECK-NEXT:  bb5(%47{}: i64, %48{}: 8@i32, %49{}: 8@i32, %50{}: 8@i32, %51{}: 8@i32):
-; CHECK-NEXT:    %52: 8@i32 = IntAdd(%48, %49){} NUses:1
-; CHECK-NEXT:    %53: 8@i32 = IntAdd(%52, %50){} NUses:1
-; CHECK-NEXT:    %54: 8@i32 = IntAdd(%53, %51){} NUses:1
-; CHECK-NEXT:    %55: i32 = Reduce.Add(%54){} NUses:1
-; CHECK-NEXT:    %56: i32 = IntAdd(%55, %17){} NUses:2
-; CHECK-NEXT:    %57: i1 = IntEQ(%18, %3){} NUses:1
-; CHECK-NEXT:    %58: () = CondBranch<bb2(%56), bb3(%47, %56)>(%57){} NUses:0
+; CHECK-NEXT:    %30: 8@i32 = ZExt(%27){} NUses:1
+; CHECK-NEXT:    %31: 8@i32 = ZExt(%29){} NUses:1
+; CHECK-NEXT:    %32: 8@i32 = IntAdd(%30, %24){} NUses:2
+; CHECK-NEXT:    %33: 8@i32 = IntAdd(%31, %25){} NUses:2
+; CHECK-NEXT:    %34: i64 = IntAdd(%23, 16:i64){} NUses:3
+; CHECK-NEXT:    %35: i1 = IntNE(%34, %19){} NUses:1
+; CHECK-NEXT:    %36: () = CondBranch<bb4(%34, %32, %33), bb5(%34, %32, %33)>(%35){} NUses:0
+; CHECK-NEXT:  bb5(%37{}: i64, %38{}: 8@i32, %39{}: 8@i32):
+; CHECK-NEXT:    %40: 8@i32 = IntAdd(%38, %39){} NUses:1
+; CHECK-NEXT:    %41: i32 = Reduce.Add(%40){} NUses:1
+; CHECK-NEXT:    %42: i32 = IntAdd(%41, %17){} NUses:2
+; CHECK-NEXT:    %43: i1 = IntEQ(%18, %3){} NUses:1
+; CHECK-NEXT:    %44: () = CondBranch<bb2(%42), bb3(%37, %42)>(%43){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g = icmp sgt i64 %n, 0

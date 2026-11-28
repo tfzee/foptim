@@ -5,6 +5,9 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/mem/block_mem_access.hpp"
+#include "optim/cost_model/cost.hpp"
+#include "optim/cost_model/fir_lowering_estimate.hpp"
+#include "optim/cost_model/op_desc.hpp"
 #include "optim/func_passes/vectorizer/loop.hpp"
 #include "optim/func_passes/vectorizer/recipes.hpp"
 
@@ -91,6 +94,9 @@ bool partial_vec_ok(u32 bits, u32 lanes) {
 
 // the lane width that decides the register type of the value of a node
 u32 node_lane_bits(const PlanNode &n) {
+  if (n.narrow_bits != 0) {
+    return n.narrow_bits;
+  }
   if (n.kind == NodeKind::Cmp) {
     return n.op_type->get_bitwidth();
   }
@@ -173,12 +179,13 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
       continue;
     }
     if (n.kind == NodeKind::Reduction) {
-      if (!reduction_legal(n, pl[i] * n.type->get_bitwidth(), features)) {
+      if (!reduction_legal(n, pl[i] * node_lane_bits(n), features)) {
         return false;
       }
       continue;
     }
-    if (!node_legal(n, LaneSpace::LoopIter, pl[i], features)) {
+    if (n.narrow_bits == 0 &&
+        !node_legal(n, LaneSpace::LoopIter, pl[i], features)) {
       return false;
     }
     if (n.kind == NodeKind::Phi && !mask_width_ok(node_lane_bits(n), pl[i])) {
@@ -204,15 +211,21 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
 // iterations minus the vector loop, the setup and the scalar remainder).
 i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
                  u32 assumed_trip) {
+  namespace cm = cost_model;
   const auto &l = plan.loop;
+  const auto tput = [&](cm::OpKind kind, u32 bits, u32 lanes) {
+    return cm::cost(cm::OpDesc{.kind = kind, .elem_bits = bits, .lanes = lanes},
+                    cm::CostKind::Throughput, *features.machine)
+        .value;
+  };
   TVec<u32> pl;
   const bool parts_ok = assign_part_lanes(plan, vf, features, pl);
   ASSERT(parts_ok);
   const i64 trip =
       l.const_trip ? static_cast<i64>(*l.const_trip) : assumed_trip;
-  const i64 s = l.scalar_cost;
-  const i64 scalar_total = trip * s;
-  i64 body = 0;
+  const double s = l.scalar_cost;
+  const double scalar_total = static_cast<double>(trip) * s;
+  double body = 0;
   u32 max_parts = 1;
   for (u32 i = 0; i < plan.nodes.size(); i++) {
     const auto &n = plan.nodes[i];
@@ -222,15 +235,28 @@ i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
     }
     const i64 parts = vf / pl[i];
     max_parts = std::max<u32>(max_parts, static_cast<u32>(parts));
-    i64 c = node_vec_cost(n, pl[i], features);
+    if (n.narrow_bits != 0) {
+      // the zext folds into a vector sub of the mask, the sub has the lanes of
+      // the mask
+      if (n.kind == NodeKind::Binary) {
+        body += static_cast<double>(parts) *
+                tput(cm::OpKind::IntAlu, n.narrow_bits, pl[i]);
+      }
+      continue;
+    }
+    const bool masked =
+        (n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
+        l.blocks[n.block].mask_bits != 0;
+    double c = masked ? masked_access_cost(n, pl[i], features)
+                      : node_vec_cost(n, pl[i], features);
     // a part of a wide source that is not loaded in parts needs a shuffle
     if (n.kind == NodeKind::Widen) {
       const u32 src = l.node_of.at(n.value.as_instr()->args[0]);
       if (pl[src] > pl[i]) {
-        c += 1;
+        c += tput(cm::OpKind::Shuffle, 32, 4);
       }
     }
-    body += parts * c;
+    body += static_cast<double>(parts) * c;
     if (n.kind == NodeKind::Binary && l.blocks[n.block].mask_bits != 0 &&
         div_needs_safe_divisor(n.value.as_instr())) {
       body += parts;
@@ -239,18 +265,25 @@ i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
         body += 4 * parts;
       }
     }
-    // masked accesses are a bit slower than plain ones
-    if ((n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
-        l.blocks[n.block].mask_bits != 0) {
-      body += parts;
-    }
   }
-  body += 3 + l.mask_ops;
+  // induction step and the fused compare and branch, then the mask arithmetic
+  body +=
+      tput(cm::OpKind::IntAlu, 64, 1) +
+      features.machine->table(cm::X86OpClass::CMP_JCC_FUSED).recip_throughput +
+      l.mask_ops * tput(cm::OpKind::IntAlu, 32, vf);
   const i64 vtrip = trip / vf * vf;
   const i64 rest = trip - vtrip;
-  i64 overhead =
-      8 + l.n_reductions * (2 * std::countr_zero(vf) + (max_parts - 1));
-  return scalar_total - (overhead + (vtrip / vf) * body + rest * s);
+  // trip count check and the setup in front of the vector loop, and per
+  // reduction the horizontal step
+  const double hred = std::countr_zero(vf) * (tput(cm::OpKind::Shuffle, 32, 4) +
+                                              tput(cm::OpKind::IntAlu, 32, 4)) +
+                      (max_parts - 1) * tput(cm::OpKind::IntAlu, 32, vf);
+  const double overhead =
+      8 * tput(cm::OpKind::IntAlu, 64, 1) + l.n_reductions * hred;
+  const double vector_total = overhead +
+                              static_cast<double>(vtrip / vf) * body +
+                              static_cast<double>(rest) * s;
+  return to_benefit_units(scalar_total - vector_total);
 }
 
 constexpr size_t MaxLoopBlocks = 16;
@@ -389,16 +422,20 @@ bool collect_blocks(CFG &cfg, const LoopInfo &loop, LoopData &l) {
   return true;
 }
 
-// scalar_cost of the body: blocks that do not run in every iteration count half
-void count_scalar_cost(LoopData &l) {
-  u32 cost = 0;
+// scalar_cost of the body in cycles of throughput: blocks that do not run in
+// every iteration count half
+void count_scalar_cost(LoopData &l, const Features &features) {
+  double cost = 0.0;
   for (const auto &b : l.blocks) {
-    const u32 n = static_cast<u32>(b.bb->instructions.size()) - 1;
-    u32 extra = 0;
+    double block = 0.0;
     for (auto instr : b.bb->instructions) {
-      extra += static_cast<u32>(scalar_int_div_extra(instr));
+      cost_model::CostCtx cc;
+      cc.m = features.machine;
+      cost_model::detect_fold_context(instr, cc);
+      block +=
+          cost_model::cost(instr, cost_model::CostKind::Throughput, cc).value;
     }
-    cost += b.mask_bits != 0 ? (n + extra + 1) / 2 : n + extra;
+    cost += b.mask_bits != 0 ? block / 2 : block;
   }
   l.scalar_cost = cost;
 }
@@ -428,8 +465,9 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
   const auto &exit_args = term->bbs[l.exit_edge].args;
 
   TripCountAnalysis tc;
-  if (!tc.update(cfg, *env.dom, loop, evo) || tc.exit_iter == InvalidSCEV ||
-      tc.from_bb != latch || !evo.is_expandable(tc.exit_iter)) {
+  if (!tc.update(cfg, *env.dom, loop, evo, false, nullptr, true) ||
+      tc.exit_iter == InvalidSCEV || tc.from_bb != latch ||
+      !evo.is_expandable(tc.exit_iter)) {
     return reject(__LINE__);
   }
   auto entry = evo.entry_block();
@@ -437,7 +475,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     return reject(__LINE__);
   }
   if (tc.cmp_rec != InvalidSCEV && (tc.cmp_signed || tc.cmp_unsigned)) {
-    evo.assume_no_wrap(tc.cmp_rec, tc.cmp_signed);
+    evo.assume_no_wrap(tc.cmp_rec, tc.cmp_signed, std::nullopt, tc.cmp_limit);
   }
   {
     auto eterm = entry->get_terminator();
@@ -485,7 +523,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       n.kind = NodeKind::Induction;
       n.shape = LaneShape::Strided;
       n.stride = static_cast<i64>(evo.expr(evo.expr(r).b).cval_i());
-      if (n.stride == 1 && !have_counter && ty->is_int() &&
+      if (n.stride != 0 && !have_counter && ty->is_int() &&
           ty->get_bitwidth() == trip_bw) {
         have_counter = true;
         l.counter = k;
@@ -806,8 +844,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     plan.nodes.push_back(std::move(n));
   }
   if (!have_counter) {
-    // pointer style loop: the pointer that steps forward counts the iterations,
-    // also when the trip count is narrow (a counter that runs down)
+    // pointer style loop: the pointer that steps forward counts the iterations
     for (u32 k = 0; k < hdr->args.size(); k++) {
       const auto &n = plan.nodes[k];
       if (n.kind == NodeKind::Induction && n.type->is_ptr() && n.stride > 0) {
@@ -982,9 +1019,50 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     }
   }
   (void)n_instrs_total;
-  count_scalar_cost(l);
+  {
+    const FeatureSet feature_set(env.ctx.config->target);
+    count_scalar_cost(l, feature_set.features);
+  }
   if (l.n_vector_ops == 0 || l.accesses.empty()) {
     return reject(__LINE__);
+  }
+
+  // an add of zext(mask) accumulates in the lanes of the mask, the lanes are
+  // widened every few iterations (strips of the vector loop)
+  if (trip_bw >= 32) {
+    for (u32 k = 0; k < back_args.size(); k++) {
+      auto &acc = plan.nodes[k];
+      const auto next = back_args[k];
+      if (acc.kind != NodeKind::Reduction || acc.red != RedKind::Add ||
+          !acc.type->is_int() || !next.is_instr() ||
+          !l.node_of.contains(next) ||
+          !next.as_instr()->is(fir::BinaryInstrSubType::IntAdd) ||
+          acc.value.as_bb_arg()->uses.size() != 1) {
+        continue;
+      }
+      bool only_term = true;
+      for (const auto &u : next.as_instr()->uses) {
+        only_term &= u.user == term;
+      }
+      auto &add = plan.nodes[l.node_of.at(next)];
+      const auto ai = next.as_instr();
+      const auto x = ai->args[0] == acc.value ? ai->args[1] : ai->args[0];
+      if (!only_term || add.kind != NodeKind::Binary ||
+          !l.blocks[add.block].always || !x.is_instr() ||
+          !l.node_of.contains(x) || x.as_instr()->uses.size() != 1) {
+        continue;
+      }
+      auto &w = plan.nodes[l.node_of.at(x)];
+      if (w.kind != NodeKind::Widen || w.sub != 2 ||
+          !l.blocks[w.block].always || w.type != acc.type) {
+        continue;
+      }
+      const u32 mbits = w.op_type->get_bitwidth();
+      if (mbits != 8 && mbits != 16) {
+        continue;
+      }
+      acc.narrow_bits = add.narrow_bits = w.narrow_bits = mbits;
+    }
   }
 
   // the lane widths of the vector values
@@ -998,6 +1076,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       continue;
     }
     const u32 bits = n.kind == NodeKind::Cmp ? n.op_type->get_bitwidth()
+                     : n.narrow_bits != 0    ? n.narrow_bits
                                              : n.type->get_bitwidth();
     l.min_bits = l.min_bits == 0 ? bits : std::min(l.min_bits, bits);
     l.max_bits = std::max(l.max_bits, bits);
@@ -1109,9 +1188,10 @@ class LoopSeedProvider final : public SeedProvider {
   }
 
   bool plan_pure(PlanEnv &env, Seed &seed, Plan &plan) final {
-    const auto &features = env.ctx.config->target.features;
+    const FeatureSet feature_set(env.ctx.config->target);
+    const auto &features = feature_set.features;
     plan.space = LaneSpace::LoopIter;
-    plan.evo_owner = std::make_unique<ScalarEvo>(*env.cfg, *seed.loop);
+    plan.evo_owner = std::make_unique<ScalarEvo>(*env.cfg, *seed.loop, true);
     ScalarEvo &evo = *plan.evo_owner;
     plan.evo = &evo;
     if (!build_loop_plan(env, *seed.loop, evo, plan)) {
@@ -1163,6 +1243,15 @@ class LoopSeedProvider final : public SeedProvider {
     }
     if (best_vf == 0) {
       return reject(__LINE__);
+    }
+    // the widened recurrences that were assumed not to wrap are checked in the
+    // entry block, in 64 bit with a trip count of at most 32 bits
+    for (const auto &nw : plan.evo->assumed_no_wrap()) {
+      const auto rec = plan.evo->expr(nw.rec);
+      if (plan.evo->expr(plan.loop.trip).bw > 32 ||
+          !plan.evo->is_expandable(rec.a)) {
+        return reject(__LINE__);
+      }
     }
     plan.vf = best_vf;
     plan.benefit = best_benefit;
@@ -1243,6 +1332,15 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
       continue;
     }
     if (n.kind == NodeKind::Store) {
+      // a stored uniform or strided value is broadcast (plus iota) in the parts
+      // of the store, which have to be full registers
+      const u32 v = node_of(n.value.as_instr()->args[1]);
+      const u32 sbits = node_lane_bits(n);
+      if ((v == ~0U || !is_vector_shape(plan.nodes[v].shape)) &&
+          sbits * pl[i] != 128 && sbits * pl[i] != 256 &&
+          !(reg_bits == 512 && sbits * pl[i] == 512)) {
+        return false;
+      }
       continue;
     }
     const u32 bits = node_lane_bits(n);
@@ -1338,7 +1436,7 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
   return true;
 }
 
-u32 max_vector_bits(const Features &features) {
+u32 max_vector_bits(const conf::Target::Features &features) {
   return features.avx512f ? 512 : 256;
 }
 

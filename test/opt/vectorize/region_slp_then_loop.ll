@@ -6,47 +6,44 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr, %3{}: i64):
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = PtrAdd(%4, %5){} NUses:1
-; CHECK-NEXT:    %7: 4@i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %8: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %9: 4@i32 = IntAdd(%7, %8){} NUses:1
-; CHECK-NEXT:    %10: 4@i32 = Store(%2, %9){} NUses:0
-; CHECK-NEXT:    %11: i1 = IntSGT(%3, 0:i64){} NUses:1
-; CHECK-NEXT:    %12: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
-; CHECK-NEXT:    %13: () = CondBranch<bb1(0:i64), bb2()>(%11){} NUses:0
-; CHECK-NEXT:  bb3(%14{}: i64):
-; CHECK-NEXT:    %15: i64 = IntMul(%14, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){} NUses:1
-; CHECK-NEXT:    %17: i32 = Load(%16){} NUses:1
-; CHECK-NEXT:    %18: i32 = IntAdd(%17, 1:i32){} NUses:1
-; CHECK-NEXT:    %19: ptr = PtrAdd(%0, %15){} NUses:1
-; CHECK-NEXT:    %20: i32 = Store(%19, %18){} NUses:0
-; CHECK-NEXT:    %21: i64 = IntAdd(%14, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %22: i1 = IntSLT(%21, %3){} NUses:1
-; CHECK-NEXT:    %23: () = CondBranch<bb3(%21), bb2()>(%22){} NUses:0
+; CHECK-NEXT:    %4: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = IntAdd(%4, %5){} NUses:1
+; CHECK-NEXT:    %7: 4@i32 = Store(%2, %6){} NUses:0
+; CHECK-NEXT:    %8: i1 = IntSGT(%3, 0:i64){} NUses:1
+; CHECK-NEXT:    %9: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
+; CHECK-NEXT:    %10: () = CondBranch<bb1(0:i64), bb2()>(%8){} NUses:0
+; CHECK-NEXT:  bb3(%11{}: i64):
+; CHECK-NEXT:    %12: i64 = IntMul(%11, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %13: ptr = PtrAdd(%1, %12){} NUses:1
+; CHECK-NEXT:    %14: i32 = Load(%13){} NUses:1
+; CHECK-NEXT:    %15: i32 = IntAdd(%14, 1:i32){} NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%0, %12){} NUses:1
+; CHECK-NEXT:    %17: i32 = Store(%16, %15){} NUses:0
+; CHECK-NEXT:    %18: i64 = IntAdd(%11, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %19: i1 = IntSLT(%18, %3){} NUses:1
+; CHECK-NEXT:    %20: () = CondBranch<bb3(%18), bb2()>(%19){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %24: () = Return(){} NUses:0
-; CHECK-NEXT:  bb1(%25{}: i64):
-; CHECK-NEXT:    %26: i64 = And(%12, -8:i64){} NUses:3
-; CHECK-NEXT:    %27: i64 = IntAdd(%26, %25){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %28: i1 = IntEQ(%26, 0:i64){} NUses:1
-; CHECK-NEXT:    %29: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %30: () = CondBranch<bb3(%25), bb4(%25)>(%28){} NUses:0
-; CHECK-NEXT:  bb4(%31{}: i64):
-; CHECK-NEXT:    %32: i64 = IntMul(%31, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %33: ptr = PtrAdd(%1, %32){} NUses:1
-; CHECK-NEXT:    %34: 8@i32 = Load(%33){} NUses:1
-; CHECK-NEXT:    %35: 8@i32 = IntAdd(%34, %29){} NUses:1
-; CHECK-NEXT:    %36: ptr = PtrAdd(%0, %32){} NUses:1
-; CHECK-NEXT:    %37: 8@i32 = Store(%36, %35){} NUses:0
-; CHECK-NEXT:    %38: i64 = IntAdd(%31, 8:i64){} NUses:3
-; CHECK-NEXT:    %39: i1 = IntNE(%38, %27){} NUses:1
-; CHECK-NEXT:    %40: () = CondBranch<bb4(%38), bb5(%38)>(%39){} NUses:0
-; CHECK-NEXT:  bb5(%41{}: i64):
-; CHECK-NEXT:    %42: i1 = IntEQ(%26, %12){} NUses:1
-; CHECK-NEXT:    %43: () = CondBranch<bb2(), bb3(%41)>(%42){} NUses:0
+; CHECK-NEXT:    %21: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%22{}: i64):
+; CHECK-NEXT:    %23: i64 = And(%9, -8:i64){} NUses:3
+; CHECK-NEXT:    %24: i64 = IntAdd(%23, %22){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %25: i1 = IntEQ(%23, 0:i64){} NUses:1
+; CHECK-NEXT:    %26: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %27: () = CondBranch<bb3(%22), bb4(%22)>(%25){} NUses:0
+; CHECK-NEXT:  bb4(%28{}: i64):
+; CHECK-NEXT:    %29: i64 = IntMul(%28, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %30: ptr = PtrAdd(%1, %29){} NUses:1
+; CHECK-NEXT:    %31: 8@i32 = Load(%30){} NUses:1
+; CHECK-NEXT:    %32: 8@i32 = IntAdd(%31, %26){} NUses:1
+; CHECK-NEXT:    %33: ptr = PtrAdd(%0, %29){} NUses:1
+; CHECK-NEXT:    %34: 8@i32 = Store(%33, %32){} NUses:0
+; CHECK-NEXT:    %35: i64 = IntAdd(%28, 8:i64){} NUses:3
+; CHECK-NEXT:    %36: i1 = IntNE(%35, %24){} NUses:1
+; CHECK-NEXT:    %37: () = CondBranch<bb4(%35), bb5(%35)>(%36){} NUses:0
+; CHECK-NEXT:  bb5(%38{}: i64):
+; CHECK-NEXT:    %39: i1 = IntEQ(%23, %9){} NUses:1
+; CHECK-NEXT:    %40: () = CondBranch<bb2(), bb3(%38)>(%39){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %sx0 = getelementptr i32, ptr %b, i64 0

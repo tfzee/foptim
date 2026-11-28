@@ -6,43 +6,39 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr):
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %6: i32 = Load(%2){} NUses:1
-; CHECK-NEXT:    %7: i32 = IntAdd(%5, %6){} NUses:1
-; CHECK-NEXT:    %8: i32 = Store(%0, %7){} NUses:0
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, 4:i64){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%2, 4:i64){} NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%0, 4:i64){} NUses:1
-; CHECK-NEXT:    %12: i32 = Load(%9){} NUses:1
-; CHECK-NEXT:    %13: i32 = Load(%10){} NUses:1
-; CHECK-NEXT:    %14: i32 = IntAdd(%12, %13){} NUses:1
-; CHECK-NEXT:    %15: i32 = Store(%11, %14){} NUses:0
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, 8:i64){} NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%2, 8:i64){} NUses:1
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 8:i64){} NUses:1
-; CHECK-NEXT:    %19: i32 = Load(%16){} NUses:1
-; CHECK-NEXT:    %20: i32 = Load(%17){} NUses:1
-; CHECK-NEXT:    %21: i32 = IntAdd(%19, %20){} NUses:1
-; CHECK-NEXT:    %22: i32 = Store(%18, %21){} NUses:0
-; CHECK-NEXT:    %23: ptr = PtrAdd(%1, 12:i64){} NUses:1
-; CHECK-NEXT:    %24: ptr = PtrAdd(%2, 12:i64){} NUses:1
-; CHECK-NEXT:    %25: ptr = PtrAdd(%0, 12:i64){} NUses:1
-; CHECK-NEXT:    %26: i32 = Load(%23){} NUses:1
-; CHECK-NEXT:    %27: i32 = Load(%24){} NUses:1
-; CHECK-NEXT:    %28: i32 = IntAdd(%26, %27){} NUses:1
-; CHECK-NEXT:    %29: i32 = Store(%25, %28){} NUses:0
+; CHECK-NEXT:    %3: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %4: i32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %5: i32 = IntAdd(%3, %4){} NUses:1
+; CHECK-NEXT:    %6: i32 = Store(%0, %5){} NUses:0
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 4:i64){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%2, 4:i64){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %10: i32 = Load(%7){} NUses:1
+; CHECK-NEXT:    %11: i32 = Load(%8){} NUses:1
+; CHECK-NEXT:    %12: i32 = IntAdd(%10, %11){} NUses:1
+; CHECK-NEXT:    %13: i32 = Store(%9, %12){} NUses:0
+; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 8:i64){} NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%2, 8:i64){} NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %17: i32 = Load(%14){} NUses:1
+; CHECK-NEXT:    %18: i32 = Load(%15){} NUses:1
+; CHECK-NEXT:    %19: i32 = IntAdd(%17, %18){} NUses:1
+; CHECK-NEXT:    %20: i32 = Store(%16, %19){} NUses:0
+; CHECK-NEXT:    %21: ptr = PtrAdd(%1, 12:i64){} NUses:1
+; CHECK-NEXT:    %22: ptr = PtrAdd(%2, 12:i64){} NUses:1
+; CHECK-NEXT:    %23: ptr = PtrAdd(%0, 12:i64){} NUses:1
+; CHECK-NEXT:    %24: i32 = Load(%21){} NUses:1
+; CHECK-NEXT:    %25: i32 = Load(%22){} NUses:1
+; CHECK-NEXT:    %26: i32 = IntAdd(%24, %25){} NUses:1
+; CHECK-NEXT:    %27: i32 = Store(%23, %26){} NUses:0
+; CHECK-NEXT:    %28: ptr = PtrAdd(%1, 16:i64){} NUses:1
+; CHECK-NEXT:    %29: ptr = PtrAdd(%2, 16:i64){} NUses:1
 ; CHECK-NEXT:    %30: ptr = PtrAdd(%0, 16:i64){} NUses:1
-; CHECK-NEXT:    %31: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %32: 4@i64 = PtrAdd(%4, %31){} NUses:1
-; CHECK-NEXT:    %33: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %34: 4@i64 = PtrAdd(%3, %33){} NUses:1
-; CHECK-NEXT:    %35: 4@i32 = Load(%32){} NUses:1
-; CHECK-NEXT:    %36: 4@i32 = Load(%34){} NUses:1
-; CHECK-NEXT:    %37: 4@i32 = IntAdd(%35, %36){} NUses:1
-; CHECK-NEXT:    %38: 4@i32 = Store(%30, %37){} NUses:0
-; CHECK-NEXT:    %39: () = Return(){} NUses:0
+; CHECK-NEXT:    %31: 4@i32 = Load(%28){} NUses:1
+; CHECK-NEXT:    %32: 4@i32 = Load(%29){} NUses:1
+; CHECK-NEXT:    %33: 4@i32 = IntAdd(%31, %32){} NUses:1
+; CHECK-NEXT:    %34: 4@i32 = Store(%30, %33){} NUses:0
+; CHECK-NEXT:    %35: () = Return(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop

@@ -6,17 +6,11 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = PtrAdd(%4, %5){} NUses:1
-; CHECK-NEXT:    %7: 4@i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = PtrAdd(%3, %8){} NUses:1
-; CHECK-NEXT:    %10: 4@i32 = Load(%9){} NUses:1
-; CHECK-NEXT:    %11: 4@i32 = LShR(%7, %10){} NUses:1
-; CHECK-NEXT:    %12: 4@i32 = Store(%0, %11){} NUses:0
-; CHECK-NEXT:    %13: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %4: 4@i32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %5: 4@i32 = LShR(%3, %4){} NUses:1
+; CHECK-NEXT:    %6: 4@i32 = Store(%0, %5){} NUses:0
+; CHECK-NEXT:    %7: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pb0 = getelementptr i32, ptr %b, i64 0
   %x0 = load i32, ptr %pb0

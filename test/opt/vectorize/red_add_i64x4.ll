@@ -5,12 +5,17 @@ define i64 @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: i64 = Reduce.Add(%4){} NUses:1
-; CHECK-NEXT:    %6: i64 = Return(%5){} NUses:0
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 16:i64){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 24:i64){} NUses:1
+; CHECK-NEXT:    %4: i64 = Load(%0){} NUses:1
+; CHECK-NEXT:    %5: i64 = Load(%1){} NUses:1
+; CHECK-NEXT:    %6: i64 = Load(%2){} NUses:1
+; CHECK-NEXT:    %7: i64 = Load(%3){} NUses:1
+; CHECK-NEXT:    %8: i64 = IntAdd(%4, %5){} NUses:1
+; CHECK-NEXT:    %9: i64 = IntAdd(%8, %6){} NUses:1
+; CHECK-NEXT:    %10: i64 = IntAdd(%9, %7){} NUses:1
+; CHECK-NEXT:    %11: i64 = Return(%10){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr i64, ptr %a, i64 0
   %a1 = getelementptr i64, ptr %a, i64 1

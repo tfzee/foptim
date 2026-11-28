@@ -6,43 +6,11 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 4:i64){} NUses:1
-; CHECK-NEXT:    %6: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %7: 4@i64 = PtrAdd(%4, %6){} NUses:1
-; CHECK-NEXT:    %8: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %9: 4@i64 = PtrAdd(%3, %8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, 20:i64){} NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, 20:i64){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%2, 20:i64){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%1, 24:i64){} NUses:1
-; CHECK-NEXT:    %14: ptr = PtrAdd(%2, 24:i64){} NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%0, 28:i64){} NUses:1
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, 28:i64){} NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%2, 28:i64){} NUses:1
-; CHECK-NEXT:    %18: f32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %19: f32 = Load(%2){} NUses:1
-; CHECK-NEXT:    %20: 4@f32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %21: 4@f32 = Load(%9){} NUses:1
-; CHECK-NEXT:    %22: f32 = Load(%11){} NUses:1
-; CHECK-NEXT:    %23: f32 = Load(%12){} NUses:1
-; CHECK-NEXT:    %24: f32 = Load(%13){} NUses:1
-; CHECK-NEXT:    %25: f32 = Load(%14){} NUses:1
-; CHECK-NEXT:    %26: f32 = Load(%16){} NUses:1
-; CHECK-NEXT:    %27: f32 = Load(%17){} NUses:1
-; CHECK-NEXT:    %28: f32 = FloatAdd(%18, %19){} NUses:1
-; CHECK-NEXT:    %29: 4@f32 = FloatAdd(%20, %21){} NUses:1
-; CHECK-NEXT:    %30: f32 = FloatAdd(%22, %23){} NUses:1
-; CHECK-NEXT:    %31: f32 = FloatAdd(%24, %25){} NUses:1
-; CHECK-NEXT:    %32: f32 = FloatAdd(%26, %27){} NUses:1
-; CHECK-NEXT:    %33: f32 = Store(%0, %28){} NUses:0
-; CHECK-NEXT:    %34: 4@f32 = Store(%5, %29){} NUses:0
-; CHECK-NEXT:    %35: 2@f32 = InsertElement(POISON, %30, 0:i32){} NUses:1
-; CHECK-NEXT:    %36: 2@f32 = InsertElement(%35, %31, 1:i32){} NUses:1
-; CHECK-NEXT:    %37: 2@f32 = Store(%10, %36){} NUses:0
-; CHECK-NEXT:    %38: f32 = Store(%15, %32){} NUses:0
-; CHECK-NEXT:    %39: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 8@f32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %4: 8@f32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %5: 8@f32 = FloatAdd(%3, %4){} NUses:1
+; CHECK-NEXT:    %6: 8@f32 = Store(%0, %5){} NUses:0
+; CHECK-NEXT:    %7: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr float, ptr %a, i64 0
   %b0 = getelementptr float, ptr %b, i64 0

@@ -6,79 +6,76 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr, %3{}: i64):
-; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: i1 = IntSGT(%3, 0:i64){} NUses:2
-; CHECK-NEXT:    %6: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
-; CHECK-NEXT:    %7: () = CondBranch<bb1(0:i64), bb2()>(%5){} NUses:0
-; CHECK-NEXT:  bb3(%8{}: i64):
-; CHECK-NEXT:    %9: i64 = IntMul(%8, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, %9){} NUses:1
-; CHECK-NEXT:    %11: i32 = Load(%10){} NUses:1
-; CHECK-NEXT:    %12: i32 = IntAdd(%11, 1:i32){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %9){} NUses:1
-; CHECK-NEXT:    %14: i32 = Store(%13, %12){} NUses:0
-; CHECK-NEXT:    %15: i64 = IntAdd(%8, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %16: i1 = IntSLT(%15, %3){} NUses:1
-; CHECK-NEXT:    %17: () = CondBranch<bb3(%15), bb2()>(%16){} NUses:0
+; CHECK-NEXT:    %4: i1 = IntSGT(%3, 0:i64){} NUses:2
+; CHECK-NEXT:    %5: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
+; CHECK-NEXT:    %6: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
+; CHECK-NEXT:  bb3(%7{}: i64):
+; CHECK-NEXT:    %8: i64 = IntMul(%7, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){} NUses:1
+; CHECK-NEXT:    %10: i32 = Load(%9){} NUses:1
+; CHECK-NEXT:    %11: i32 = IntAdd(%10, 1:i32){} NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %8){} NUses:1
+; CHECK-NEXT:    %13: i32 = Store(%12, %11){} NUses:0
+; CHECK-NEXT:    %14: i64 = IntAdd(%7, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %15: i1 = IntSLT(%14, %3){} NUses:1
+; CHECK-NEXT:    %16: () = CondBranch<bb3(%14), bb2()>(%15){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %18: 4@i64 = Load(G(const_legalizeVec_f_3)){} NUses:1
-; CHECK-NEXT:    %19: 4@i64 = PtrAdd(%4, %18){} NUses:1
-; CHECK-NEXT:    %20: 4@i32 = Load(%19){} NUses:1
-; CHECK-NEXT:    %21: 4@i32 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %22: 4@i32 = IntAdd(%20, %21){} NUses:1
-; CHECK-NEXT:    %23: 4@i32 = Store(%2, %22){} NUses:0
-; CHECK-NEXT:    %24: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
-; CHECK-NEXT:    %25: () = CondBranch<bb4(0:i64), bb5()>(%5){} NUses:0
-; CHECK-NEXT:  bb6(%26{}: i64):
-; CHECK-NEXT:    %27: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %28: ptr = PtrAdd(%2, %27){} NUses:1
-; CHECK-NEXT:    %29: i32 = Load(%28){} NUses:1
-; CHECK-NEXT:    %30: i32 = IntMul(%29, 3:i32){} NUses:1
-; CHECK-NEXT:    %31: ptr = PtrAdd(%0, %27){} NUses:1
-; CHECK-NEXT:    %32: i32 = Store(%31, %30){} NUses:0
-; CHECK-NEXT:    %33: i64 = IntAdd(%26, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %34: i1 = IntSLT(%33, %3){} NUses:1
-; CHECK-NEXT:    %35: () = CondBranch<bb6(%33), bb5()>(%34){} NUses:0
+; CHECK-NEXT:    %17: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %18: 4@i32 = Load(G(const_legalizeVec_f_2)){} NUses:1
+; CHECK-NEXT:    %19: 4@i32 = IntAdd(%17, %18){} NUses:1
+; CHECK-NEXT:    %20: 4@i32 = Store(%2, %19){} NUses:0
+; CHECK-NEXT:    %21: i64 = INTRIN:SMax(%3, 1:i64){} NUses:2
+; CHECK-NEXT:    %22: () = CondBranch<bb4(0:i64), bb5()>(%4){} NUses:0
+; CHECK-NEXT:  bb6(%23{}: i64):
+; CHECK-NEXT:    %24: i64 = IntMul(%23, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %25: ptr = PtrAdd(%2, %24){} NUses:1
+; CHECK-NEXT:    %26: i32 = Load(%25){} NUses:1
+; CHECK-NEXT:    %27: i32 = IntMul(%26, 3:i32){} NUses:1
+; CHECK-NEXT:    %28: ptr = PtrAdd(%0, %24){} NUses:1
+; CHECK-NEXT:    %29: i32 = Store(%28, %27){} NUses:0
+; CHECK-NEXT:    %30: i64 = IntAdd(%23, 1:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %31: i1 = IntSLT(%30, %3){} NUses:1
+; CHECK-NEXT:    %32: () = CondBranch<bb6(%30), bb5()>(%31){} NUses:0
 ; CHECK-NEXT:  bb5():
-; CHECK-NEXT:    %36: () = Return(){} NUses:0
-; CHECK-NEXT:  bb1(%37{}: i64):
-; CHECK-NEXT:    %38: i64 = And(%6, -8:i64){} NUses:3
-; CHECK-NEXT:    %39: i64 = IntAdd(%38, %37){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %40: i1 = IntEQ(%38, 0:i64){} NUses:1
-; CHECK-NEXT:    %41: 8@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %42: () = CondBranch<bb3(%37), bb7(%37)>(%40){} NUses:0
-; CHECK-NEXT:  bb7(%43{}: i64):
-; CHECK-NEXT:    %44: i64 = IntMul(%43, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %45: ptr = PtrAdd(%1, %44){} NUses:1
-; CHECK-NEXT:    %46: 8@i32 = Load(%45){} NUses:1
-; CHECK-NEXT:    %47: 8@i32 = IntAdd(%46, %41){} NUses:1
-; CHECK-NEXT:    %48: ptr = PtrAdd(%0, %44){} NUses:1
-; CHECK-NEXT:    %49: 8@i32 = Store(%48, %47){} NUses:0
-; CHECK-NEXT:    %50: i64 = IntAdd(%43, 8:i64){} NUses:3
-; CHECK-NEXT:    %51: i1 = IntNE(%50, %39){} NUses:1
-; CHECK-NEXT:    %52: () = CondBranch<bb7(%50), bb8(%50)>(%51){} NUses:0
-; CHECK-NEXT:  bb8(%53{}: i64):
-; CHECK-NEXT:    %54: i1 = IntEQ(%38, %6){} NUses:1
-; CHECK-NEXT:    %55: () = CondBranch<bb2(), bb3(%53)>(%54){} NUses:0
-; CHECK-NEXT:  bb4(%56{}: i64):
-; CHECK-NEXT:    %57: i64 = And(%24, -8:i64){} NUses:3
-; CHECK-NEXT:    %58: i64 = IntAdd(%57, %56){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %59: i1 = IntEQ(%57, 0:i64){} NUses:1
-; CHECK-NEXT:    %60: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %61: () = CondBranch<bb6(%56), bb9(%56)>(%59){} NUses:0
-; CHECK-NEXT:  bb9(%62{}: i64):
-; CHECK-NEXT:    %63: i64 = IntMul(%62, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %64: ptr = PtrAdd(%2, %63){} NUses:1
-; CHECK-NEXT:    %65: 8@i32 = Load(%64){} NUses:1
-; CHECK-NEXT:    %66: 8@i32 = IntMul(%65, %60){} NUses:1
-; CHECK-NEXT:    %67: ptr = PtrAdd(%0, %63){} NUses:1
-; CHECK-NEXT:    %68: 8@i32 = Store(%67, %66){} NUses:0
-; CHECK-NEXT:    %69: i64 = IntAdd(%62, 8:i64){} NUses:3
-; CHECK-NEXT:    %70: i1 = IntNE(%69, %58){} NUses:1
-; CHECK-NEXT:    %71: () = CondBranch<bb9(%69), bb10(%69)>(%70){} NUses:0
-; CHECK-NEXT:  bb10(%72{}: i64):
-; CHECK-NEXT:    %73: i1 = IntEQ(%57, %24){} NUses:1
-; CHECK-NEXT:    %74: () = CondBranch<bb5(), bb6(%72)>(%73){} NUses:0
+; CHECK-NEXT:    %33: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%34{}: i64):
+; CHECK-NEXT:    %35: i64 = And(%5, -8:i64){} NUses:3
+; CHECK-NEXT:    %36: i64 = IntAdd(%35, %34){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %37: i1 = IntEQ(%35, 0:i64){} NUses:1
+; CHECK-NEXT:    %38: 8@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
+; CHECK-NEXT:    %39: () = CondBranch<bb3(%34), bb7(%34)>(%37){} NUses:0
+; CHECK-NEXT:  bb7(%40{}: i64):
+; CHECK-NEXT:    %41: i64 = IntMul(%40, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %42: ptr = PtrAdd(%1, %41){} NUses:1
+; CHECK-NEXT:    %43: 8@i32 = Load(%42){} NUses:1
+; CHECK-NEXT:    %44: 8@i32 = IntAdd(%43, %38){} NUses:1
+; CHECK-NEXT:    %45: ptr = PtrAdd(%0, %41){} NUses:1
+; CHECK-NEXT:    %46: 8@i32 = Store(%45, %44){} NUses:0
+; CHECK-NEXT:    %47: i64 = IntAdd(%40, 8:i64){} NUses:3
+; CHECK-NEXT:    %48: i1 = IntNE(%47, %36){} NUses:1
+; CHECK-NEXT:    %49: () = CondBranch<bb7(%47), bb8(%47)>(%48){} NUses:0
+; CHECK-NEXT:  bb8(%50{}: i64):
+; CHECK-NEXT:    %51: i1 = IntEQ(%35, %5){} NUses:1
+; CHECK-NEXT:    %52: () = CondBranch<bb2(), bb3(%50)>(%51){} NUses:0
+; CHECK-NEXT:  bb4(%53{}: i64):
+; CHECK-NEXT:    %54: i64 = And(%21, -8:i64){} NUses:3
+; CHECK-NEXT:    %55: i64 = IntAdd(%54, %53){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %56: i1 = IntEQ(%54, 0:i64){} NUses:1
+; CHECK-NEXT:    %57: 8@i32 = Load(G(const_legalizeVec_f_0)){} NUses:1
+; CHECK-NEXT:    %58: () = CondBranch<bb6(%53), bb9(%53)>(%56){} NUses:0
+; CHECK-NEXT:  bb9(%59{}: i64):
+; CHECK-NEXT:    %60: i64 = IntMul(%59, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %61: ptr = PtrAdd(%2, %60){} NUses:1
+; CHECK-NEXT:    %62: 8@i32 = Load(%61){} NUses:1
+; CHECK-NEXT:    %63: 8@i32 = IntMul(%62, %57){} NUses:1
+; CHECK-NEXT:    %64: ptr = PtrAdd(%0, %60){} NUses:1
+; CHECK-NEXT:    %65: 8@i32 = Store(%64, %63){} NUses:0
+; CHECK-NEXT:    %66: i64 = IntAdd(%59, 8:i64){} NUses:3
+; CHECK-NEXT:    %67: i1 = IntNE(%66, %55){} NUses:1
+; CHECK-NEXT:    %68: () = CondBranch<bb9(%66), bb10(%66)>(%67){} NUses:0
+; CHECK-NEXT:  bb10(%69{}: i64):
+; CHECK-NEXT:    %70: i1 = IntEQ(%54, %21){} NUses:1
+; CHECK-NEXT:    %71: () = CondBranch<bb5(), bb6(%69)>(%70){} NUses:0
 ; CHECK-NEXT:}
 entry:
   %g = icmp sgt i64 %n, 0

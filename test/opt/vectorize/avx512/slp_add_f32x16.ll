@@ -8,28 +8,18 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: 8@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %4: 8@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 8@i64 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %6: 8@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %7: 8@i64 = Load(G(const_legalizeVec_f_3)){} NUses:1
-; CHECK-NEXT:    %8: 8@i64 = PtrAdd(%6, %7){} NUses:1
-; CHECK-NEXT:    %9: 8@f32 = Load(%8){} NUses:1
-; CHECK-NEXT:    %10: 8@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
-; CHECK-NEXT:    %11: 8@i64 = PtrAdd(%5, %10){} NUses:1
-; CHECK-NEXT:    %12: 8@f32 = Load(%11){} NUses:1
-; CHECK-NEXT:    %13: 8@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
-; CHECK-NEXT:    %14: 8@i64 = PtrAdd(%4, %13){} NUses:1
-; CHECK-NEXT:    %15: 8@f32 = Load(%14){} NUses:1
-; CHECK-NEXT:    %16: 8@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %17: 8@i64 = PtrAdd(%3, %16){} NUses:1
-; CHECK-NEXT:    %18: 8@f32 = Load(%17){} NUses:1
-; CHECK-NEXT:    %19: 8@f32 = FloatAdd(%9, %12){} NUses:1
-; CHECK-NEXT:    %20: 8@f32 = FloatAdd(%15, %18){} NUses:1
-; CHECK-NEXT:    %21: 8@f32 = Store(%0, %19){} NUses:0
-; CHECK-NEXT:    %22: ptr = PtrAdd(%0, 32:i64){} NUses:1
-; CHECK-NEXT:    %23: 8@f32 = Store(%22, %20){} NUses:0
-; CHECK-NEXT:    %24: () = Return(){} NUses:0
+; CHECK-NEXT:    %3: 8@f32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %4: 8@f32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 32:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%2, 32:i64){} NUses:1
+; CHECK-NEXT:    %7: 8@f32 = Load(%5){} NUses:1
+; CHECK-NEXT:    %8: 8@f32 = Load(%6){} NUses:1
+; CHECK-NEXT:    %9: 8@f32 = FloatAdd(%3, %4){} NUses:1
+; CHECK-NEXT:    %10: 8@f32 = FloatAdd(%7, %8){} NUses:1
+; CHECK-NEXT:    %11: 8@f32 = Store(%0, %9){} NUses:0
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 32:i64){} NUses:1
+; CHECK-NEXT:    %13: 8@f32 = Store(%12, %10){} NUses:0
+; CHECK-NEXT:    %14: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pb0 = getelementptr float, ptr %b, i64 0
   %x0 = load float, ptr %pb0

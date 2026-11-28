@@ -5,24 +5,29 @@ define i32 @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){} NUses:1
 ; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){} NUses:1
 ; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){} NUses:1
-; CHECK-NEXT:    %8: 4@i32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %9: i32 = Load(%4){} NUses:1
-; CHECK-NEXT:    %10: i32 = Load(%5){} NUses:1
-; CHECK-NEXT:    %11: i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %12: i32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %13: i32 = Reduce.Or(%8){} NUses:1
-; CHECK-NEXT:    %14: i32 = Or(%13, %9){} NUses:1
-; CHECK-NEXT:    %15: i32 = Or(%14, %10){} NUses:1
-; CHECK-NEXT:    %16: i32 = Or(%15, %11){} NUses:1
-; CHECK-NEXT:    %17: i32 = Or(%16, %12){} NUses:1
-; CHECK-NEXT:    %18: i32 = Return(%17){} NUses:0
+; CHECK-NEXT:    %8: i32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %9: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %10: i32 = Load(%2){} NUses:1
+; CHECK-NEXT:    %11: i32 = Load(%3){} NUses:1
+; CHECK-NEXT:    %12: i32 = Load(%4){} NUses:1
+; CHECK-NEXT:    %13: i32 = Load(%5){} NUses:1
+; CHECK-NEXT:    %14: i32 = Load(%6){} NUses:1
+; CHECK-NEXT:    %15: i32 = Load(%7){} NUses:1
+; CHECK-NEXT:    %16: i32 = Or(%8, %9){} NUses:1
+; CHECK-NEXT:    %17: i32 = Or(%16, %10){} NUses:1
+; CHECK-NEXT:    %18: i32 = Or(%17, %11){} NUses:1
+; CHECK-NEXT:    %19: i32 = Or(%18, %12){} NUses:1
+; CHECK-NEXT:    %20: i32 = Or(%19, %13){} NUses:1
+; CHECK-NEXT:    %21: i32 = Or(%20, %14){} NUses:1
+; CHECK-NEXT:    %22: i32 = Or(%21, %15){} NUses:1
+; CHECK-NEXT:    %23: i32 = Return(%22){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr i32, ptr %a, i64 0
   %a1 = getelementptr i32, ptr %a, i64 1

@@ -6,13 +6,10 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %3: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
-; CHECK-NEXT:    %4: 4@i64 = PtrAdd(%2, %3){} NUses:1
-; CHECK-NEXT:    %5: 4@i32 = Load(%4){} NUses:1
-; CHECK-NEXT:    %6: 4@i32 = Not(%5){} NUses:1
-; CHECK-NEXT:    %7: 4@i32 = Store(%0, %6){} NUses:0
-; CHECK-NEXT:    %8: () = Return(){} NUses:0
+; CHECK-NEXT:    %2: 4@i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %3: 4@i32 = Not(%2){} NUses:1
+; CHECK-NEXT:    %4: 4@i32 = Store(%0, %3){} NUses:0
+; CHECK-NEXT:    %5: () = Return(){} NUses:0
 ; CHECK-NEXT:}
   %pb0 = getelementptr i32, ptr %b, i64 0
   %x0 = load i32, ptr %pb0
